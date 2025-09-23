@@ -1,0 +1,47 @@
+# HarborAI Project Dependencies
+
+# Core dependencies
+openai>=1.108.2  # 保持指定版本
+requests>=2.32.3  # 更新到最新稳定版
+aiohttp>=3.9.5  # 更新到最新稳定版
+pydantic>=2.10.0  # 更新到最新稳定版
+pydantic-settings>=2.6.0  # 更新到最新稳定版
+
+# Structured output
+agently>=4.0.3  # 保持指定版本
+
+# Async and concurrency
+asyncio-throttle>=1.0.2  # 更新到最新稳定版
+
+# Logging and monitoring
+structlog>=24.4.0  # 更新到最新稳定版
+psutil>=6.1.0  # 更新到最新稳定版
+
+# Configuration management
+python-dotenv>=1.0.1  # 更新到最新稳定版
+pyyaml>=6.0.2  # 更新到最新稳定版
+
+# Database
+asyncpg>=0.30.0  # 更新到最新稳定版
+sqlalchemy>=2.0.36  # 更新到最新稳定版
+alembic>=1.14.0  # 更新到最新稳定版
+
+# Retry and fault tolerance
+tenacity>=9.0.0  # 更新到最新稳定版
+
+# CLI tools
+click>=8.1.7  # 更新到最新稳定版
+rich>=13.9.4  # 更新到最新稳定版
+
+# Development tools
+mypy>=1.13.0  # 更新到最新稳定版
+pytest>=8.3.4  # 更新到最新稳定版
+pytest-asyncio>=0.25.0  # 更新到最新稳定版
+pytest-cov>=6.0.0  # 更新到最新稳定版
+black>=24.10.0  # 更新到最新稳定版
+isort>=5.13.2  # 更新到最新稳定版
+flake8>=7.1.1  # 更新到最新稳定版
+
+# Type checking
+types-requests>=2.32.0  # 更新到最新稳定版
+types-PyYAML>=6.0.12  # 更新到最新稳定版
