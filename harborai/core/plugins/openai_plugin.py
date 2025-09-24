@@ -76,8 +76,8 @@ class OpenAIPlugin(BaseLLMPlugin):
                 context_window=128000
             ),
             ModelInfo(
-                id="gpt-3.5-turbo",
-                name="gpt-3.5-turbo",
+                id="gpt-5",
+                name="gpt-5",
                 provider="openai",
                 supports_thinking=False,
                 supports_structured_output=True,
@@ -267,7 +267,7 @@ class OpenAIPlugin(BaseLLMPlugin):
             if kwargs.get("stream", False):
                 # 流式响应
                 stream = self.client.chat.completions.create(**request_params)
-                return self._handle_stream_response(stream)
+                return self._handle_stream_response(stream, **kwargs)
             else:
                 # 非流式响应
                 response = self.client.chat.completions.create(**request_params)
@@ -276,7 +276,8 @@ class OpenAIPlugin(BaseLLMPlugin):
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 计算耗时并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -316,7 +317,7 @@ class OpenAIPlugin(BaseLLMPlugin):
             if kwargs.get("stream", False):
                 # 流式响应
                 stream = await self.async_client.chat.completions.create(**request_params)
-                return self._handle_async_stream_response(stream)
+                return self._handle_async_stream_response(stream, **kwargs)
             else:
                 # 非流式响应
                 response = await self.async_client.chat.completions.create(**request_params)
@@ -325,7 +326,8 @@ class OpenAIPlugin(BaseLLMPlugin):
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 计算耗时并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -342,15 +344,130 @@ class OpenAIPlugin(BaseLLMPlugin):
             )
             raise self._handle_openai_error(e)
     
-    def _handle_stream_response(self, stream) -> Generator[ChatCompletionChunk, None, None]:
+    def _handle_stream_response(self, stream, **kwargs) -> Generator[ChatCompletionChunk, None, None]:
         """处理流式响应"""
-        for chunk in stream:
-            yield self._convert_chunk_to_harbor_format(chunk)
+        response_format = kwargs.get('response_format')
+        structured_provider = kwargs.get('structured_provider', 'agently')
+        
+        if response_format and response_format.get("type") == "json_schema":
+            # 流式结构化输出
+            return self._handle_streaming_structured_output(stream, response_format, structured_provider)
+        else:
+            # 普通流式输出
+            for chunk in stream:
+                yield self._convert_chunk_to_harbor_format(chunk)
     
-    async def _handle_async_stream_response(self, stream) -> AsyncGenerator[ChatCompletionChunk, None]:
+    async def _handle_async_stream_response(self, stream, **kwargs) -> AsyncGenerator[ChatCompletionChunk, None]:
         """处理异步流式响应"""
-        async for chunk in stream:
-            yield self._convert_chunk_to_harbor_format(chunk)
+        response_format = kwargs.get('response_format')
+        structured_provider = kwargs.get('structured_provider', 'agently')
+        
+        if response_format and response_format.get("type") == "json_schema":
+            # 异步流式结构化输出
+            async for chunk in self._handle_async_streaming_structured_output(stream, response_format, structured_provider):
+                yield chunk
+        else:
+            # 普通异步流式输出
+            async for chunk in stream:
+                yield self._convert_chunk_to_harbor_format(chunk)
+    
+    def _handle_streaming_structured_output(self, stream, response_format: Dict[str, Any], structured_provider: str) -> Generator[ChatCompletionChunk, None, None]:
+        """处理流式结构化输出"""
+        try:
+            from ..api.structured import default_handler
+            
+            # 创建内容流生成器
+            def content_stream():
+                for chunk in stream:
+                    harbor_chunk = self._convert_chunk_to_harbor_format(chunk)
+                    if harbor_chunk.choices and harbor_chunk.choices[0].delta and harbor_chunk.choices[0].delta.content:
+                        yield harbor_chunk.choices[0].delta.content
+            
+            # 使用结构化输出处理器解析流式内容
+            schema = response_format.get('json_schema', {})
+            use_agently = structured_provider == 'agently'
+            parsed_stream = default_handler.parse_streaming_response(
+                content_stream(), 
+                schema, 
+                use_agently, 
+                self.api_key, 
+                self.base_url, 
+                self.model
+            )
+            
+            # 将解析结果转换为ChatCompletionChunk格式
+            for parsed_data in parsed_stream:
+                yield ChatCompletionChunk(
+                    id=f"chatcmpl-{int(time.time())}",
+                    object="chat.completion.chunk",
+                    created=int(time.time()),
+                    model="structured-output",
+                    choices=[
+                        ChatChoice(
+                            index=0,
+                            delta=ChatMessage(
+                                role="assistant",
+                                content=str(parsed_data)
+                            ),
+                            finish_reason=None
+                        )
+                    ]
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Streaming structured output failed: {e}")
+            # 回退到普通流式输出
+            for chunk in stream:
+                yield self._convert_chunk_to_harbor_format(chunk)
+    
+    async def _handle_async_streaming_structured_output(self, stream, response_format: Dict[str, Any], structured_provider: str) -> AsyncGenerator[ChatCompletionChunk, None]:
+        """处理异步流式结构化输出"""
+        try:
+            from ..api.structured import default_handler
+            
+            # 创建异步内容流生成器
+            async def async_content_stream():
+                async for chunk in stream:
+                    harbor_chunk = self._convert_chunk_to_harbor_format(chunk)
+                    if harbor_chunk.choices and harbor_chunk.choices[0].delta and harbor_chunk.choices[0].delta.content:
+                        yield harbor_chunk.choices[0].delta.content
+            
+            # 使用结构化输出处理器解析异步流式内容
+            schema = response_format.get('json_schema', {})
+            use_agently = structured_provider == 'agently'
+            parsed_stream = default_handler.parse_streaming_response(
+                async_content_stream(), 
+                schema, 
+                use_agently, 
+                self.api_key, 
+                self.base_url, 
+                self.model
+            )
+            
+            # 将解析结果转换为ChatCompletionChunk格式
+            async for parsed_data in parsed_stream:
+                yield ChatCompletionChunk(
+                    id=f"chatcmpl-{int(time.time())}",
+                    object="chat.completion.chunk",
+                    created=int(time.time()),
+                    model="structured-output",
+                    choices=[
+                        ChatChoice(
+                            index=0,
+                            delta=ChatMessage(
+                                role="assistant",
+                                content=str(parsed_data)
+                            ),
+                            finish_reason=None
+                        )
+                    ]
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Async streaming structured output failed: {e}")
+            # 回退到普通异步流式输出
+            async for chunk in stream:
+                yield self._convert_chunk_to_harbor_format(chunk)
     
     def _convert_chunk_to_harbor_format(self, chunk: OpenAIChatCompletionChunk) -> ChatCompletionChunk:
         """转换流式响应块为 Harbor 格式"""

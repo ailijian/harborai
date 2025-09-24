@@ -15,19 +15,22 @@ logger = get_logger(__name__)
 class DoubaoPlugin(BaseLLMPlugin):
     """豆包插件实现。"""
     
-    def __init__(self, api_key: str, base_url: Optional[str] = None, **kwargs):
+    def __init__(self, name: str = "doubao", **kwargs):
         """初始化豆包插件。
         
         Args:
-            api_key: 豆包API密钥
-            base_url: API基础URL，默认为豆包官方API
-            **kwargs: 其他配置参数
+            name: 插件名称
+            **kwargs: 配置参数，包括api_key, base_url等
         """
-        super().__init__()
-        self.api_key = api_key
-        self.base_url = base_url or "https://ark.cn-beijing.volces.com"
+        super().__init__(name, **kwargs)
+        self.api_key = kwargs.get("api_key")
+        self.base_url = kwargs.get("base_url", "https://ark.cn-beijing.volces.com/api/v3")
         self.timeout = kwargs.get("timeout", 60)
         self.max_retries = kwargs.get("max_retries", 3)
+        self.config = kwargs
+        
+        if not self.api_key:
+            raise PluginError("doubao", "API key is required")
         
         # 初始化HTTP客户端
         self._client = None
@@ -37,21 +40,21 @@ class DoubaoPlugin(BaseLLMPlugin):
         self._supported_models = [
             ModelInfo(
                 id="doubao-1-5-pro-32k-character-250715",
-                name="doubao-1-5-pro-32k",
+                name="doubao-1-5-pro-32k-character-250715",
                 provider="doubao",
-                max_tokens=4096,
+                max_tokens=32768,
                 supports_streaming=True,
                 supports_structured_output=False,
                 supports_thinking=False
             ),
             ModelInfo(
                 id="doubao-seed-1-6-250615",
-                name="doubao-1-6",
+                name="doubao-seed-1-6-250615",
                 provider="doubao",
                 max_tokens=32768,
                 supports_streaming=True,
                 supports_structured_output=False,
-                supports_thinking=False
+                supports_thinking=True  # 1.6版本支持思考
             )
         ]
     
@@ -74,7 +77,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                     }
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use Doubao plugin.")
+                raise PluginError("doubao", "httpx not installed. Please install it to use Doubao plugin.")
         return self._client
     
     def _get_async_client(self):
@@ -91,7 +94,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                     }
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use Doubao plugin.")
+                raise PluginError("doubao", "httpx not installed. Please install it to use Doubao plugin.")
         return self._async_client
     
     def _validate_request(self, model: str, messages: List[ChatMessage], **kwargs) -> None:
@@ -118,7 +121,21 @@ class DoubaoPlugin(BaseLLMPlugin):
             raise ValidationError("max_tokens must be positive")
     
     def _extract_thinking_content(self, response: Any) -> Optional[str]:
-        """提取思考内容（豆包当前不支持思考模型）。"""
+        """提取思考内容（豆包1.6版本支持思考模型）。"""
+        if isinstance(response, dict):
+            # 检查是否有思考内容字段
+            if 'reasoning' in response:
+                return response['reasoning']
+            if 'thinking' in response:
+                return response['thinking']
+            # 检查choices中的思考内容
+            choices = response.get('choices', [])
+            if choices and len(choices) > 0:
+                message = choices[0].get('message', {})
+                if 'reasoning_content' in message:
+                    return message['reasoning_content']
+                if 'thinking_content' in message:
+                    return message['thinking_content']
         return None
     
     def _prepare_doubao_request(self, model: str, messages: List[ChatMessage], **kwargs) -> Dict[str, Any]:
@@ -168,12 +185,15 @@ class DoubaoPlugin(BaseLLMPlugin):
         for choice_data in response_data.get("choices", []):
             message_data = choice_data.get("message", {})
             
+            # 提取思考内容
+            reasoning_content = self._extract_thinking_content(response_data)
+            
             message = ChatMessage(
                 role=message_data.get("role", "assistant"),
                 content=message_data.get("content"),
                 name=message_data.get("name"),
                 tool_calls=message_data.get("tool_calls"),
-                reasoning_content=None  # 豆包不支持思考内容
+                reasoning_content=reasoning_content
             )
             
             choice = ChatChoice(
@@ -247,7 +267,7 @@ class DoubaoPlugin(BaseLLMPlugin):
             
             # 发送请求
             client = self._get_client()
-            response = client.post("/api/v3/chat/completions", json=request_data)
+            response = client.post("/chat/completions", json=request_data)
             response.raise_for_status()
             
             if stream:
@@ -260,7 +280,8 @@ class DoubaoPlugin(BaseLLMPlugin):
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -271,7 +292,7 @@ class DoubaoPlugin(BaseLLMPlugin):
         except Exception as e:
             logger.error(f"Doubao API error: {e}")
             error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, success=False)
+            self.log_response(error_response, 0)
             return error_response
     
     async def chat_completion_async(self, 
@@ -292,7 +313,7 @@ class DoubaoPlugin(BaseLLMPlugin):
             
             # 发送请求
             client = self._get_async_client()
-            response = await client.post("/api/v3/chat/completions", json=request_data)
+            response = await client.post("/chat/completions", json=request_data)
             response.raise_for_status()
             
             if stream:
@@ -305,7 +326,8 @@ class DoubaoPlugin(BaseLLMPlugin):
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -316,7 +338,7 @@ class DoubaoPlugin(BaseLLMPlugin):
         except Exception as e:
             logger.error(f"Doubao API error: {e}")
             error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, success=False)
+            self.log_response(error_response, 0)
             return error_response
     
     def _handle_stream_response(self, response, model: str) -> Generator[ChatCompletionChunk, None, None]:

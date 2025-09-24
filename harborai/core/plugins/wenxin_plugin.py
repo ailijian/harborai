@@ -15,25 +15,25 @@ logger = get_logger(__name__)
 class WenxinPlugin(BaseLLMPlugin):
     """文心一言插件实现。"""
     
-    def __init__(self, api_key: str, secret_key: str, base_url: Optional[str] = None, **kwargs):
+    def __init__(self, name: str, api_key: Optional[str] = None, base_url: Optional[str] = None, **kwargs):
         """初始化文心一言插件。
         
         Args:
+            name: 插件名称
             api_key: 百度API Key
-            secret_key: 百度Secret Key
             base_url: API基础URL，默认为百度官方API
             **kwargs: 其他配置参数
         """
-        super().__init__()
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.base_url = base_url or "https://aip.baidubce.com"
+        super().__init__(name, **kwargs)
+        
+        # 从kwargs中获取api_key（如果没有直接传递）
+        self.api_key = api_key or kwargs.get('api_key')
+        
+        # 统一使用OpenAI标准调用方式
+        self.base_url = base_url or "https://qianfan.baidubce.com/v2"
+            
         self.timeout = kwargs.get("timeout", 60)
         self.max_retries = kwargs.get("max_retries", 3)
-        
-        # 访问令牌缓存
-        self._access_token = None
-        self._token_expires_at = 0
         
         # 初始化HTTP客户端
         self._client = None
@@ -42,58 +42,32 @@ class WenxinPlugin(BaseLLMPlugin):
         # 支持的模型列表
         self._supported_models = [
             ModelInfo(
-                id="ernie-bot",
-                name="文心一言",
-                provider="wenxin",
-                max_tokens=2048,
-                supports_streaming=True,
-                supports_structured_output=False,
-                supports_thinking=False
-            ),
-            ModelInfo(
-                id="ernie-bot-turbo",
-                name="文心一言 Turbo",
-                provider="wenxin",
-                max_tokens=2048,
-                supports_streaming=True,
-                supports_structured_output=False,
-                supports_thinking=False
-            ),
-            ModelInfo(
-                id="ernie-bot-4",
-                name="文心一言 4.0",
-                provider="wenxin",
-                max_tokens=4096,
-                supports_streaming=True,
-                supports_structured_output=False,
-                supports_thinking=False
-            ),
-            ModelInfo(
                 id="ernie-3.5-8k",
-                name="ERNIE 3.5 8K",
+                name="文心一言3.5",
                 provider="wenxin",
-                max_tokens=8192,
+                max_tokens=2048,
                 supports_streaming=True,
                 supports_structured_output=False,
                 supports_thinking=False
             ),
             ModelInfo(
-                id="ernie-3.5-128k",
-                name="ERNIE 3.5 128K",
+                id="ernie-4.0-turbo-8k",
+                name="文心一言 4.0 Turbo",
                 provider="wenxin",
-                max_tokens=131072,
+                max_tokens=2048,
                 supports_streaming=True,
                 supports_structured_output=False,
                 supports_thinking=False
             ),
+            # 保持向后兼容性
             ModelInfo(
-                id="ernie-lite-8k",
-                name="ERNIE Lite 8K",
+                id="ernie-x1-turbo-32k",
+                name="文心一言 x1 turbo 思考模型 (别名)",
                 provider="wenxin",
-                max_tokens=8192,
+                max_tokens=32768,
                 supports_streaming=True,
                 supports_structured_output=False,
-                supports_thinking=False
+                supports_thinking=True
             )
         ]
     
@@ -102,14 +76,30 @@ class WenxinPlugin(BaseLLMPlugin):
         """获取支持的模型列表。"""
         return self._supported_models
     
+    def is_thinking_model(self, model: str) -> bool:
+        """判断是否为思考模型。"""
+        # 根据_supported_models中的supports_thinking属性判断
+        for model_info in self._supported_models:
+            if model_info.id == model:
+                return model_info.supports_thinking
+        return False
+    
     def _get_client(self):
         """获取同步HTTP客户端。"""
         if self._client is None:
             try:
                 import httpx
+                # 百度千帆v2 API的API Key格式为 bce-v3/ALTAK-***/***
+                # 直接使用Bearer + API Key的格式
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
                 self._client = httpx.Client(
                     base_url=self.base_url,
-                    timeout=self.timeout
+                    timeout=self.timeout,
+                    headers=headers
                 )
             except ImportError:
                 raise PluginError("httpx not installed. Please install it to use Wenxin plugin.")
@@ -120,65 +110,23 @@ class WenxinPlugin(BaseLLMPlugin):
         if self._async_client is None:
             try:
                 import httpx
+                # 百度千帆v2 API的API Key格式为 bce-v3/ALTAK-***/***
+                # 直接使用Bearer + API Key的格式
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
                 self._async_client = httpx.AsyncClient(
                     base_url=self.base_url,
-                    timeout=self.timeout
+                    timeout=self.timeout,
+                    headers=headers
                 )
             except ImportError:
                 raise PluginError("httpx not installed. Please install it to use Wenxin plugin.")
         return self._async_client
     
-    def _get_access_token(self) -> str:
-        """获取访问令牌。"""
-        import time
-        
-        # 检查令牌是否过期
-        if self._access_token and time.time() < self._token_expires_at:
-            return self._access_token
-        
-        # 获取新令牌
-        client = self._get_client()
-        response = client.post(
-            "/oauth/2.0/token",
-            params={
-                "grant_type": "client_credentials",
-                "client_id": self.api_key,
-                "client_secret": self.secret_key
-            }
-        )
-        response.raise_for_status()
-        
-        token_data = response.json()
-        self._access_token = token_data["access_token"]
-        self._token_expires_at = time.time() + token_data.get("expires_in", 3600) - 60  # 提前1分钟过期
-        
-        return self._access_token
-    
-    async def _get_access_token_async(self) -> str:
-        """异步获取访问令牌。"""
-        import time
-        
-        # 检查令牌是否过期
-        if self._access_token and time.time() < self._token_expires_at:
-            return self._access_token
-        
-        # 获取新令牌
-        client = self._get_async_client()
-        response = await client.post(
-            "/oauth/2.0/token",
-            params={
-                "grant_type": "client_credentials",
-                "client_id": self.api_key,
-                "client_secret": self.secret_key
-            }
-        )
-        response.raise_for_status()
-        
-        token_data = response.json()
-        self._access_token = token_data["access_token"]
-        self._token_expires_at = time.time() + token_data.get("expires_in", 3600) - 60  # 提前1分钟过期
-        
-        return self._access_token
+
     
     def _validate_request(self, model: str, messages: List[ChatMessage], **kwargs) -> None:
         """验证请求参数。"""
@@ -191,8 +139,10 @@ class WenxinPlugin(BaseLLMPlugin):
             raise ValidationError("Messages cannot be empty")
         
         # 检查API密钥
-        if not self.api_key or not self.secret_key:
-            raise ValidationError("Wenxin API key and secret key are required")
+        if not self.api_key:
+            raise ValidationError("Wenxin API key is required")
+        
+        # 移除传统OAuth2.0认证方式，统一使用OpenAI标准调用方式
         
         # 检查参数范围
         temperature = kwargs.get("temperature")
@@ -204,37 +154,75 @@ class WenxinPlugin(BaseLLMPlugin):
             raise ValidationError("top_p must be between 0.01 and 1.0")
     
     def _extract_thinking_content(self, response: Any) -> Optional[str]:
-        """提取思考内容（文心一言当前不支持思考模型）。"""
+        """提取思考内容，根据TDD文档定义，直接从API响应中获取reasoning_content字段。"""
+        if isinstance(response, dict):
+            # 根据TDD文档，思考模型会在响应中直接提供reasoning_content字段
+            if 'reasoning_content' in response and response['reasoning_content']:
+                return str(response['reasoning_content'])
+            
+            # 检查嵌套结构中的reasoning_content
+            if 'result' in response and isinstance(response['result'], dict):
+                if 'reasoning_content' in response['result'] and response['result']['reasoning_content']:
+                    return str(response['result']['reasoning_content'])
+            
+            # 检查choices结构中的reasoning_content（OpenAI格式）
+            if 'choices' in response and response['choices']:
+                choice = response['choices'][0]
+                if isinstance(choice, dict) and 'message' in choice:
+                    message = choice['message']
+                    if isinstance(message, dict) and 'reasoning_content' in message:
+                        return str(message['reasoning_content'])
+        
         return None
     
     def _get_model_endpoint(self, model: str) -> str:
         """获取模型对应的API端点。"""
-        model_endpoints = {
-            "ernie-bot": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions",
-            "ernie-bot-turbo": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/eb-instant",
-            "ernie-bot-4": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro",
-            "ernie-3.5-8k": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-3.5-8k",
-            "ernie-3.5-128k": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-3.5-128k",
-            "ernie-lite-8k": "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/ernie-lite-8k"
-        }
-        return model_endpoints.get(model, "/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions")
+        # 统一使用OpenAI标准调用方式的端点
+        return "/chat/completions"
     
     def _prepare_wenxin_request(self, model: str, messages: List[ChatMessage], **kwargs) -> Dict[str, Any]:
         """准备文心一言API请求。"""
-        # 转换消息格式
+        # 转换消息格式，优化system消息处理
         wenxin_messages = []
+        system_content = ""
+        
         for msg in messages:
-            wenxin_msg = {
-                "role": msg.role,
-                "content": msg.content
-            }
-            if msg.name:
-                wenxin_msg["name"] = msg.name
-            wenxin_messages.append(wenxin_msg)
+            # 处理空内容
+            content = msg.content or ""
+            
+            if msg.role == "system":
+                # 收集system消息内容
+                if system_content:
+                    system_content += "\n" + content
+                else:
+                    system_content = content
+                continue
+            elif msg.role in ["user", "assistant"]:
+                # 如果是第一个user消息且有system内容，合并system内容
+                if msg.role == "user" and system_content and not any(m["role"] == "user" for m in wenxin_messages):
+                    content = f"{system_content}\n\n{content}"
+                    system_content = ""  # 清空，避免重复添加
+                
+                wenxin_msg = {
+                    "role": msg.role,
+                    "content": content
+                }
+                if msg.name:
+                    wenxin_msg["name"] = msg.name
+                wenxin_messages.append(wenxin_msg)
+            # 忽略其他角色类型（如tool、function等）
+        
+        # 如果只有system消息而没有其他消息，创建一个user消息
+        if system_content and not wenxin_messages:
+            wenxin_messages.append({
+                "role": "user",
+                "content": system_content
+            })
         
         # 构建请求参数
         request_data = {
-            "messages": wenxin_messages
+            "messages": wenxin_messages,
+            "model": model  # OpenAI标准调用方式需要model参数
         }
         
         # 添加可选参数
@@ -245,7 +233,8 @@ class WenxinPlugin(BaseLLMPlugin):
             request_data["top_p"] = kwargs["top_p"]
         
         if "max_tokens" in kwargs and kwargs["max_tokens"] is not None:
-            request_data["max_output_tokens"] = kwargs["max_tokens"]
+            # 在OpenAI标准模式下，文心API使用max_tokens参数
+            request_data["max_tokens"] = kwargs["max_tokens"]
         
         if "stop" in kwargs and kwargs["stop"] is not None:
             request_data["stop"] = kwargs["stop"]
@@ -254,39 +243,94 @@ class WenxinPlugin(BaseLLMPlugin):
         if kwargs.get("stream", False):
             request_data["stream"] = True
         
+        # 处理结构化输出参数（response_format）
+        response_format = kwargs.get("response_format")
+        if response_format:
+            # 根据文心大模型官方API格式处理response_format
+            if isinstance(response_format, dict):
+                if response_format.get("type") == "json_schema":
+                    # OpenAI格式的json_schema转换为文心格式
+                    request_data["response_format"] = {
+                        "type": "json_object"  # 文心大模型使用json_object而不是json_schema
+                    }
+                elif response_format.get("type") in ["json_object", "text"]:
+                    # 直接使用文心支持的格式
+                    request_data["response_format"] = {
+                        "type": response_format["type"]
+                    }
+                else:
+                    # 默认使用json_object格式
+                    request_data["response_format"] = {
+                        "type": "json_object"
+                    }
+            else:
+                # 如果response_format不是字典，默认使用json_object
+                request_data["response_format"] = {
+                    "type": "json_object"
+                }
+        
         return request_data
     
-    def _convert_to_harbor_response(self, response_data: Dict[str, Any], model: str) -> ChatCompletion:
+    def _convert_to_harbor_response(self, response_data: Dict[str, Any], model: str, messages: List[ChatMessage] = None) -> ChatCompletion:
         """将文心一言响应转换为Harbor格式。"""
         from ..base_plugin import ChatChoice, Usage
         
-        # 文心一言的响应格式
-        content = response_data.get("result", "")
+        # OpenAI标准模式下，文心API返回标准的OpenAI格式
+        if "choices" in response_data and len(response_data["choices"]) > 0:
+            choice_data = response_data["choices"][0]
+            message_data = choice_data.get("message", {})
+            content = message_data.get("content", "")
+            finish_reason = choice_data.get("finish_reason", "stop")
+            # 对于思考模型，直接从API响应中获取reasoning_content
+            reasoning_content = message_data.get("reasoning_content") if self.is_thinking_model(model) else None
+        else:
+            content = response_data.get("result", "")
+            finish_reason = response_data.get("finish_reason", "stop")
+            reasoning_content = None
         
         message = ChatMessage(
             role="assistant",
             content=content,
-            reasoning_content=None  # 文心一言不支持思考内容
+            reasoning_content=reasoning_content
         )
         
         choice = ChatChoice(
             index=0,
             message=message,
-            finish_reason=response_data.get("finish_reason", "stop")
+            finish_reason=finish_reason
         )
         
         # 处理使用统计
         usage_data = response_data.get("usage", {})
-        usage = Usage(
-            prompt_tokens=usage_data.get("prompt_tokens", 0),
-            completion_tokens=usage_data.get("completion_tokens", 0),
-            total_tokens=usage_data.get("total_tokens", 0)
-        )
+        
+        # 如果没有usage信息，尝试估算token数量
+        if not usage_data or usage_data.get("total_tokens", 0) == 0:
+            # 简单估算：中文字符数约等于token数，英文单词数*1.3约等于token数
+            prompt_text = " ".join([msg.content or "" for msg in messages]) if messages else ""
+            completion_text = content or ""
+            
+            # 估算prompt tokens
+            prompt_tokens = len(prompt_text) if prompt_text else 0
+            
+            # 估算completion tokens
+            completion_tokens = len(completion_text) if completion_text else 0
+            
+            usage = Usage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens
+            )
+        else:
+            usage = Usage(
+                prompt_tokens=usage_data.get("prompt_tokens", 0),
+                completion_tokens=usage_data.get("completion_tokens", 0),
+                total_tokens=usage_data.get("total_tokens", 0)
+            )
         
         return ChatCompletion(
-            id=response_data.get("id", ""),
+            id=response_data.get("id", f"chatcmpl-{int(time.time())}"),
             object="chat.completion",
-            created=response_data.get("created", 0),
+            created=response_data.get("created", int(time.time())),
             model=model,
             choices=[choice],
             usage=usage
@@ -296,23 +340,35 @@ class WenxinPlugin(BaseLLMPlugin):
         """将文心一言流式响应转换为Harbor格式。"""
         from ..base_plugin import ChatChoiceDelta, ChatChoice
         
-        content = chunk_data.get("result", "")
+        # 统一使用OpenAI标准格式处理响应
+        if "choices" in chunk_data and len(chunk_data["choices"]) > 0:
+            choice_data = chunk_data["choices"][0]
+            delta_data = choice_data.get("delta", {})
+            content = delta_data.get("content", "")
+            finish_reason = choice_data.get("finish_reason")
+            # 对于思考模型，处理reasoning_content字段
+            reasoning_content = delta_data.get("reasoning_content") if self.is_thinking_model(model) else None
+        else:
+            content = chunk_data.get("result", "")
+            finish_reason = chunk_data.get("finish_reason")
+            reasoning_content = None
         
         delta = ChatChoiceDelta(
             role="assistant" if content else None,
-            content=content
+            content=content,
+            reasoning_content=reasoning_content
         )
         
         choice = ChatChoice(
             index=0,
             delta=delta,
-            finish_reason=chunk_data.get("finish_reason")
+            finish_reason=finish_reason
         )
         
         return ChatCompletionChunk(
-            id=chunk_data.get("id", ""),
+            id=chunk_data.get("id", f"chatcmpl-{int(time.time())}"),
             object="chat.completion.chunk",
-            created=chunk_data.get("created", 0),
+            created=chunk_data.get("created", int(time.time())),
             model=model,
             choices=[choice]
         )
@@ -329,19 +385,16 @@ class WenxinPlugin(BaseLLMPlugin):
         # 记录请求日志
         self.log_request(model, messages, **kwargs)
         
+        start_time = time.time()
         try:
-            # 获取访问令牌
-            access_token = self._get_access_token()
-            
             # 准备请求
             request_data = self._prepare_wenxin_request(model, messages, stream=stream, **kwargs)
             endpoint = self._get_model_endpoint(model)
             
-            # 发送请求
+            # 发送请求（统一使用OpenAI标准调用方式）
             client = self._get_client()
             response = client.post(
                 endpoint,
-                params={"access_token": access_token},
                 json=request_data
             )
             response.raise_for_status()
@@ -349,19 +402,19 @@ class WenxinPlugin(BaseLLMPlugin):
             if stream:
                 return self._handle_stream_response(response, model)
             else:
-                start_time = time.time()
                 response_data = response.json()
                 
                 # 检查错误
                 if "error_code" in response_data:
                     raise PluginError(f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
                 
-                harbor_response = self._convert_to_harbor_response(response_data, model)
+                harbor_response = self._convert_to_harbor_response(response_data, model, messages)
                 
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -372,8 +425,27 @@ class WenxinPlugin(BaseLLMPlugin):
         except Exception as e:
             logger.error(f"Wenxin API error: {e}")
             error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, success=False)
-            return error_response
+            latency_ms = (time.time() - start_time) * 1000
+            self.log_response(error_response, latency_ms)
+            if stream:
+                # 流式模式下返回单个错误块的生成器
+                from ..base_plugin import ChatChoice, ChatChoiceDelta, ChatCompletionChunk
+                error_msg = str(e)
+                def error_generator():
+                    yield ChatCompletionChunk(
+                        id="error",
+                        object="chat.completion.chunk",
+                        created=int(time.time()),
+                        model=model,
+                        choices=[ChatChoice(
+                            index=0,
+                            delta=ChatChoiceDelta(content=error_msg),
+                            finish_reason="error"
+                        )]
+                    )
+                return error_generator()
+            else:
+                return error_response
     
     async def chat_completion_async(self, 
                                    model: str, 
@@ -387,19 +459,16 @@ class WenxinPlugin(BaseLLMPlugin):
         # 记录请求日志
         self.log_request(model, messages, **kwargs)
         
+        start_time = time.time()
         try:
-            # 获取访问令牌
-            access_token = await self._get_access_token_async()
-            
             # 准备请求
             request_data = self._prepare_wenxin_request(model, messages, stream=stream, **kwargs)
             endpoint = self._get_model_endpoint(model)
             
-            # 发送请求
+            # 发送请求（统一使用OpenAI标准调用方式）
             client = self._get_async_client()
             response = await client.post(
                 endpoint,
-                params={"access_token": access_token},
                 json=request_data
             )
             response.raise_for_status()
@@ -407,19 +476,19 @@ class WenxinPlugin(BaseLLMPlugin):
             if stream:
                 return self._handle_async_stream_response(response, model)
             else:
-                start_time = time.time()
                 response_data = response.json()
                 
                 # 检查错误
                 if "error_code" in response_data:
                     raise PluginError(f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
                 
-                harbor_response = self._convert_to_harbor_response(response_data, model)
+                harbor_response = self._convert_to_harbor_response(response_data, model, messages)
                 
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
                 if response_format:
-                    harbor_response = self.handle_structured_output(harbor_response, response_format)
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -430,14 +499,39 @@ class WenxinPlugin(BaseLLMPlugin):
         except Exception as e:
             logger.error(f"Wenxin API error: {e}")
             error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, success=False)
-            return error_response
+            latency_ms = (time.time() - start_time) * 1000
+            self.log_response(error_response, latency_ms)
+            if stream:
+                # 流式模式下返回单个错误块的异步生成器
+                from ..base_plugin import ChatChoice, ChatChoiceDelta, ChatCompletionChunk
+                error_msg = str(e)
+                async def error_async_generator():
+                    yield ChatCompletionChunk(
+                        id="error",
+                        object="chat.completion.chunk",
+                        created=int(time.time()),
+                        model=model,
+                        choices=[ChatChoice(
+                            index=0,
+                            delta=ChatChoiceDelta(content=error_msg),
+                            finish_reason="error"
+                        )]
+                    )
+                return error_async_generator()
+            else:
+                return error_response
     
     def _handle_stream_response(self, response, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式响应。"""
         for line in response.iter_lines():
-            if line.startswith(b"data: "):
-                data = line[6:].decode('utf-8').strip()
+            # 处理bytes和str两种情况
+            if isinstance(line, bytes):
+                line_str = line.decode('utf-8')
+            else:
+                line_str = line
+            
+            if line_str.startswith("data: "):
+                data = line_str[6:].strip()
                 if data == "[DONE]":
                     break
                 

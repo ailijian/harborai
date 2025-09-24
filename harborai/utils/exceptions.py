@@ -151,3 +151,16 @@ class ValidationError(HarborAIError):
         result = super().to_dict()
         result["field"] = self.field
         return result
+
+
+class StorageError(HarborAIError):
+    """存储异常"""
+    
+    def __init__(self, message: str, storage_type: Optional[str] = None, **kwargs):
+        super().__init__(message, error_code="STORAGE_ERROR", **kwargs)
+        self.storage_type = storage_type
+    
+    def to_dict(self) -> Dict[str, Any]:
+        result = super().to_dict()
+        result["storage_type"] = self.storage_type
+        return result

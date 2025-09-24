@@ -22,11 +22,12 @@ from ..config.settings import get_settings
 class ClientManager:
     """客户端管理器"""
     
-    def __init__(self):
+    def __init__(self, client_config: Optional[Dict[str, Any]] = None):
         self.plugins: Dict[str, BaseLLMPlugin] = {}
         self.model_to_plugin: Dict[str, str] = {}
         self.logger = get_logger("harborai.client_manager")
         self.settings = get_settings()
+        self.client_config = client_config or {}
         
         # 自动加载插件
         self._load_plugins()
@@ -99,7 +100,18 @@ class ClientManager:
                 plugin_config = self.settings.get_plugin_config(plugin_name)
                 
                 try:
-                    plugin_instance = attr(plugin_name, **plugin_config)
+                    # 合并客户端配置和插件配置
+                    merged_config = plugin_config.copy()
+                    
+                    # 如果客户端提供了api_key，使用它
+                    if 'api_key' in self.client_config:
+                        merged_config['api_key'] = self.client_config['api_key']
+                    
+                    # 如果客户端提供了base_url，使用它
+                    if 'base_url' in self.client_config:
+                        merged_config['base_url'] = self.client_config['base_url']
+                    
+                    plugin_instance = attr(plugin_name, **merged_config)
                     self.register_plugin(plugin_instance)
                     
                     self.logger.info(
@@ -212,13 +224,14 @@ class ClientManager:
         self,
         model: str,
         messages: List[ChatMessage],
-        fallback_models: Optional[List[str]] = None,
+        fallback: Optional[List[str]] = None,
+        structured_provider: Optional[str] = None,
         **kwargs
     ) -> Union[ChatCompletion, Any]:
         """带降级策略的聊天完成"""
         models_to_try = [model]
-        if fallback_models:
-            models_to_try.extend(fallback_models)
+        if fallback:
+            models_to_try.extend(fallback)
         
         last_exception = None
         
@@ -236,6 +249,8 @@ class ClientManager:
                 
                 # 更新模型参数
                 kwargs_copy = kwargs.copy()
+                if structured_provider is not None:
+                    kwargs_copy['structured_provider'] = structured_provider
                 
                 if kwargs.get('stream', False):
                     return plugin.chat_completion_async(
@@ -275,13 +290,14 @@ class ClientManager:
         self,
         model: str,
         messages: List[ChatMessage],
-        fallback_models: Optional[List[str]] = None,
+        fallback: Optional[List[str]] = None,
+        structured_provider: Optional[str] = None,
         **kwargs
     ) -> Union[ChatCompletion, Any]:
         """同步版本的带降级策略的聊天完成"""
         models_to_try = [model]
-        if fallback_models:
-            models_to_try.extend(fallback_models)
+        if fallback:
+            models_to_try.extend(fallback)
         
         last_exception = None
         
@@ -299,6 +315,8 @@ class ClientManager:
                 
                 # 更新模型参数
                 kwargs_copy = kwargs.copy()
+                if structured_provider is not None:
+                    kwargs_copy['structured_provider'] = structured_provider
                 
                 return plugin.chat_completion(
                     attempt_model, messages, **kwargs_copy

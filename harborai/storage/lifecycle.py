@@ -3,6 +3,7 @@
 import atexit
 import signal
 import sys
+import logging
 from typing import Callable, List, Optional
 from threading import Lock
 
@@ -98,17 +99,64 @@ class LifecycleManager:
                 return
             
             self._shutdown_in_progress = True
-            logger.info("Starting shutdown process")
+            
+            # 在关闭过程开始时记录日志，但要处理可能的异常
+            try:
+                logger.info("Starting shutdown process")
+            except (ValueError, OSError):
+                # 如果日志系统已经关闭，忽略错误
+                pass
             
             # 执行关闭钩子（逆序执行）
             for hook in reversed(self._shutdown_hooks):
                 try:
                     hook()
-                    logger.debug(f"Executed shutdown hook: {hook.__name__}")
+                    # 尝试记录调试信息，但如果失败则忽略
+                    try:
+                        logger.debug(f"Executed shutdown hook: {hook.__name__}")
+                    except (ValueError, OSError):
+                        pass
                 except Exception as e:
-                    logger.error(f"Error executing shutdown hook {hook.__name__}: {e}")
+                    # 尝试记录错误，但如果失败则忽略
+                    try:
+                        logger.error(f"Error executing shutdown hook {hook.__name__}: {e}")
+                    except (ValueError, OSError):
+                        # 如果日志系统已经关闭，使用标准输出
+                        print(f"Error executing shutdown hook {hook.__name__}: {e}", file=sys.stderr)
             
-            logger.info("Shutdown process completed")
+            # 关闭标准库日志系统
+            self._shutdown_logging_system()
+            
+            # 最后尝试记录完成信息
+            try:
+                logger.info("Shutdown process completed")
+            except (ValueError, OSError):
+                # 如果日志系统已经关闭，使用标准输出
+                print("Shutdown process completed", file=sys.stderr)
+    
+    def _shutdown_logging_system(self):
+        """优雅关闭日志系统。"""
+        try:
+            # 关闭所有日志处理器
+            root_logger = logging.getLogger()
+            for handler in root_logger.handlers[:]:
+                try:
+                    handler.close()
+                    root_logger.removeHandler(handler)
+                except Exception:
+                    pass
+            
+            # 关闭structlog相关的处理器
+            import structlog
+            try:
+                # 清理structlog的缓存
+                structlog.reset_defaults()
+            except Exception:
+                pass
+                
+        except Exception:
+            # 如果关闭日志系统时出现任何错误，都忽略
+            pass
     
     def shutdown(self):
         """手动触发关闭流程。"""

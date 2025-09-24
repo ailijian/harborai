@@ -1,12 +1,15 @@
 """装饰器模块，提供日志、重试、追踪等功能。"""
 
+import asyncio
 import functools
 import time
 from typing import Any, Callable, Optional
 
-from ..utils.logger import get_logger
-from ..utils.tracer import generate_trace_id
-from ..utils.exceptions import HarborAIError
+from harborai.utils.logger import get_logger
+from harborai.storage.postgres_logger import get_postgres_logger
+from harborai.utils.exceptions import HarborAIError
+from harborai.utils.tracer import generate_trace_id
+from harborai.core.pricing import PricingCalculator
 
 logger = get_logger(__name__)
 
@@ -105,31 +108,183 @@ def with_async_logging(func: Callable) -> Callable:
 
 def cost_tracking(func: Callable) -> Callable:
     """为函数调用添加成本追踪。"""
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        cost_tracking_enabled = kwargs.get('cost_tracking', True)
-        
-        if not cost_tracking_enabled:
-            return func(*args, **kwargs)
-        
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        duration = time.time() - start_time
-        
-        # 记录成本相关信息
-        if hasattr(result, 'usage') and result.usage:
-            usage = result.usage
-            model = kwargs.get('model', 'unknown')
-            trace_id = kwargs.get('trace_id', 'unknown')
+    if asyncio.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            cost_tracking_enabled = kwargs.get('cost_tracking', True)
             
-            logger.info(
-                f"[{trace_id}] Cost tracking - Model: {model}, "
-                f"Input tokens: {usage.prompt_tokens}, "
-                f"Output tokens: {usage.completion_tokens}, "
-                f"Total tokens: {usage.total_tokens}, "
-                f"Duration: {duration:.3f}s"
-            )
+            if not cost_tracking_enabled:
+                return await func(*args, **kwargs)
+            
+            start_time = time.time()
+            result = await func(*args, **kwargs)
+            duration = time.time() - start_time
+            
+            # 记录成本相关信息
+            if hasattr(result, 'usage') and result.usage:
+                usage = result.usage
+                model = kwargs.get('model', 'unknown')
+                trace_id = kwargs.get('trace_id', 'unknown')
+                
+                # 计算成本
+                cost = PricingCalculator.calculate_cost(
+                    input_tokens=usage.prompt_tokens,
+                    output_tokens=usage.completion_tokens,
+                    model_name=model
+                )
+                
+                cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                
+                logger.info(
+                    f"[{trace_id}] Cost tracking - Model: {model}, "
+                    f"Input tokens: {usage.prompt_tokens}, "
+                    f"Output tokens: {usage.completion_tokens}, "
+                    f"Total tokens: {usage.total_tokens}, "
+                    f"Duration: {duration:.3f}s{cost_info}"
+                )
+            
+            return result
         
-        return result
-    
-    return wrapper
+        return async_wrapper
+    else:
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            cost_tracking_enabled = kwargs.get('cost_tracking', True)
+            
+            if not cost_tracking_enabled:
+                return func(*args, **kwargs)
+            
+            start_time = time.time()
+            result = func(*args, **kwargs)
+            duration = time.time() - start_time
+            
+            # 记录成本相关信息
+            if hasattr(result, 'usage') and result.usage:
+                usage = result.usage
+                model = kwargs.get('model', 'unknown')
+                trace_id = kwargs.get('trace_id', 'unknown')
+                
+                # 计算成本
+                cost = PricingCalculator.calculate_cost(
+                    input_tokens=usage.prompt_tokens,
+                    output_tokens=usage.completion_tokens,
+                    model_name=model
+                )
+                
+                cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                
+                logger.info(
+                    f"[{trace_id}] Cost tracking - Model: {model}, "
+                    f"Input tokens: {usage.prompt_tokens}, "
+                    f"Output tokens: {usage.completion_tokens}, "
+                    f"Total tokens: {usage.total_tokens}, "
+                    f"Duration: {duration:.3f}s{cost_info}"
+                )
+            
+            return result
+        
+        return sync_wrapper
+
+
+def with_postgres_logging(func: Callable) -> Callable:
+    """为函数调用添加PostgreSQL日志持久化。"""
+    if asyncio.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            postgres_logger = get_postgres_logger()
+            if not postgres_logger:
+                # 如果没有配置PostgreSQL日志记录器，直接执行原函数
+                return await func(*args, **kwargs)
+            
+            trace_id = kwargs.get('trace_id') or generate_trace_id()
+            kwargs['trace_id'] = trace_id
+            
+            # 记录请求日志
+            model = kwargs.get('model', 'unknown')
+            messages = kwargs.get('messages', [])
+            postgres_logger.log_request(
+                trace_id=trace_id,
+                model=model,
+                messages=messages,
+                **{k: v for k, v in kwargs.items() if k not in ['messages', 'model', 'trace_id']}
+            )
+            
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                latency = time.time() - start_time
+                
+                # 记录响应日志
+                postgres_logger.log_response(
+                    trace_id=trace_id,
+                    response=result,
+                    latency=latency,
+                    success=True
+                )
+                
+                return result
+            except Exception as e:
+                latency = time.time() - start_time
+                
+                # 记录错误日志
+                postgres_logger.log_response(
+                    trace_id=trace_id,
+                    response=None,
+                    latency=latency,
+                    success=False,
+                    error=str(e)
+                )
+                
+                raise
+        
+        return async_wrapper
+    else:
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            postgres_logger = get_postgres_logger()
+            if not postgres_logger:
+                # 如果没有配置PostgreSQL日志记录器，直接执行原函数
+                return func(*args, **kwargs)
+            
+            trace_id = kwargs.get('trace_id') or generate_trace_id()
+            kwargs['trace_id'] = trace_id
+            
+            # 记录请求日志
+            model = kwargs.get('model', 'unknown')
+            messages = kwargs.get('messages', [])
+            postgres_logger.log_request(
+                trace_id=trace_id,
+                model=model,
+                messages=messages,
+                **{k: v for k, v in kwargs.items() if k not in ['messages', 'model', 'trace_id']}
+            )
+            
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                latency = time.time() - start_time
+                
+                # 记录响应日志
+                postgres_logger.log_response(
+                    trace_id=trace_id,
+                    response=result,
+                    latency=latency,
+                    success=True
+                )
+                
+                return result
+            except Exception as e:
+                latency = time.time() - start_time
+                
+                # 记录错误日志
+                postgres_logger.log_response(
+                    trace_id=trace_id,
+                    response=None,
+                    latency=latency,
+                    success=False,
+                    error=str(e)
+                )
+                
+                raise
+        
+        return sync_wrapper

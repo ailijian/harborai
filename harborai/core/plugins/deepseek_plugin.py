@@ -40,12 +40,12 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 supports_structured_output=True
             ),
             ModelInfo(
-                id="deepseek-coder",
-                name="DeepSeek Coder",
+                id="deepseek-r1",
+                name="DeepSeek R1",
                 provider="deepseek",
                 max_tokens=32768,
                 supports_streaming=True,
-                supports_thinking=False,
+                supports_thinking=True,
                 supports_structured_output=True
             )
         ]
@@ -56,7 +56,12 @@ class DeepSeekPlugin(BaseLLMPlugin):
         
         self.logger = get_logger(f"harborai.plugins.{name}")
     
-
+    def is_thinking_model(self, model: str) -> bool:
+        """判断是否为思考模型。"""
+        for model_info in self._supported_models:
+            if model_info.id == model:
+                return model_info.supports_thinking
+        return False
     
     def _get_client(self):
         """获取同步HTTP客户端。"""
@@ -116,7 +121,24 @@ class DeepSeekPlugin(BaseLLMPlugin):
             raise ValidationError("max_tokens must be positive")
     
     def _extract_thinking_content(self, response: Any) -> Optional[str]:
-        """提取思考内容（DeepSeek当前不支持思考模型）。"""
+        """提取思考内容。"""
+        if not isinstance(response, dict):
+            return None
+        
+        # 尝试从不同字段提取思考内容
+        thinking_fields = ['reasoning', 'thinking', 'reasoning_content', 'thinking_content']
+        for field in thinking_fields:
+            if field in response and response[field]:
+                return response[field]
+        
+        # 尝试从choices中提取
+        choices = response.get('choices', [])
+        if choices and len(choices) > 0:
+            message = choices[0].get('message', {})
+            for field in thinking_fields:
+                if field in message and message[field]:
+                    return message[field]
+        
         return None
     
     def _prepare_deepseek_request(self, model: str, messages: List[ChatMessage], **kwargs) -> Dict[str, Any]:
@@ -166,15 +188,21 @@ class DeepSeekPlugin(BaseLLMPlugin):
         for choice_data in response_data.get("choices", []):
             message_data = choice_data.get("message", {})
             
+            # 对于思考模型，提取思考内容
+            reasoning_content = None
+            if self.is_thinking_model(model):
+                reasoning_content = message_data.get("reasoning_content")
+                if not reasoning_content:
+                    # 尝试从其他字段提取思考内容
+                    reasoning_content = self._extract_thinking_content(response_data)
+            
             message = ChatMessage(
                 role=message_data.get("role", "assistant"),
                 content=message_data.get("content"),
                 name=message_data.get("name"),
-                tool_calls=message_data.get("tool_calls")
+                tool_calls=message_data.get("tool_calls"),
+                reasoning_content=reasoning_content
             )
-            # 添加思考内容支持（如果存在）
-            if hasattr(message, 'reasoning_content'):
-                message.reasoning_content = message_data.get("reasoning_content")
             
             choice = ChatChoice(
                 index=choice_data.get("index", 0),
@@ -202,15 +230,23 @@ class DeepSeekPlugin(BaseLLMPlugin):
     
     def _convert_to_harbor_chunk(self, chunk_data: Dict[str, Any], model: str) -> ChatCompletionChunk:
         """将DeepSeek流式响应转换为Harbor格式。"""
+        from ..base_plugin import ChatChoiceDelta
+        
         choices = []
         for choice_data in chunk_data.get("choices", []):
             delta_data = choice_data.get("delta", {})
             
+            # 对于思考模型，处理思考内容
+            reasoning_content = None
+            if self.is_thinking_model(model):
+                reasoning_content = delta_data.get("reasoning_content")
+            
             # 创建delta消息
-            delta = ChatMessage(
+            delta = ChatChoiceDelta(
                 role=delta_data.get("role"),
                 content=delta_data.get("content"),
-                tool_calls=delta_data.get("tool_calls")
+                tool_calls=delta_data.get("tool_calls"),
+                reasoning_content=reasoning_content
             )
             
             choice = ChatChoice(
@@ -260,7 +296,9 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
-                harbor_response = self.handle_structured_output(harbor_response, response_format)
+                if response_format:
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 计算延迟并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -307,7 +345,9 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
-                harbor_response = self.handle_structured_output(harbor_response, response_format)
+                if response_format:
+                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
                 
                 # 计算延迟并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000

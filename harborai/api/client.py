@@ -16,6 +16,8 @@ from ..utils.logger import get_logger, APICallLogger
 from ..utils.tracer import TraceContext, get_or_create_trace_id
 from ..utils.retry import async_retry_with_backoff, retry_with_backoff
 from ..config.settings import get_settings
+from ..storage.lifecycle import auto_initialize
+from .decorators import cost_tracking, with_async_trace, with_trace, with_postgres_logging
 
 
 class ChatCompletions:
@@ -27,6 +29,9 @@ class ChatCompletions:
         self.api_logger = APICallLogger()
         self.settings = get_settings()
     
+    @cost_tracking
+    @with_postgres_logging
+    @with_trace
     def create(
         self,
         messages: List[Dict[str, Any]],
@@ -53,11 +58,20 @@ class ChatCompletions:
         user: Optional[str] = None,
         extra_body: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        fallback: Optional[List[str]] = None,
+        fallback_models: Optional[List[str]] = None,
+        retry_policy: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """创建聊天完成（同步版本）"""
         # 验证消息
         self._validate_messages(messages)
+        
+        # 处理fallback参数兼容性：fallback_models优先级高于fallback
+        if fallback_models is not None:
+            fallback = fallback_models
+        elif fallback is None:
+            fallback = []
         
         trace_id = get_or_create_trace_id()
         
@@ -94,6 +108,8 @@ class ChatCompletions:
                 "user": user,
                 "extra_body": extra_body,
                 "timeout": timeout,
+                "fallback": fallback,
+                "retry_policy": retry_policy,
                 **kwargs
             }
             
@@ -124,12 +140,25 @@ class ChatCompletions:
                     for msg in messages
                 ]
                 
-                @retry_with_backoff()
+                # 配置重试策略
+                from ..utils.retry import RetryConfig
+                retry_config = None
+                if retry_policy:
+                    retry_config = RetryConfig(
+                        max_attempts=retry_policy.get('max_attempts', 3),
+                        base_delay=retry_policy.get('base_delay', 1.0),
+                        max_delay=retry_policy.get('max_delay', 60.0),
+                        exponential_base=retry_policy.get('exponential_base', 2.0),
+                        jitter=retry_policy.get('jitter', True)
+                    )
+                
+                @retry_with_backoff(config=retry_config)
                 def _create_with_retry():
                     return self.client_manager.chat_completion_sync_with_fallback(
                         model=model,
                         messages=chat_messages,
-                        **{k: v for k, v in request_params.items() if k not in ['model', 'messages']}
+                        fallback=fallback,
+                        **{k: v for k, v in request_params.items() if k not in ['model', 'messages', 'fallback', 'retry_policy']}
                     )
                 
                 response = _create_with_retry()
@@ -153,6 +182,9 @@ class ChatCompletions:
                 )
                 raise e
     
+    @cost_tracking
+    @with_postgres_logging
+    @with_async_trace
     async def acreate(
         self,
         messages: List[Dict[str, Any]],
@@ -179,11 +211,20 @@ class ChatCompletions:
         user: Optional[str] = None,
         extra_body: Optional[Dict[str, Any]] = None,
         timeout: Optional[float] = None,
+        fallback: Optional[List[str]] = None,
+        fallback_models: Optional[List[str]] = None,
+        retry_policy: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Union[ChatCompletion, AsyncGenerator[ChatCompletionChunk, None]]:
         """创建聊天完成（异步版本）"""
         # 验证消息
         self._validate_messages(messages)
+        
+        # 处理fallback参数兼容性：fallback_models优先级高于fallback
+        if fallback_models is not None:
+            fallback = fallback_models
+        elif fallback is None:
+            fallback = []
         
         trace_id = get_or_create_trace_id()
         
@@ -220,6 +261,8 @@ class ChatCompletions:
                 "user": user,
                 "extra_body": extra_body,
                 "timeout": timeout,
+                "fallback": fallback,
+                "retry_policy": retry_policy,
                 **kwargs
             }
             
@@ -249,13 +292,26 @@ class ChatCompletions:
                     for msg in messages
                 ]
                 
+                # 配置重试策略
+                from ..utils.retry import RetryConfig
+                retry_config = None
+                if retry_policy:
+                    retry_config = RetryConfig(
+                        max_attempts=retry_policy.get('max_attempts', 3),
+                        base_delay=retry_policy.get('base_delay', 1.0),
+                        max_delay=retry_policy.get('max_delay', 60.0),
+                        exponential_base=retry_policy.get('exponential_base', 2.0),
+                        jitter=retry_policy.get('jitter', True)
+                    )
+                
                 # 使用重试装饰器
-                @async_retry_with_backoff()
+                @async_retry_with_backoff(config=retry_config)
                 async def _acreate_with_retry():
                     return await self.client_manager.chat_completion_with_fallback(
                         model=model,
                         messages=chat_messages,
-                        **{k: v for k, v in request_params.items() if k not in ['model', 'messages']}
+                        fallback=fallback,
+                        **{k: v for k, v in request_params.items() if k not in ['model', 'messages', 'fallback', 'retry_policy']}
                     )
                 
                 response = await _acreate_with_retry()
@@ -329,6 +385,9 @@ class HarborAI:
         **kwargs
     ):
         """初始化 HarborAI 客户端"""
+        # 自动初始化生命周期管理（包括PostgreSQL日志记录器）
+        auto_initialize()
+        
         self.logger = get_logger("harborai.client")
         self.settings = get_settings()
         
@@ -346,8 +405,8 @@ class HarborAI:
             **kwargs
         }
         
-        # 初始化客户端管理器
-        self.client_manager = ClientManager()
+        # 初始化客户端管理器，传递客户端配置
+        self.client_manager = ClientManager(client_config=self.config)
         
         # 初始化接口
         self.chat = Chat(self.client_manager)
@@ -378,6 +437,17 @@ class HarborAI:
     def unregister_plugin(self, plugin_name: str) -> None:
         """注销插件"""
         self.client_manager.unregister_plugin(plugin_name)
+    
+    def get_total_cost(self) -> float:
+        """获取总成本"""
+        # 这里可以从成本追踪系统获取总成本
+        # 目前返回0.0作为占位符
+        return 0.0
+    
+    def reset_cost(self) -> None:
+        """重置成本计数器"""
+        # 重置成本追踪
+        pass
     
     async def aclose(self) -> None:
         """异步关闭客户端"""
