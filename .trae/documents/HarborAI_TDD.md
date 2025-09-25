@@ -8,7 +8,7 @@
 
 * 降低接入多模型生态的学习成本。
 
-* 支持思考模型（如 DeepSeek-R1）与非思考模型调用。
+* 支持推理模型（如 DeepSeek-R1）与非推理模型调用。
 
 * 提供生产级的日志、容错、降级、持久化能力。
 
@@ -34,7 +34,7 @@
 
    * 插件继承 `BaseLLMPlugin`，注册到 `ClientManager`。
 
-3. **思考模型与非思考模型支持**
+3. **推理模型与非推理模型支持**
 
    * SDK 层动态检测响应中是否包含 `reasoning_content` 字段，无需预先定义模型类型。
 
@@ -191,10 +191,10 @@ for chunk in client.chat.completions.create(
 
 ***
 
-### 3.2 思考模型支持
+### 3.2 推理模型支持
 
 ```python
-# 调用思考模型（如 deepseek-r1）
+# 调用推理模型（如 deepseek-r1）
 resp = client.chat.completions.create(
     model="deepseek-r1",
     messages=messages
@@ -203,7 +203,7 @@ print(resp.choices[0].message.content)
 if hasattr(resp.choices[0].message, 'reasoning_content'):
     print(resp.choices[0].message.reasoning_content)  # 思考过程（如果有）
 
-# 思考模型的流式调用
+# 推理模型的流式调用
 for chunk in client.chat.completions.create(
     model="deepseek-r1",
     messages=messages,
@@ -214,7 +214,7 @@ for chunk in client.chat.completions.create(
     if chunk.choices[0].delta.content:
         print(f"回答: {chunk.choices[0].delta.content}")
 
-# 思考模型的结构化输出
+# 推理模型的结构化输出
 thinking_resp = client.chat.completions.create(
     model="deepseek-r1",
     messages=[{"role": "user", "content": "分析一下量子计算的优势和挑战"}],
@@ -365,28 +365,28 @@ class BaseLLMPlugin(ABC):
 
 ***
 
-## 七、思考模型的定义（HarborAI 版本）
+## 七、推理模型的定义（HarborAI 版本）
 
-* **思考模型 (Thoughtful Model)**
+* **推理模型 (Reasoner Model)**
   指原生支持生成"思考过程"与"最终答案"的模型。
   例如：
 
-  * **DeepSeek-R1**（先输出 reasoning，再输出最终结果）。
+  * **DeepSeek-R1**（先输出 reasoning_content，再输出最终结果）。
 
   * OpenAI 官方 SDK 已支持这类模型调用。
 
-  * **Agently** 库扩展了对思考模型的支持，特别是**流式结构化输出**。
+  * **Agently** 库扩展了对推理模型的支持，特别是**流式结构化输出**。
 
-* **非思考模型 (Standard Model)**
+* **非推理模型 (Standard Model)**
   普通大模型，不会单独输出思考过程。
   例如：GPT-4、GPT-3.5、文心一言等。
 
 * **自动兼容模式**
-  当模型内置自动切换思考/非思考模式时，HarborAI 会：
+  当模型内置自动切换推理/非推理模式时，HarborAI 会：
 
-  * 自动检测响应中是否包含思考过程
+  * 自动检测响应中是否包含推理过程
 
-  * 在响应对象中提供 `thinking` 或 `reasoning` 字段
+  * 在响应对象中提供 `reasoning_content` 或 `thinking`字段
 
   * 保持与 OpenAI 格式的兼容性
 

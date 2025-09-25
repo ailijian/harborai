@@ -6,7 +6,7 @@
 
 - **与 OpenAI SDK 完全一致的调用体验**：无缝迁移，零学习成本
 - **插件化架构**：轻松支持多个 LLM 厂商（OpenAI、DeepSeek、Doubao、Wenxin 等）
-- **思考模型支持**：原生支持 DeepSeek-R1 等思考模型的 reasoning_content 字段
+- **推理模型支持**：原生支持 DeepSeek-R1 等推理模型的 reasoning_content 字段
 - **结构化输出**：默认使用 Agently，支持厂商原生 schema，支持流式结构化输出
 - **生产级可观测性**：全链路 Trace ID、异步日志、PostgreSQL 存储
 - **智能容错降级**：自动重试、模型降级、厂商降级
@@ -48,10 +48,10 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-### 思考模型调用
+### 推理模型调用
 
 ```python
-# 调用思考模型（如 deepseek-r1）
+# 调用推理模型（如 deepseek-r1）
 resp = client.chat.completions.create(
     model="deepseek-r1",
     messages=messages

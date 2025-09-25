@@ -116,7 +116,7 @@ def list_models():
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("模型名称", style="cyan")
         table.add_column("提供商", style="blue")
-        table.add_column("思考模型", justify="center")
+        table.add_column("推理模型", justify="center")
         table.add_column("结构化输出", justify="center")
         table.add_column("最大Token", justify="right")
         table.add_column("上下文窗口", justify="right")

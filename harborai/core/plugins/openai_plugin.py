@@ -3,7 +3,7 @@
 """
 OpenAI 插件
 
-实现 OpenAI API 的调用逻辑，支持思考模型和结构化输出。
+实现 OpenAI API 的调用逻辑，支持推理模型和结构化输出。
 """
 
 import json

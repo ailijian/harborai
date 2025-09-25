@@ -121,7 +121,7 @@ class DoubaoPlugin(BaseLLMPlugin):
             raise ValidationError("max_tokens must be positive")
     
     def _extract_thinking_content(self, response: Any) -> Optional[str]:
-        """提取思考内容（豆包1.6版本支持思考模型）。"""
+        """提取思考内容（豆包1.6版本支持推理模型）。"""
         if isinstance(response, dict):
             # 检查是否有思考内容字段
             if 'reasoning' in response:

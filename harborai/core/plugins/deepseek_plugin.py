@@ -57,7 +57,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
         self.logger = get_logger(f"harborai.plugins.{name}")
     
     def is_thinking_model(self, model: str) -> bool:
-        """判断是否为思考模型。"""
+        """判断是否为推理模型。"""
         for model_info in self._supported_models:
             if model_info.id == model:
                 return model_info.supports_thinking
@@ -188,7 +188,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
         for choice_data in response_data.get("choices", []):
             message_data = choice_data.get("message", {})
             
-            # 对于思考模型，提取思考内容
+            # 对于推理模型，提取思考内容
             reasoning_content = None
             if self.is_thinking_model(model):
                 reasoning_content = message_data.get("reasoning_content")
@@ -236,7 +236,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
         for choice_data in chunk_data.get("choices", []):
             delta_data = choice_data.get("delta", {})
             
-            # 对于思考模型，处理思考内容
+            # 对于推理模型，处理思考内容
             reasoning_content = None
             if self.is_thinking_model(model):
                 reasoning_content = delta_data.get("reasoning_content")

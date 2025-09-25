@@ -62,7 +62,7 @@ class WenxinPlugin(BaseLLMPlugin):
             # 保持向后兼容性
             ModelInfo(
                 id="ernie-x1-turbo-32k",
-                name="文心一言 x1 turbo 思考模型 (别名)",
+                name="文心一言 x1 turbo 推理模型 (别名)",
                 provider="wenxin",
                 max_tokens=32768,
                 supports_streaming=True,
@@ -77,7 +77,7 @@ class WenxinPlugin(BaseLLMPlugin):
         return self._supported_models
     
     def is_thinking_model(self, model: str) -> bool:
-        """判断是否为思考模型。"""
+        """判断是否为推理模型。"""
         # 根据_supported_models中的supports_thinking属性判断
         for model_info in self._supported_models:
             if model_info.id == model:
@@ -156,7 +156,7 @@ class WenxinPlugin(BaseLLMPlugin):
     def _extract_thinking_content(self, response: Any) -> Optional[str]:
         """提取思考内容，根据TDD文档定义，直接从API响应中获取reasoning_content字段。"""
         if isinstance(response, dict):
-            # 根据TDD文档，思考模型会在响应中直接提供reasoning_content字段
+            # 根据TDD文档，推理模型会在响应中直接提供reasoning_content字段
             if 'reasoning_content' in response and response['reasoning_content']:
                 return str(response['reasoning_content'])
             
@@ -281,7 +281,7 @@ class WenxinPlugin(BaseLLMPlugin):
             message_data = choice_data.get("message", {})
             content = message_data.get("content", "")
             finish_reason = choice_data.get("finish_reason", "stop")
-            # 对于思考模型，直接从API响应中获取reasoning_content
+            # 对于推理模型，直接从API响应中获取reasoning_content
             reasoning_content = message_data.get("reasoning_content") if self.is_thinking_model(model) else None
         else:
             content = response_data.get("result", "")
@@ -346,7 +346,7 @@ class WenxinPlugin(BaseLLMPlugin):
             delta_data = choice_data.get("delta", {})
             content = delta_data.get("content", "")
             finish_reason = choice_data.get("finish_reason")
-            # 对于思考模型，处理reasoning_content字段
+            # 对于推理模型，处理reasoning_content字段
             reasoning_content = delta_data.get("reasoning_content") if self.is_thinking_model(model) else None
         else:
             content = chunk_data.get("result", "")

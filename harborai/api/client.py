@@ -3,7 +3,7 @@
 """
 HarborAI 主客户端
 
-提供与 OpenAI SDK 一致的调用接口，支持思考模型、结构化输出等功能。
+提供与 OpenAI SDK 一致的调用接口，支持推理模型、结构化输出等功能。
 """
 
 import asyncio

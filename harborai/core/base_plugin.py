@@ -4,7 +4,7 @@
 插件基类
 
 定义所有 LLM 插件的统一接口和基础功能。
-支持思考模型、结构化输出、流式调用等特性。
+支持推理模型、结构化输出、流式调用等特性。
 """
 
 from abc import ABC, abstractmethod
@@ -40,7 +40,7 @@ class ChatMessage:
     function_call: Optional[Dict[str, Any]] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
     tool_call_id: Optional[str] = None
-    reasoning_content: Optional[str] = None  # 思考模型的推理内容
+    reasoning_content: Optional[str] = None  # 推理模型的推理内容
     parsed: Optional[Any] = None  # 结构化输出的解析结果
 
 
@@ -50,7 +50,7 @@ class ChatChoiceDelta:
     role: Optional[str] = None
     content: Optional[str] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
-    reasoning_content: Optional[str] = None  # 思考模型的推理内容
+    reasoning_content: Optional[str] = None  # 推理模型的推理内容
 
 @dataclass
 class ChatChoice:
