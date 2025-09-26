@@ -1,0 +1,14 @@
+{
+  "test_name": "O-001_wrapper_overhead_sync",
+  "trace_id": "b1f22cf1-b07e-43b6-b849-364b38951862",
+  "harbor_avg_ms": 1.0,
+  "openai_avg_ms": 0.011824000859633088,
+  "overhead_ms": 0.988175999140367,
+  "overhead_percentage": 8357.374215981165,
+  "resource_usage": {},
+  "benchmark_stats": {
+    "harbor_avg": 0.001,
+    "openai_avg": 1.1824000859633088e-05,
+    "overhead": 0.000988175999140367
+  }
+}

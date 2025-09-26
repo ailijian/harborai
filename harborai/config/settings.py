@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", env="HARBORAI_LOG_LEVEL")
     
     # API 配置
+    api_key: Optional[str] = Field(default=None, env="HARBORAI_API_KEY")
+    base_url: Optional[str] = Field(default=None, env="HARBORAI_BASE_URL")
     default_timeout: int = Field(default=60, env="HARBORAI_TIMEOUT")
     max_retries: int = Field(default=3, env="HARBORAI_MAX_RETRIES")
     retry_delay: float = Field(default=1.0, env="HARBORAI_RETRY_DELAY")

@@ -1,0 +1,256 @@
+{
+  "api_integration_tests": {
+    "description": "API集成测试用例",
+    "test_cases": [
+      {
+        "test_id": "API_001",
+        "name": "基础聊天完成测试",
+        "description": "测试基础的聊天完成功能",
+        "vendor": "deepseek",
+        "model": "deepseek-chat",
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "你好，请介绍一下自己"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 100
+        },
+        "expected_output": {
+          "status_code": 200,
+          "response_type": "chat.completion",
+          "has_content": true,
+          "finish_reason": "stop"
+        },
+        "validation_schema": "simple_response.json"
+      },
+      {
+        "test_id": "API_002",
+        "name": "推理模型测试",
+        "description": "测试推理模型的复杂推理功能",
+        "vendor": "deepseek",
+        "model": "deepseek-r1",
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请分析一下人工智能在教育领域的应用前景，并给出详细的推理过程"
+            }
+          ],
+          "temperature": 0.3,
+          "max_tokens": 500
+        },
+        "expected_output": {
+          "status_code": 200,
+          "response_type": "reasoning.completion",
+          "has_content": true,
+          "has_reasoning_content": true,
+          "finish_reason": "reasoning_complete",
+          "reasoning_tokens_gt": 50
+        },
+        "validation_schema": "reasoning_response.json"
+      },
+      {
+        "test_id": "API_003",
+        "name": "流式响应测试",
+        "description": "测试流式响应功能",
+        "vendor": "ernie",
+        "model": "ernie-4.0-8k",
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请写一首关于春天的诗"
+            }
+          ],
+          "stream": true,
+          "temperature": 0.8
+        },
+        "expected_output": {
+          "status_code": 200,
+          "response_type": "chat.completion.chunk",
+          "is_streaming": true,
+          "chunk_count_gt": 3
+        },
+        "validation_schema": "streaming_response.json"
+      }
+    ]
+  },
+  "error_handling_tests": {
+    "description": "错误处理测试用例",
+    "test_cases": [
+      {
+        "test_id": "ERR_001",
+        "name": "无效API密钥测试",
+        "description": "测试无效API密钥的错误处理",
+        "vendor": "deepseek",
+        "input": {
+          "api_key": "invalid_key",
+          "messages": [
+            {
+              "role": "user",
+              "content": "测试消息"
+            }
+          ]
+        },
+        "expected_output": {
+          "status_code": 401,
+          "error_type": "authentication_error",
+          "has_error_message": true
+        },
+        "validation_schema": "error_response.json"
+      },
+      {
+        "test_id": "ERR_002",
+        "name": "速率限制测试",
+        "description": "测试速率限制的错误处理",
+        "vendor": "ernie",
+        "input": {
+          "concurrent_requests": 100,
+          "messages": [
+            {
+              "role": "user",
+              "content": "测试消息"
+            }
+          ]
+        },
+        "expected_output": {
+          "status_code": 429,
+          "error_type": "rate_limit_error",
+          "has_retry_after": true
+        },
+        "validation_schema": "error_response.json"
+      },
+      {
+        "test_id": "ERR_003",
+        "name": "无效模型测试",
+        "description": "测试无效模型名称的错误处理",
+        "vendor": "doubao",
+        "input": {
+          "model": "non-existent-model",
+          "messages": [
+            {
+              "role": "user",
+              "content": "测试消息"
+            }
+          ]
+        },
+        "expected_output": {
+          "status_code": 400,
+          "error_type": "invalid_request_error",
+          "error_param": "model"
+        },
+        "validation_schema": "error_response.json"
+      }
+    ]
+  },
+  "multi_vendor_compatibility_tests": {
+    "description": "多厂商兼容性测试用例",
+    "test_cases": [
+      {
+        "test_id": "COMPAT_001",
+        "name": "统一接口测试",
+        "description": "测试不同厂商使用统一接口的兼容性",
+        "vendors": ["deepseek", "ernie", "doubao"],
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请简单介绍一下人工智能"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 150
+        },
+        "expected_output": {
+          "all_vendors_success": true,
+          "response_format_consistent": true,
+          "content_length_gt": 10
+        }
+      },
+      {
+        "test_id": "COMPAT_002",
+        "name": "推理模型对比测试",
+        "description": "对比不同厂商推理模型的输出格式",
+        "reasoning_models": {
+          "deepseek": "deepseek-r1",
+          "ernie": "ernie-x1-turbo-32k",
+          "doubao": "doubao-seed-1-6-250615"
+        },
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请分析一个简单的数学问题：如果一个班级有30个学生，其中60%是女生，那么男生有多少人？请给出详细推理过程。"
+            }
+          ],
+          "temperature": 0.1
+        },
+        "expected_output": {
+          "all_models_have_reasoning": true,
+          "reasoning_format_consistent": true,
+          "correct_answer_rate": 1.0
+        }
+      }
+    ]
+  },
+  "parameter_validation_tests": {
+    "description": "参数验证测试用例",
+    "test_cases": [
+      {
+        "test_id": "PARAM_001",
+        "name": "温度参数边界测试",
+        "description": "测试temperature参数的边界值",
+        "vendor": "deepseek",
+        "test_parameters": [
+          {
+            "temperature": -0.1,
+            "expected_error": true
+          },
+          {
+            "temperature": 0.0,
+            "expected_error": false
+          },
+          {
+            "temperature": 1.0,
+            "expected_error": false
+          },
+          {
+            "temperature": 2.0,
+            "expected_error": false
+          },
+          {
+            "temperature": 2.1,
+            "expected_error": true
+          }
+        ]
+      },
+      {
+        "test_id": "PARAM_002",
+        "name": "最大token数测试",
+        "description": "测试max_tokens参数的有效性",
+        "vendor": "ernie",
+        "test_parameters": [
+          {
+            "max_tokens": 0,
+            "expected_error": true
+          },
+          {
+            "max_tokens": 1,
+            "expected_error": false
+          },
+          {
+            "max_tokens": 4096,
+            "expected_error": false
+          },
+          {
+            "max_tokens": 100000,
+            "expected_error": true
+          }
+        ]
+      }
+    ]
+  }
+}

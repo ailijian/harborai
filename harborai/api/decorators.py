@@ -10,6 +10,7 @@ from harborai.storage.postgres_logger import get_postgres_logger
 from harborai.utils.exceptions import HarborAIError
 from harborai.utils.tracer import generate_trace_id
 from harborai.core.pricing import PricingCalculator
+from harborai.monitoring.token_statistics import record_token_usage
 
 logger = get_logger(__name__)
 
@@ -117,33 +118,60 @@ def cost_tracking(func: Callable) -> Callable:
                 return await func(*args, **kwargs)
             
             start_time = time.time()
-            result = await func(*args, **kwargs)
-            duration = time.time() - start_time
+            model = kwargs.get('model', 'unknown')
+            trace_id = kwargs.get('trace_id', 'unknown')
             
-            # 记录成本相关信息
-            if hasattr(result, 'usage') and result.usage:
-                usage = result.usage
-                model = kwargs.get('model', 'unknown')
-                trace_id = kwargs.get('trace_id', 'unknown')
+            try:
+                result = await func(*args, **kwargs)
+                duration = time.time() - start_time
                 
-                # 计算成本
-                cost = PricingCalculator.calculate_cost(
-                    input_tokens=usage.prompt_tokens,
-                    output_tokens=usage.completion_tokens,
-                    model_name=model
+                # 记录成本相关信息
+                if hasattr(result, 'usage') and result.usage:
+                    usage = result.usage
+                    
+                    # 计算成本
+                    cost = PricingCalculator.calculate_cost(
+                        input_tokens=usage.prompt_tokens,
+                        output_tokens=usage.completion_tokens,
+                        model_name=model
+                    )
+                    
+                    cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                    
+                    logger.info(
+                        f"[{trace_id}] Cost tracking - Model: {model}, "
+                        f"Input tokens: {usage.prompt_tokens}, "
+                        f"Output tokens: {usage.completion_tokens}, "
+                        f"Total tokens: {usage.total_tokens}, "
+                        f"Duration: {duration:.3f}s{cost_info}"
+                    )
+                    
+                    # 记录Token使用统计
+                    record_token_usage(
+                        trace_id=trace_id,
+                        model=model,
+                        input_tokens=usage.prompt_tokens,
+                        output_tokens=usage.completion_tokens,
+                        duration=duration,
+                        success=True
+                    )
+                
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                
+                # 记录失败的Token使用统计
+                record_token_usage(
+                    trace_id=trace_id,
+                    model=model,
+                    input_tokens=0,  # 失败时无法获取准确的token数
+                    output_tokens=0,
+                    duration=duration,
+                    success=False,
+                    error=str(e)
                 )
                 
-                cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
-                
-                logger.info(
-                    f"[{trace_id}] Cost tracking - Model: {model}, "
-                    f"Input tokens: {usage.prompt_tokens}, "
-                    f"Output tokens: {usage.completion_tokens}, "
-                    f"Total tokens: {usage.total_tokens}, "
-                    f"Duration: {duration:.3f}s{cost_info}"
-                )
-            
-            return result
+                raise
         
         return async_wrapper
     else:
@@ -155,33 +183,60 @@ def cost_tracking(func: Callable) -> Callable:
                 return func(*args, **kwargs)
             
             start_time = time.time()
-            result = func(*args, **kwargs)
-            duration = time.time() - start_time
+            model = kwargs.get('model', 'unknown')
+            trace_id = kwargs.get('trace_id', 'unknown')
             
-            # 记录成本相关信息
-            if hasattr(result, 'usage') and result.usage:
-                usage = result.usage
-                model = kwargs.get('model', 'unknown')
-                trace_id = kwargs.get('trace_id', 'unknown')
+            try:
+                result = func(*args, **kwargs)
+                duration = time.time() - start_time
                 
-                # 计算成本
-                cost = PricingCalculator.calculate_cost(
-                    input_tokens=usage.prompt_tokens,
-                    output_tokens=usage.completion_tokens,
-                    model_name=model
+                # 记录成本相关信息
+                if hasattr(result, 'usage') and result.usage:
+                    usage = result.usage
+                    
+                    # 计算成本
+                    cost = PricingCalculator.calculate_cost(
+                        input_tokens=usage.prompt_tokens,
+                        output_tokens=usage.completion_tokens,
+                        model_name=model
+                    )
+                    
+                    cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                    
+                    logger.info(
+                        f"[{trace_id}] Cost tracking - Model: {model}, "
+                        f"Input tokens: {usage.prompt_tokens}, "
+                        f"Output tokens: {usage.completion_tokens}, "
+                        f"Total tokens: {usage.total_tokens}, "
+                        f"Duration: {duration:.3f}s{cost_info}"
+                    )
+                    
+                    # 记录Token使用统计
+                    record_token_usage(
+                        trace_id=trace_id,
+                        model=model,
+                        input_tokens=usage.prompt_tokens,
+                        output_tokens=usage.completion_tokens,
+                        duration=duration,
+                        success=True
+                    )
+                
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                
+                # 记录失败的Token使用统计
+                record_token_usage(
+                    trace_id=trace_id,
+                    model=model,
+                    input_tokens=0,  # 失败时无法获取准确的token数
+                    output_tokens=0,
+                    duration=duration,
+                    success=False,
+                    error=str(e)
                 )
                 
-                cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
-                
-                logger.info(
-                    f"[{trace_id}] Cost tracking - Model: {model}, "
-                    f"Input tokens: {usage.prompt_tokens}, "
-                    f"Output tokens: {usage.completion_tokens}, "
-                    f"Total tokens: {usage.total_tokens}, "
-                    f"Duration: {duration:.3f}s{cost_info}"
-                )
-            
-            return result
+                raise
         
         return sync_wrapper
 

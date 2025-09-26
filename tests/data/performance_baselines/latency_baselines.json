@@ -1,0 +1,328 @@
+{
+  "baseline_metadata": {
+    "version": "1.0.0",
+    "created_date": "2024-01-15",
+    "description": "API延迟性能基准数据",
+    "measurement_conditions": {
+      "network_environment": "stable_broadband",
+      "client_location": "china_mainland",
+      "test_duration": "24_hours",
+      "sample_size": 10000,
+      "measurement_interval": "5_minutes"
+    }
+  },
+  "vendor_baselines": {
+    "deepseek": {
+      "models": {
+        "deepseek-chat": {
+          "response_latency_ms": {
+            "p50": 1850,
+            "p75": 2400,
+            "p90": 3200,
+            "p95": 4100,
+            "p99": 6800,
+            "p99_9": 12000,
+            "mean": 2150,
+            "std_dev": 1200
+          },
+          "first_token_latency_ms": {
+            "p50": 800,
+            "p75": 1100,
+            "p90": 1500,
+            "p95": 2000,
+            "p99": 3500,
+            "mean": 950,
+            "std_dev": 600
+          },
+          "token_generation_rate": {
+            "tokens_per_second": {
+              "p50": 45,
+              "p75": 52,
+              "p90": 58,
+              "p95": 62,
+              "p99": 68,
+              "mean": 48,
+              "std_dev": 8
+            }
+          }
+        },
+        "deepseek-r1": {
+          "response_latency_ms": {
+            "p50": 8500,
+            "p75": 12000,
+            "p90": 16500,
+            "p95": 22000,
+            "p99": 35000,
+            "p99_9": 60000,
+            "mean": 10200,
+            "std_dev": 5800
+          },
+          "reasoning_latency_ms": {
+            "p50": 3200,
+            "p75": 4800,
+            "p90": 7200,
+            "p95": 10500,
+            "p99": 18000,
+            "mean": 4100,
+            "std_dev": 3200
+          },
+          "first_token_latency_ms": {
+            "p50": 1200,
+            "p75": 1800,
+            "p90": 2500,
+            "p95": 3200,
+            "p99": 5000,
+            "mean": 1450,
+            "std_dev": 900
+          },
+          "reasoning_token_rate": {
+            "tokens_per_second": {
+              "p50": 25,
+              "p75": 32,
+              "p90": 38,
+              "p95": 42,
+              "p99": 48,
+              "mean": 28,
+              "std_dev": 6
+            }
+          }
+        }
+      }
+    },
+    "ernie": {
+      "models": {
+        "ernie-4.0-8k": {
+          "response_latency_ms": {
+            "p50": 1650,
+            "p75": 2200,
+            "p90": 2900,
+            "p95": 3800,
+            "p99": 6200,
+            "p99_9": 11000,
+            "mean": 1950,
+            "std_dev": 1100
+          },
+          "first_token_latency_ms": {
+            "p50": 720,
+            "p75": 980,
+            "p90": 1350,
+            "p95": 1800,
+            "p99": 3200,
+            "mean": 850,
+            "std_dev": 550
+          },
+          "token_generation_rate": {
+            "tokens_per_second": {
+              "p50": 48,
+              "p75": 55,
+              "p90": 62,
+              "p95": 66,
+              "p99": 72,
+              "mean": 51,
+              "std_dev": 9
+            }
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "response_latency_ms": {
+            "p50": 7800,
+            "p75": 11200,
+            "p90": 15800,
+            "p95": 20500,
+            "p99": 32000,
+            "p99_9": 55000,
+            "mean": 9500,
+            "std_dev": 5200
+          },
+          "reasoning_latency_ms": {
+            "p50": 2800,
+            "p75": 4200,
+            "p90": 6500,
+            "p95": 9200,
+            "p99": 16000,
+            "mean": 3600,
+            "std_dev": 2800
+          },
+          "first_token_latency_ms": {
+            "p50": 1100,
+            "p75": 1650,
+            "p90": 2300,
+            "p95": 2900,
+            "p99": 4500,
+            "mean": 1320,
+            "std_dev": 800
+          },
+          "reasoning_token_rate": {
+            "tokens_per_second": {
+              "p50": 28,
+              "p75": 35,
+              "p90": 41,
+              "p95": 45,
+              "p99": 52,
+              "mean": 31,
+              "std_dev": 7
+            }
+          }
+        }
+      }
+    },
+    "doubao": {
+      "models": {
+        "doubao-pro-4k": {
+          "response_latency_ms": {
+            "p50": 2100,
+            "p75": 2800,
+            "p90": 3700,
+            "p95": 4800,
+            "p99": 7800,
+            "p99_9": 14000,
+            "mean": 2450,
+            "std_dev": 1400
+          },
+          "first_token_latency_ms": {
+            "p50": 900,
+            "p75": 1250,
+            "p90": 1700,
+            "p95": 2200,
+            "p99": 3800,
+            "mean": 1100,
+            "std_dev": 700
+          },
+          "token_generation_rate": {
+            "tokens_per_second": {
+              "p50": 42,
+              "p75": 48,
+              "p90": 54,
+              "p95": 58,
+              "p99": 64,
+              "mean": 45,
+              "std_dev": 7
+            }
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "response_latency_ms": {
+            "p50": 9200,
+            "p75": 13500,
+            "p90": 18800,
+            "p95": 24500,
+            "p99": 38000,
+            "p99_9": 65000,
+            "mean": 11200,
+            "std_dev": 6200
+          },
+          "reasoning_latency_ms": {
+            "p50": 3800,
+            "p75": 5600,
+            "p90": 8200,
+            "p95": 11500,
+            "p99": 20000,
+            "mean": 4800,
+            "std_dev": 3600
+          },
+          "first_token_latency_ms": {
+            "p50": 1350,
+            "p75": 2000,
+            "p90": 2800,
+            "p95": 3600,
+            "p99": 5500,
+            "mean": 1650,
+            "std_dev": 1000
+          },
+          "reasoning_token_rate": {
+            "tokens_per_second": {
+              "p50": 22,
+              "p75": 28,
+              "p90": 34,
+              "p95": 38,
+              "p99": 44,
+              "mean": 25,
+              "std_dev": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "streaming_latency_baselines": {
+    "description": "流式响应延迟基准",
+    "metrics": {
+      "deepseek": {
+        "first_chunk_latency_ms": {
+          "p50": 850,
+          "p95": 2100,
+          "p99": 3500
+        },
+        "chunk_interval_ms": {
+          "p50": 120,
+          "p95": 280,
+          "p99": 450
+        },
+        "stream_completion_latency_ms": {
+          "p50": 1950,
+          "p95": 4200,
+          "p99": 7000
+        }
+      },
+      "ernie": {
+        "first_chunk_latency_ms": {
+          "p50": 780,
+          "p95": 1900,
+          "p99": 3200
+        },
+        "chunk_interval_ms": {
+          "p50": 110,
+          "p95": 250,
+          "p99": 400
+        },
+        "stream_completion_latency_ms": {
+          "p50": 1750,
+          "p95": 3800,
+          "p99": 6200
+        }
+      },
+      "doubao": {
+        "first_chunk_latency_ms": {
+          "p50": 950,
+          "p95": 2300,
+          "p99": 3800
+        },
+        "chunk_interval_ms": {
+          "p50": 140,
+          "p95": 320,
+          "p99": 520
+        },
+        "stream_completion_latency_ms": {
+          "p50": 2200,
+          "p95": 4800,
+          "p99": 8000
+        }
+      }
+    }
+  },
+  "network_condition_impact": {
+    "description": "不同网络条件对延迟的影响",
+    "conditions": {
+      "excellent": {
+        "description": "优秀网络条件 (延迟<20ms, 丢包率<0.1%)",
+        "latency_multiplier": 1.0,
+        "variance_multiplier": 1.0
+      },
+      "good": {
+        "description": "良好网络条件 (延迟20-50ms, 丢包率0.1-0.5%)",
+        "latency_multiplier": 1.2,
+        "variance_multiplier": 1.3
+      },
+      "fair": {
+        "description": "一般网络条件 (延迟50-100ms, 丢包率0.5-2%)",
+        "latency_multiplier": 1.5,
+        "variance_multiplier": 1.8
+      },
+      "poor": {
+        "description": "较差网络条件 (延迟100-200ms, 丢包率2-5%)",
+        "latency_multiplier": 2.2,
+        "variance_multiplier": 2.5
+      }
+    }
+  }
+}

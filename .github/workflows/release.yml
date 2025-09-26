@@ -1,0 +1,478 @@
+# HarborAI发布流水线
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (例如: v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: '预发布版本'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # 版本验证
+  validate-version:
+    name: 版本验证
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 验证版本号
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+            if [[ $VERSION =~ -[a-zA-Z] ]]; then
+              IS_PRERELEASE="true"
+            else
+              IS_PRERELEASE="false"
+            fi
+          fi
+          
+          # 验证版本号格式
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "❌ 无效的版本号格式: $VERSION"
+            exit 1
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "✅ 版本号验证通过: $VERSION (预发布: $IS_PRERELEASE)"
+
+  # 完整测试套件
+  full-test-suite:
+    name: 完整测试套件
+    runs-on: ubuntu-latest
+    needs: validate-version
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: harborai_test
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+          
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 代码质量检查
+        run: |
+          black --check .
+          isort --check-only .
+          flake8 harborai/ tests/
+          mypy harborai/
+          
+      - name: 安全检查
+        run: |
+          bandit -r harborai/
+          safety check
+          
+      - name: 运行完整测试套件
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/harborai_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python -m pytest \
+            -v --tb=short \
+            --cov=harborai \
+            --cov-report=xml \
+            --cov-report=html \
+            --junit-xml=junit-${{ matrix.python-version }}.xml \
+            --html=test-report-${{ matrix.python-version }}.html \
+            --self-contained-html \
+            -m "not slow"
+            
+      - name: 检查覆盖率阈值
+        run: |
+          python -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('coverage.xml')
+          coverage = float(tree.getroot().attrib['line-rate']) * 100
+          print(f'代码覆盖率: {coverage:.2f}%')
+          if coverage < 80:
+              print('❌ 代码覆盖率低于80%，发布失败')
+              exit(1)
+          print('✅ 代码覆盖率检查通过')
+          "
+          
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-reports-${{ matrix.python-version }}
+          path: |
+            junit-*.xml
+            test-report-*.html
+            htmlcov/
+
+  # 性能基准测试
+  performance-benchmark:
+    name: 性能基准测试
+    runs-on: ubuntu-latest
+    needs: validate-version
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 运行性能基准测试
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/performance/ \
+            -v --tb=short \
+            -m "performance and benchmark" \
+            --benchmark-json=benchmark-results.json
+            
+      - name: 性能回归检查
+        run: |
+          python tests/scripts/check_performance_regression.py \
+            --current benchmark-results.json \
+            --baseline tests/data/performance_baselines/baseline_v1.0.json \
+            --threshold 0.05 \
+            --strict
+            
+      - name: 更新性能基线
+        run: |
+          cp benchmark-results.json tests/data/performance_baselines/baseline_${{ needs.validate-version.outputs.version }}.json
+          
+      - name: 上传性能报告
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-benchmark
+          path: |
+            benchmark-results.json
+            tests/data/performance_baselines/baseline_${{ needs.validate-version.outputs.version }}.json
+
+  # 构建分发包
+  build-package:
+    name: 构建分发包
+    runs-on: ubuntu-latest
+    needs: [validate-version, full-test-suite]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: 安装构建工具
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          
+      - name: 更新版本号
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          VERSION_NUM=${VERSION#v}
+          sed -i "s/version = \".*\"/version = \"$VERSION_NUM\"/" pyproject.toml
+          
+      - name: 构建分发包
+        run: |
+          python -m build
+          
+      - name: 验证分发包
+        run: |
+          python -m twine check dist/*
+          
+      - name: 上传分发包
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+
+  # 构建Docker镜像
+  build-docker:
+    name: 构建Docker镜像
+    runs-on: ubuntu-latest
+    needs: [validate-version, full-test-suite]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: 登录容器注册表
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 提取元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            
+      - name: 构建并推送Docker镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # 生成发布说明
+  generate-changelog:
+    name: 生成发布说明
+    runs-on: ubuntu-latest
+    needs: validate-version
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: 生成变更日志
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [[ -z "$PREV_TAG" ]]; then
+            COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+          else
+            COMMITS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" --no-merges)
+          fi
+          
+          CHANGELOG="## 🚀 HarborAI $VERSION\n\n"
+          CHANGELOG+="### 📋 变更内容\n\n"
+          CHANGELOG+="$COMMITS\n\n"
+          CHANGELOG+="### 🧪 测试覆盖\n\n"
+          CHANGELOG+="- ✅ 单元测试: 通过\n"
+          CHANGELOG+="- ✅ 功能测试: 通过\n"
+          CHANGELOG+="- ✅ 集成测试: 通过\n"
+          CHANGELOG+="- ✅ 性能测试: 通过\n"
+          CHANGELOG+="- ✅ 安全测试: 通过\n\n"
+          CHANGELOG+="### 📦 安装方式\n\n"
+          CHANGELOG+="\`\`\`bash\n"
+          CHANGELOG+="pip install harborai==${VERSION#v}\n"
+          CHANGELOG+="\`\`\`\n\n"
+          CHANGELOG+="### 🐳 Docker镜像\n\n"
+          CHANGELOG+="\`\`\`bash\n"
+          CHANGELOG+="docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION\n"
+          CHANGELOG+="\`\`\`\n"
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  # 创建GitHub Release
+  create-release:
+    name: 创建GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-version, full-test-suite, performance-benchmark, build-package, build-docker, generate-changelog]
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+          
+      - name: 下载性能基准
+        uses: actions/download-artifact@v3
+        with:
+          name: performance-benchmark
+          path: performance/
+          
+      - name: 创建Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-version.outputs.version }}
+          name: HarborAI ${{ needs.validate-version.outputs.version }}
+          body: ${{ needs.generate-changelog.outputs.changelog }}
+          prerelease: ${{ needs.validate-version.outputs.is_prerelease }}
+          files: |
+            dist/*
+            performance/benchmark-results.json
+            performance/baseline_${{ needs.validate-version.outputs.version }}.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 发布到PyPI
+  publish-pypi:
+    name: 发布到PyPI
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release]
+    if: needs.validate-version.outputs.is_prerelease == 'false'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/harborai
+    permissions:
+      id-token: write
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+          
+      - name: 发布到PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://upload.pypi.org/legacy/
+
+  # 发布到TestPyPI（预发布版本）
+  publish-test-pypi:
+    name: 发布到TestPyPI
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release]
+    if: needs.validate-version.outputs.is_prerelease == 'true'
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/harborai
+    permissions:
+      id-token: write
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+          
+      - name: 发布到TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  # 部署文档
+  deploy-docs:
+    name: 部署文档
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release]
+    if: needs.validate-version.outputs.is_prerelease == 'false'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: 安装文档依赖
+        run: |
+          pip install mkdocs mkdocs-material mkdocs-mermaid2-plugin
+          
+      - name: 构建文档
+        run: |
+          mkdocs build
+          
+      - name: 部署到GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+
+  # 发布通知
+  notify-release:
+    name: 发布通知
+    runs-on: ubuntu-latest
+    needs: [validate-version, create-release, publish-pypi, deploy-docs]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: 发送发布通知
+        run: |
+          VERSION="${{ needs.validate-version.outputs.version }}"
+          IS_PRERELEASE="${{ needs.validate-version.outputs.is_prerelease }}"
+          
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            echo "🎉 HarborAI $VERSION 预发布版本已发布！"
+            echo "📦 TestPyPI: https://test.pypi.org/project/harborai/"
+          else
+            echo "🚀 HarborAI $VERSION 正式版本已发布！"
+            echo "📦 PyPI: https://pypi.org/project/harborai/"
+            echo "📚 文档: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          fi
+          
+          echo "🐳 Docker: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION"
+          echo "📋 发布说明: https://github.com/${{ github.repository }}/releases/tag/$VERSION"

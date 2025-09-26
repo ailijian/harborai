@@ -1,0 +1,508 @@
+# HarborAI测试CI/CD流水线
+name: HarborAI Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # 每天凌晨2点运行完整测试套件
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: '测试类型'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - functional
+          - performance
+          - security
+          - integration
+          - all
+      real_api:
+        description: '运行真实API测试'
+        required: false
+        default: false
+        type: boolean
+      parallel:
+        description: '并行执行'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  PYTEST_WORKERS: 4
+
+jobs:
+  # 代码质量检查
+  code-quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.txt
+          
+      - name: 代码格式检查
+        run: |
+          black --check --diff .
+          isort --check-only --diff .
+          
+      - name: 代码风格检查
+        run: |
+          flake8 harborai/ tests/
+          
+      - name: 类型检查
+        run: |
+          mypy harborai/
+          
+      - name: 安全检查
+        run: |
+          bandit -r harborai/ -f json -o security-report.json
+          safety check --json --output safety-report.json
+          
+      - name: 上传安全报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            security-report.json
+            safety-report.json
+
+  # 单元测试
+  unit-tests:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    needs: code-quality
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 运行单元测试
+        run: |
+          python -m pytest tests/unit/ \
+            -v --tb=short \
+            --cov=harborai \
+            --cov-report=xml \
+            --cov-report=html \
+            --junit-xml=junit-unit.xml \
+            --html=unit-report.html \
+            --self-contained-html
+            
+      - name: 上传覆盖率报告
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unit-tests
+          name: codecov-${{ matrix.python-version }}
+          
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: unit-test-reports-${{ matrix.python-version }}
+          path: |
+            junit-unit.xml
+            unit-report.html
+            htmlcov/
+
+  # 功能测试
+  functional-tests:
+    name: 功能测试
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        test-group: 
+          - 'test_a_* or test_b_* or test_c_*'  # API兼容性
+          - 'test_d_* or test_e_* or test_f_*'  # 流式和结构化输出
+          - 'test_g_* or test_h_* or test_i_*'  # 推理模型和错误处理
+          - 'test_j_* or test_k_* or test_l_*'  # 并发和资源监控
+          - 'test_m_* or test_n_* or test_o_*'  # 安全和集成
+          - 'test_p_* or test_q_*'              # 性能和对齐
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 设置测试环境
+        run: |
+          cp .env.example .env.test
+          mkdir -p tests/reports tests/logs
+          
+      - name: 运行功能测试
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python -m pytest tests/functional/ \
+            -v --tb=short \
+            -k "${{ matrix.test-group }}" \
+            -n ${{ env.PYTEST_WORKERS }} \
+            --dist worksteal \
+            --junit-xml=junit-functional-${{ strategy.job-index }}.xml \
+            --html=functional-report-${{ strategy.job-index }}.html \
+            --self-contained-html \
+            -m "not real_api or (real_api and not slow)"
+            
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: functional-test-reports-${{ strategy.job-index }}
+          path: |
+            junit-functional-*.xml
+            functional-report-*.html
+
+  # 集成测试
+  integration-tests:
+    name: 集成测试
+    runs-on: ubuntu-latest
+    needs: functional-tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: harborai_test
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+          
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 设置测试环境
+        env:
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/harborai_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          cp .env.example .env.test
+          echo "DATABASE_URL=$DATABASE_URL" >> .env.test
+          echo "REDIS_URL=$REDIS_URL" >> .env.test
+          
+      - name: 初始化数据库
+        run: |
+          python -c "
+          import psycopg2
+          conn = psycopg2.connect('postgresql://testuser:testpass@localhost:5432/harborai_test')
+          cur = conn.cursor()
+          cur.execute('CREATE EXTENSION IF NOT EXISTS uuid-ossp;')
+          conn.commit()
+          conn.close()
+          "
+          
+      - name: 运行集成测试
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DATABASE_URL: postgresql://testuser:testpass@localhost:5432/harborai_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python -m pytest tests/integration/ \
+            -v --tb=short \
+            --junit-xml=junit-integration.xml \
+            --html=integration-report.html \
+            --self-contained-html
+            
+      - name: 上传测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-reports
+          path: |
+            junit-integration.xml
+            integration-report.html
+
+  # 性能测试
+  performance-tests:
+    name: 性能测试
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'schedule' || github.event.inputs.test_type == 'performance' || github.event.inputs.test_type == 'all'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 运行性能测试
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m pytest tests/performance/ \
+            -v --tb=short \
+            -m "performance and not slow" \
+            --junit-xml=junit-performance.xml \
+            --html=performance-report.html \
+            --self-contained-html \
+            --benchmark-json=benchmark-results.json
+            
+      - name: 性能回归检查
+        run: |
+          python tests/scripts/check_performance_regression.py \
+            --current benchmark-results.json \
+            --baseline tests/data/performance_baselines/baseline_v1.0.json \
+            --threshold 0.1
+            
+      - name: 上传性能报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-test-reports
+          path: |
+            junit-performance.xml
+            performance-report.html
+            benchmark-results.json
+
+  # 安全测试
+  security-tests:
+    name: 安全测试
+    runs-on: ubuntu-latest
+    needs: functional-tests
+    if: github.event_name == 'schedule' || github.event.inputs.test_type == 'security' || github.event.inputs.test_type == 'all'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 运行安全测试
+        run: |
+          python -m pytest tests/security/ tests/functional/test_m_security.py \
+            -v --tb=short \
+            -m "security" \
+            --junit-xml=junit-security.xml \
+            --html=security-report.html \
+            --self-contained-html
+            
+      - name: 上传安全报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-test-reports
+          path: |
+            junit-security.xml
+            security-report.html
+
+  # 真实API测试（仅在手动触发时运行）
+  real-api-tests:
+    name: 真实API测试
+    runs-on: ubuntu-latest
+    needs: functional-tests
+    if: github.event.inputs.real_api == 'true' || github.event_name == 'schedule'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          
+      - name: 运行真实API测试
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python -m pytest tests/functional/ \
+            -v --tb=short \
+            -m "real_api and not slow" \
+            --junit-xml=junit-real-api.xml \
+            --html=real-api-report.html \
+            --self-contained-html
+            
+      - name: 上传真实API测试报告
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: real-api-test-reports
+          path: |
+            junit-real-api.xml
+            real-api-report.html
+
+  # 生成综合报告
+  generate-report:
+    name: 生成综合报告
+    runs-on: ubuntu-latest
+    needs: [unit-tests, functional-tests, integration-tests]
+    if: always()
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 下载所有测试报告
+        uses: actions/download-artifact@v3
+        with:
+          path: test-artifacts
+          
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          
+      - name: 安装报告生成依赖
+        run: |
+          pip install jinja2 matplotlib seaborn pandas
+          
+      - name: 生成综合报告
+        run: |
+          python tests/scripts/generate_comprehensive_report.py \
+            --input-dir test-artifacts \
+            --output-dir comprehensive-report \
+            --format all
+            
+      - name: 上传综合报告
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-report
+          path: comprehensive-report/
+          
+      - name: 部署报告到GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./comprehensive-report
+          destination_dir: test-reports/${{ github.run_number }}
+
+  # 质量门控
+  quality-gate:
+    name: 质量门控
+    runs-on: ubuntu-latest
+    needs: [unit-tests, functional-tests, integration-tests]
+    if: always()
+    steps:
+      - name: 检查测试结果
+        run: |
+          echo "检查质量门控条件..."
+          
+          # 检查单元测试是否通过
+          if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
+            echo "❌ 单元测试失败"
+            exit 1
+          fi
+          
+          # 检查功能测试是否通过
+          if [[ "${{ needs.functional-tests.result }}" != "success" ]]; then
+            echo "❌ 功能测试失败"
+            exit 1
+          fi
+          
+          # 检查集成测试是否通过
+          if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
+            echo "❌ 集成测试失败"
+            exit 1
+          fi
+          
+          echo "✅ 所有质量门控条件已满足"
+          
+      - name: 通知测试结果
+        if: always()
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "🎉 HarborAI测试流水线执行成功！"
+          else
+            echo "💥 HarborAI测试流水线执行失败！"
+          fi

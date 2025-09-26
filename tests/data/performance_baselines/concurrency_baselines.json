@@ -1,0 +1,586 @@
+{
+  "baseline_metadata": {
+    "version": "1.0.0",
+    "created_date": "2024-01-15",
+    "description": "并发性能基准数据",
+    "measurement_conditions": {
+      "test_environment": "production_like",
+      "load_testing_framework": "custom_concurrent_harness",
+      "test_duration": "3_hours",
+      "ramp_up_strategy": "linear_increase",
+      "measurement_interval": "15_seconds",
+      "connection_pool_size": 50
+    }
+  },
+  "concurrent_user_baselines": {
+    "description": "并发用户性能基准",
+    "deepseek": {
+      "models": {
+        "deepseek-chat": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 850,
+              "p50_response_time_ms": 820,
+              "p95_response_time_ms": 1200,
+              "p99_response_time_ms": 1450,
+              "success_rate": 0.999,
+              "error_rate": 0.001,
+              "throughput_rps": 12.5
+            },
+            "5_users": {
+              "avg_response_time_ms": 920,
+              "p50_response_time_ms": 890,
+              "p95_response_time_ms": 1350,
+              "p99_response_time_ms": 1650,
+              "success_rate": 0.998,
+              "error_rate": 0.002,
+              "throughput_rps": 45.2
+            },
+            "10_users": {
+              "avg_response_time_ms": 1050,
+              "p50_response_time_ms": 1020,
+              "p95_response_time_ms": 1580,
+              "p99_response_time_ms": 1950,
+              "success_rate": 0.995,
+              "error_rate": 0.005,
+              "throughput_rps": 82.5
+            },
+            "20_users": {
+              "avg_response_time_ms": 1280,
+              "p50_response_time_ms": 1250,
+              "p95_response_time_ms": 1950,
+              "p99_response_time_ms": 2450,
+              "success_rate": 0.990,
+              "error_rate": 0.010,
+              "throughput_rps": 148.0
+            },
+            "50_users": {
+              "avg_response_time_ms": 1850,
+              "p50_response_time_ms": 1780,
+              "p95_response_time_ms": 2850,
+              "p99_response_time_ms": 3650,
+              "success_rate": 0.980,
+              "error_rate": 0.020,
+              "throughput_rps": 320.0
+            },
+            "100_users": {
+              "avg_response_time_ms": 2950,
+              "p50_response_time_ms": 2850,
+              "p95_response_time_ms": 4250,
+              "p99_response_time_ms": 5450,
+              "success_rate": 0.960,
+              "error_rate": 0.040,
+              "throughput_rps": 580.0
+            },
+            "150_users": {
+              "avg_response_time_ms": 4850,
+              "p50_response_time_ms": 4650,
+              "p95_response_time_ms": 7250,
+              "p99_response_time_ms": 9450,
+              "success_rate": 0.920,
+              "error_rate": 0.080,
+              "throughput_rps": 650.0
+            }
+          }
+        },
+        "deepseek-r1": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 2850,
+              "p50_response_time_ms": 2750,
+              "p95_response_time_ms": 3850,
+              "p99_response_time_ms": 4650,
+              "success_rate": 0.999,
+              "error_rate": 0.001,
+              "throughput_rps": 4.2,
+              "reasoning_overhead_ms": 1850
+            },
+            "5_users": {
+              "avg_response_time_ms": 3250,
+              "p50_response_time_ms": 3150,
+              "p95_response_time_ms": 4450,
+              "p99_response_time_ms": 5450,
+              "success_rate": 0.998,
+              "error_rate": 0.002,
+              "throughput_rps": 18.5,
+              "reasoning_overhead_ms": 2150
+            },
+            "10_users": {
+              "avg_response_time_ms": 3850,
+              "p50_response_time_ms": 3750,
+              "p95_response_time_ms": 5250,
+              "p99_response_time_ms": 6450,
+              "success_rate": 0.995,
+              "error_rate": 0.005,
+              "throughput_rps": 32.0,
+              "reasoning_overhead_ms": 2450
+            },
+            "20_users": {
+              "avg_response_time_ms": 4850,
+              "p50_response_time_ms": 4650,
+              "p95_response_time_ms": 6850,
+              "p99_response_time_ms": 8450,
+              "success_rate": 0.990,
+              "error_rate": 0.010,
+              "throughput_rps": 58.0,
+              "reasoning_overhead_ms": 2850
+            },
+            "50_users": {
+              "avg_response_time_ms": 7250,
+              "p50_response_time_ms": 6950,
+              "p95_response_time_ms": 10250,
+              "p99_response_time_ms": 12850,
+              "success_rate": 0.975,
+              "error_rate": 0.025,
+              "throughput_rps": 125.0,
+              "reasoning_overhead_ms": 3850
+            }
+          }
+        }
+      }
+    },
+    "ernie": {
+      "models": {
+        "ernie-4.0-8k": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 720,
+              "p50_response_time_ms": 690,
+              "p95_response_time_ms": 1050,
+              "p99_response_time_ms": 1250,
+              "success_rate": 0.999,
+              "error_rate": 0.001,
+              "throughput_rps": 14.8
+            },
+            "5_users": {
+              "avg_response_time_ms": 780,
+              "p50_response_time_ms": 750,
+              "p95_response_time_ms": 1150,
+              "p99_response_time_ms": 1450,
+              "success_rate": 0.999,
+              "error_rate": 0.001,
+              "throughput_rps": 52.5
+            },
+            "10_users": {
+              "avg_response_time_ms": 890,
+              "p50_response_time_ms": 860,
+              "p95_response_time_ms": 1350,
+              "p99_response_time_ms": 1650,
+              "success_rate": 0.997,
+              "error_rate": 0.003,
+              "throughput_rps": 98.0
+            },
+            "20_users": {
+              "avg_response_time_ms": 1080,
+              "p50_response_time_ms": 1050,
+              "p95_response_time_ms": 1650,
+              "p99_response_time_ms": 2050,
+              "success_rate": 0.993,
+              "error_rate": 0.007,
+              "throughput_rps": 175.0
+            },
+            "50_users": {
+              "avg_response_time_ms": 1550,
+              "p50_response_time_ms": 1480,
+              "p95_response_time_ms": 2350,
+              "p99_response_time_ms": 2950,
+              "success_rate": 0.985,
+              "error_rate": 0.015,
+              "throughput_rps": 385.0
+            },
+            "100_users": {
+              "avg_response_time_ms": 2450,
+              "p50_response_time_ms": 2350,
+              "p95_response_time_ms": 3650,
+              "p99_response_time_ms": 4650,
+              "success_rate": 0.970,
+              "error_rate": 0.030,
+              "throughput_rps": 680.0
+            },
+            "180_users": {
+              "avg_response_time_ms": 3950,
+              "p50_response_time_ms": 3750,
+              "p95_response_time_ms": 5850,
+              "p99_response_time_ms": 7450,
+              "success_rate": 0.940,
+              "error_rate": 0.060,
+              "throughput_rps": 750.0
+            }
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 2450,
+              "p50_response_time_ms": 2350,
+              "p95_response_time_ms": 3250,
+              "p99_response_time_ms": 3950,
+              "success_rate": 0.999,
+              "error_rate": 0.001,
+              "throughput_rps": 5.1,
+              "reasoning_overhead_ms": 1550
+            },
+            "5_users": {
+              "avg_response_time_ms": 2750,
+              "p50_response_time_ms": 2650,
+              "p95_response_time_ms": 3750,
+              "p99_response_time_ms": 4550,
+              "success_rate": 0.998,
+              "error_rate": 0.002,
+              "throughput_rps": 22.0,
+              "reasoning_overhead_ms": 1750
+            },
+            "10_users": {
+              "avg_response_time_ms": 3250,
+              "p50_response_time_ms": 3150,
+              "p95_response_time_ms": 4450,
+              "p99_response_time_ms": 5450,
+              "success_rate": 0.996,
+              "error_rate": 0.004,
+              "throughput_rps": 38.5,
+              "reasoning_overhead_ms": 2050
+            },
+            "20_users": {
+              "avg_response_time_ms": 4050,
+              "p50_response_time_ms": 3850,
+              "p95_response_time_ms": 5650,
+              "p99_response_time_ms": 6950,
+              "success_rate": 0.992,
+              "error_rate": 0.008,
+              "throughput_rps": 68.0,
+              "reasoning_overhead_ms": 2450
+            },
+            "50_users": {
+              "avg_response_time_ms": 6050,
+              "p50_response_time_ms": 5750,
+              "p95_response_time_ms": 8450,
+              "p99_response_time_ms": 10450,
+              "success_rate": 0.980,
+              "error_rate": 0.020,
+              "throughput_rps": 145.0,
+              "reasoning_overhead_ms": 3250
+            }
+          }
+        }
+      }
+    },
+    "doubao": {
+      "models": {
+        "doubao-pro-4k": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 950,
+              "p50_response_time_ms": 920,
+              "p95_response_time_ms": 1350,
+              "p99_response_time_ms": 1650,
+              "success_rate": 0.998,
+              "error_rate": 0.002,
+              "throughput_rps": 10.8
+            },
+            "5_users": {
+              "avg_response_time_ms": 1080,
+              "p50_response_time_ms": 1050,
+              "p95_response_time_ms": 1550,
+              "p99_response_time_ms": 1950,
+              "success_rate": 0.997,
+              "error_rate": 0.003,
+              "throughput_rps": 38.5
+            },
+            "10_users": {
+              "avg_response_time_ms": 1350,
+              "p50_response_time_ms": 1280,
+              "p95_response_time_ms": 1950,
+              "p99_response_time_ms": 2450,
+              "success_rate": 0.994,
+              "error_rate": 0.006,
+              "throughput_rps": 68.0
+            },
+            "20_users": {
+              "avg_response_time_ms": 1750,
+              "p50_response_time_ms": 1650,
+              "p95_response_time_ms": 2550,
+              "p99_response_time_ms": 3250,
+              "success_rate": 0.988,
+              "error_rate": 0.012,
+              "throughput_rps": 118.0
+            },
+            "50_users": {
+              "avg_response_time_ms": 2650,
+              "p50_response_time_ms": 2450,
+              "p95_response_time_ms": 3850,
+              "p99_response_time_ms": 4950,
+              "success_rate": 0.975,
+              "error_rate": 0.025,
+              "throughput_rps": 250.0
+            },
+            "100_users": {
+              "avg_response_time_ms": 4250,
+              "p50_response_time_ms": 3950,
+              "p95_response_time_ms": 6250,
+              "p99_response_time_ms": 7950,
+              "success_rate": 0.950,
+              "error_rate": 0.050,
+              "throughput_rps": 420.0
+            },
+            "120_users": {
+              "avg_response_time_ms": 5850,
+              "p50_response_time_ms": 5450,
+              "p95_response_time_ms": 8650,
+              "p99_response_time_ms": 11250,
+              "success_rate": 0.920,
+              "error_rate": 0.080,
+              "throughput_rps": 480.0
+            }
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "concurrent_levels": {
+            "1_user": {
+              "avg_response_time_ms": 3250,
+              "p50_response_time_ms": 3150,
+              "p95_response_time_ms": 4450,
+              "p99_response_time_ms": 5450,
+              "success_rate": 0.998,
+              "error_rate": 0.002,
+              "throughput_rps": 3.8,
+              "reasoning_overhead_ms": 2150
+            },
+            "5_users": {
+              "avg_response_time_ms": 3750,
+              "p50_response_time_ms": 3650,
+              "p95_response_time_ms": 5150,
+              "p99_response_time_ms": 6350,
+              "success_rate": 0.997,
+              "error_rate": 0.003,
+              "throughput_rps": 16.5,
+              "reasoning_overhead_ms": 2450
+            },
+            "10_users": {
+              "avg_response_time_ms": 4450,
+              "p50_response_time_ms": 4250,
+              "p95_response_time_ms": 6150,
+              "p99_response_time_ms": 7650,
+              "success_rate": 0.994,
+              "error_rate": 0.006,
+              "throughput_rps": 28.0,
+              "reasoning_overhead_ms": 2850
+            },
+            "20_users": {
+              "avg_response_time_ms": 5650,
+              "p50_response_time_ms": 5350,
+              "p95_response_time_ms": 7850,
+              "p99_response_time_ms": 9850,
+              "success_rate": 0.988,
+              "error_rate": 0.012,
+              "throughput_rps": 48.0,
+              "reasoning_overhead_ms": 3450
+            },
+            "50_users": {
+              "avg_response_time_ms": 8450,
+              "p50_response_time_ms": 7950,
+              "p95_response_time_ms": 11850,
+              "p99_response_time_ms": 14850,
+              "success_rate": 0.970,
+              "error_rate": 0.030,
+              "throughput_rps": 95.0,
+              "reasoning_overhead_ms": 4850
+            }
+          }
+        }
+      }
+    }
+  },
+  "connection_pool_baselines": {
+    "description": "连接池性能基准",
+    "pool_size_optimization": {
+      "pool_size_5": {
+        "connection_wait_time_ms": {
+          "mean": 125.8,
+          "p50": 118.5,
+          "p95": 185.2,
+          "p99": 245.8
+        },
+        "connection_utilization_rate": 0.95,
+        "pool_exhaustion_rate": 0.15
+      },
+      "pool_size_10": {
+        "connection_wait_time_ms": {
+          "mean": 85.2,
+          "p50": 78.5,
+          "p95": 125.8,
+          "p99": 165.2
+        },
+        "connection_utilization_rate": 0.88,
+        "pool_exhaustion_rate": 0.08
+      },
+      "pool_size_20": {
+        "connection_wait_time_ms": {
+          "mean": 45.8,
+          "p50": 42.5,
+          "p95": 68.5,
+          "p99": 85.2
+        },
+        "connection_utilization_rate": 0.75,
+        "pool_exhaustion_rate": 0.02
+      },
+      "pool_size_50": {
+        "connection_wait_time_ms": {
+          "mean": 12.5,
+          "p50": 10.8,
+          "p95": 18.5,
+          "p99": 25.8
+        },
+        "connection_utilization_rate": 0.45,
+        "pool_exhaustion_rate": 0.001
+      }
+    },
+    "connection_lifecycle": {
+      "connection_establishment_time_ms": {
+        "mean": 125.8,
+        "p50": 118.5,
+        "p95": 158.2,
+        "p99": 185.5
+      },
+      "connection_reuse_efficiency": {
+        "deepseek": 0.92,
+        "ernie": 0.95,
+        "doubao": 0.88
+      },
+      "connection_timeout_rate": {
+        "deepseek": 0.002,
+        "ernie": 0.001,
+        "doubao": 0.003
+      }
+    }
+  },
+  "thread_pool_baselines": {
+    "description": "线程池性能基准",
+    "thread_utilization": {
+      "thread_pool_size_10": {
+        "avg_thread_utilization": 0.85,
+        "peak_thread_utilization": 0.98,
+        "thread_starvation_rate": 0.12
+      },
+      "thread_pool_size_20": {
+        "avg_thread_utilization": 0.72,
+        "peak_thread_utilization": 0.95,
+        "thread_starvation_rate": 0.05
+      },
+      "thread_pool_size_50": {
+        "avg_thread_utilization": 0.45,
+        "peak_thread_utilization": 0.78,
+        "thread_starvation_rate": 0.001
+      }
+    },
+    "task_queue_metrics": {
+      "queue_depth": {
+        "mean": 15.8,
+        "p50": 12.5,
+        "p95": 35.2,
+        "p99": 58.5
+      },
+      "task_wait_time_ms": {
+        "mean": 45.8,
+        "p50": 38.5,
+        "p95": 85.2,
+        "p99": 125.8
+      },
+      "task_processing_time_ms": {
+        "mean": 285.8,
+        "p50": 268.5,
+        "p95": 385.2,
+        "p99": 485.8
+      }
+    }
+  },
+  "error_rate_baselines": {
+    "description": "错误率基准数据",
+    "error_types": {
+      "timeout_errors": {
+        "deepseek": {
+          "rate_under_normal_load": 0.001,
+          "rate_under_high_load": 0.015,
+          "rate_under_peak_load": 0.045
+        },
+        "ernie": {
+          "rate_under_normal_load": 0.0005,
+          "rate_under_high_load": 0.008,
+          "rate_under_peak_load": 0.025
+        },
+        "doubao": {
+          "rate_under_normal_load": 0.002,
+          "rate_under_high_load": 0.020,
+          "rate_under_peak_load": 0.065
+        }
+      },
+      "rate_limit_errors": {
+        "deepseek": {
+          "rate_under_normal_load": 0.0005,
+          "rate_under_high_load": 0.012,
+          "rate_under_peak_load": 0.055
+        },
+        "ernie": {
+          "rate_under_normal_load": 0.0002,
+          "rate_under_high_load": 0.005,
+          "rate_under_peak_load": 0.030
+        },
+        "doubao": {
+          "rate_under_normal_load": 0.001,
+          "rate_under_high_load": 0.018,
+          "rate_under_peak_load": 0.075
+        }
+      },
+      "connection_errors": {
+        "deepseek": {
+          "rate_under_normal_load": 0.0002,
+          "rate_under_high_load": 0.003,
+          "rate_under_peak_load": 0.015
+        },
+        "ernie": {
+          "rate_under_normal_load": 0.0001,
+          "rate_under_high_load": 0.002,
+          "rate_under_peak_load": 0.008
+        },
+        "doubao": {
+          "rate_under_normal_load": 0.0005,
+          "rate_under_high_load": 0.005,
+          "rate_under_peak_load": 0.025
+        }
+      }
+    }
+  },
+  "scalability_patterns": {
+    "description": "可扩展性模式分析",
+    "linear_scaling_range": {
+      "deepseek": {
+        "user_range": "1-50",
+        "scaling_efficiency": 0.92
+      },
+      "ernie": {
+        "user_range": "1-80",
+        "scaling_efficiency": 0.95
+      },
+      "doubao": {
+        "user_range": "1-40",
+        "scaling_efficiency": 0.88
+      }
+    },
+    "degradation_patterns": {
+      "deepseek": {
+        "degradation_start_users": 80,
+        "severe_degradation_users": 120,
+        "breaking_point_users": 150
+      },
+      "ernie": {
+        "degradation_start_users": 100,
+        "severe_degradation_users": 140,
+        "breaking_point_users": 180
+      },
+      "doubao": {
+        "degradation_start_users": 60,
+        "severe_degradation_users": 100,
+        "breaking_point_users": 120
+      }
+    }
+  }
+}

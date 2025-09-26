@@ -1,0 +1,98 @@
+# HarborAI 测试项目 Docker 环境配置
+# 用于提供 PostgreSQL 测试数据库服务
+
+version: '3.8'
+
+services:
+  # PostgreSQL 测试数据库
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: harborai_test_postgres
+    environment:
+      POSTGRES_DB: harborai_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5433:5432"  # 使用5433端口避免与本地PostgreSQL冲突
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./data/sql:/docker-entrypoint-initdb.d  # 初始化SQL脚本
+    networks:
+      - harborai_test_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d harborai_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis 缓存服务（用于性能测试）
+  redis_test:
+    image: redis:7-alpine
+    container_name: harborai_test_redis
+    ports:
+      - "6380:6379"  # 使用6380端口避免与本地Redis冲突
+    networks:
+      - harborai_test_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # Prometheus 监控服务（用于性能监控测试）
+  prometheus_test:
+    image: prom/prometheus:latest
+    container_name: harborai_test_prometheus
+    ports:
+      - "9091:9090"  # 使用9091端口避免冲突
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_test_data:/prometheus
+    networks:
+      - harborai_test_network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # Grafana 可视化服务（用于性能监控可视化）
+  grafana_test:
+    image: grafana/grafana:latest
+    container_name: harborai_test_grafana
+    ports:
+      - "3001:3000"  # 使用3001端口避免冲突
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=test_admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_test_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - harborai_test_network
+    depends_on:
+      - prometheus_test
+    restart: unless-stopped
+
+volumes:
+  postgres_test_data:
+    driver: local
+  prometheus_test_data:
+    driver: local
+  grafana_test_data:
+    driver: local
+
+networks:
+  harborai_test_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

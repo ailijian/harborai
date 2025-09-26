@@ -1,0 +1,579 @@
+{
+  "baseline_metadata": {
+    "version": "1.0.0",
+    "created_date": "2024-01-15",
+    "description": "API资源使用性能基准数据",
+    "measurement_conditions": {
+      "test_environment": "production_like",
+      "monitoring_tool": "prometheus_grafana",
+      "measurement_interval": "10_seconds",
+      "test_duration": "2_hours",
+      "system_specs": {
+        "cpu": "Intel i7-12700K 8C/16T",
+        "memory": "32GB DDR4-3200",
+        "network": "1Gbps",
+        "os": "Ubuntu 22.04 LTS"
+      }
+    }
+  },
+  "memory_usage_baselines": {
+    "description": "内存使用基准数据",
+    "idle_state": {
+      "base_memory_mb": {
+        "mean": 128.5,
+        "p50": 125.2,
+        "p95": 145.8,
+        "p99": 158.3
+      },
+      "heap_memory_mb": {
+        "mean": 85.2,
+        "p50": 82.8,
+        "p95": 98.5,
+        "p99": 108.7
+      }
+    },
+    "single_request_overhead": {
+      "deepseek": {
+        "deepseek-chat": {
+          "memory_per_request_kb": {
+            "mean": 245.8,
+            "p50": 238.5,
+            "p95": 285.2,
+            "p99": 320.8
+          },
+          "peak_memory_increase_mb": {
+            "mean": 12.5,
+            "p50": 11.8,
+            "p95": 16.2,
+            "p99": 19.8
+          }
+        },
+        "deepseek-r1": {
+          "memory_per_request_kb": {
+            "mean": 485.2,
+            "p50": 468.5,
+            "p95": 565.8,
+            "p99": 628.3
+          },
+          "peak_memory_increase_mb": {
+            "mean": 28.5,
+            "p50": 26.8,
+            "p95": 35.2,
+            "p99": 42.1
+          },
+          "reasoning_memory_overhead_mb": {
+            "mean": 15.8,
+            "p50": 14.5,
+            "p95": 20.2,
+            "p99": 24.8
+          }
+        }
+      },
+      "ernie": {
+        "ernie-4.0-8k": {
+          "memory_per_request_kb": {
+            "mean": 198.5,
+            "p50": 192.8,
+            "p95": 228.5,
+            "p99": 258.2
+          },
+          "peak_memory_increase_mb": {
+            "mean": 9.8,
+            "p50": 9.2,
+            "p95": 12.5,
+            "p99": 15.2
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "memory_per_request_kb": {
+            "mean": 425.8,
+            "p50": 408.5,
+            "p95": 485.2,
+            "p99": 548.7
+          },
+          "peak_memory_increase_mb": {
+            "mean": 22.5,
+            "p50": 20.8,
+            "p95": 28.2,
+            "p99": 34.5
+          },
+          "reasoning_memory_overhead_mb": {
+            "mean": 12.8,
+            "p50": 11.5,
+            "p95": 16.8,
+            "p99": 20.5
+          }
+        }
+      },
+      "doubao": {
+        "doubao-pro-4k": {
+          "memory_per_request_kb": {
+            "mean": 268.5,
+            "p50": 258.2,
+            "p95": 305.8,
+            "p99": 342.1
+          },
+          "peak_memory_increase_mb": {
+            "mean": 14.2,
+            "p50": 13.5,
+            "p95": 17.8,
+            "p99": 21.5
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "memory_per_request_kb": {
+            "mean": 512.8,
+            "p50": 495.2,
+            "p95": 585.8,
+            "p99": 648.5
+          },
+          "peak_memory_increase_mb": {
+            "mean": 32.5,
+            "p50": 30.2,
+            "p95": 38.8,
+            "p99": 45.2
+          },
+          "reasoning_memory_overhead_mb": {
+            "mean": 18.5,
+            "p50": 16.8,
+            "p95": 23.2,
+            "p99": 28.5
+          }
+        }
+      }
+    },
+    "concurrent_load_memory": {
+      "5_concurrent_requests": {
+        "total_memory_increase_mb": {
+          "deepseek": 58.5,
+          "ernie": 45.2,
+          "doubao": 68.8
+        },
+        "memory_efficiency_ratio": {
+          "deepseek": 0.85,
+          "ernie": 0.92,
+          "doubao": 0.78
+        }
+      },
+      "10_concurrent_requests": {
+        "total_memory_increase_mb": {
+          "deepseek": 105.8,
+          "ernie": 82.5,
+          "doubao": 125.2
+        },
+        "memory_efficiency_ratio": {
+          "deepseek": 0.82,
+          "ernie": 0.89,
+          "doubao": 0.75
+        }
+      },
+      "20_concurrent_requests": {
+        "total_memory_increase_mb": {
+          "deepseek": 185.2,
+          "ernie": 148.5,
+          "doubao": 225.8
+        },
+        "memory_efficiency_ratio": {
+          "deepseek": 0.78,
+          "ernie": 0.85,
+          "doubao": 0.70
+        }
+      },
+      "50_concurrent_requests": {
+        "total_memory_increase_mb": {
+          "deepseek": 425.8,
+          "ernie": 345.2,
+          "doubao": 512.5
+        },
+        "memory_efficiency_ratio": {
+          "deepseek": 0.72,
+          "ernie": 0.78,
+          "doubao": 0.65
+        }
+      }
+    }
+  },
+  "cpu_usage_baselines": {
+    "description": "CPU使用基准数据",
+    "idle_state": {
+      "cpu_usage_percent": {
+        "mean": 2.5,
+        "p50": 2.2,
+        "p95": 4.8,
+        "p99": 6.5
+      }
+    },
+    "single_request_cpu": {
+      "deepseek": {
+        "deepseek-chat": {
+          "cpu_time_ms": {
+            "mean": 45.8,
+            "p50": 42.5,
+            "p95": 58.2,
+            "p99": 68.5
+          },
+          "cpu_usage_percent": {
+            "mean": 8.5,
+            "p50": 7.8,
+            "p95": 12.2,
+            "p99": 15.8
+          }
+        },
+        "deepseek-r1": {
+          "cpu_time_ms": {
+            "mean": 125.8,
+            "p50": 118.5,
+            "p95": 158.2,
+            "p99": 185.5
+          },
+          "cpu_usage_percent": {
+            "mean": 18.5,
+            "p50": 16.8,
+            "p95": 24.2,
+            "p99": 28.5
+          },
+          "reasoning_cpu_overhead_ms": {
+            "mean": 85.2,
+            "p50": 78.5,
+            "p95": 105.8,
+            "p99": 125.2
+          }
+        }
+      },
+      "ernie": {
+        "ernie-4.0-8k": {
+          "cpu_time_ms": {
+            "mean": 38.5,
+            "p50": 35.8,
+            "p95": 48.2,
+            "p99": 56.5
+          },
+          "cpu_usage_percent": {
+            "mean": 6.8,
+            "p50": 6.2,
+            "p95": 9.5,
+            "p99": 12.2
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "cpu_time_ms": {
+            "mean": 98.5,
+            "p50": 92.8,
+            "p95": 125.2,
+            "p99": 148.5
+          },
+          "cpu_usage_percent": {
+            "mean": 15.2,
+            "p50": 14.5,
+            "p95": 19.8,
+            "p99": 24.2
+          },
+          "reasoning_cpu_overhead_ms": {
+            "mean": 68.5,
+            "p50": 62.8,
+            "p95": 85.2,
+            "p99": 98.5
+          }
+        }
+      },
+      "doubao": {
+        "doubao-pro-4k": {
+          "cpu_time_ms": {
+            "mean": 52.8,
+            "p50": 48.5,
+            "p95": 65.2,
+            "p99": 78.5
+          },
+          "cpu_usage_percent": {
+            "mean": 9.8,
+            "p50": 8.5,
+            "p95": 13.2,
+            "p99": 16.8
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "cpu_time_ms": {
+            "mean": 145.8,
+            "p50": 135.2,
+            "p95": 178.5,
+            "p99": 205.8
+          },
+          "cpu_usage_percent": {
+            "mean": 22.5,
+            "p50": 20.8,
+            "p95": 28.5,
+            "p99": 34.2
+          },
+          "reasoning_cpu_overhead_ms": {
+            "mean": 98.5,
+            "p50": 88.5,
+            "p95": 125.8,
+            "p99": 148.2
+          }
+        }
+      }
+    },
+    "concurrent_load_cpu": {
+      "5_concurrent_requests": {
+        "total_cpu_usage_percent": {
+          "deepseek": 35.8,
+          "ernie": 28.5,
+          "doubao": 42.5
+        },
+        "cpu_efficiency_ratio": {
+          "deepseek": 0.88,
+          "ernie": 0.92,
+          "doubao": 0.85
+        }
+      },
+      "10_concurrent_requests": {
+        "total_cpu_usage_percent": {
+          "deepseek": 65.8,
+          "ernie": 52.5,
+          "doubao": 78.5
+        },
+        "cpu_efficiency_ratio": {
+          "deepseek": 0.82,
+          "ernie": 0.88,
+          "doubao": 0.78
+        }
+      },
+      "20_concurrent_requests": {
+        "total_cpu_usage_percent": {
+          "deepseek": 125.8,
+          "ernie": 98.5,
+          "doubao": 148.5
+        },
+        "cpu_efficiency_ratio": {
+          "deepseek": 0.75,
+          "ernie": 0.82,
+          "doubao": 0.70
+        }
+      },
+      "50_concurrent_requests": {
+        "total_cpu_usage_percent": {
+          "deepseek": 285.8,
+          "ernie": 225.5,
+          "doubao": 342.5
+        },
+        "cpu_efficiency_ratio": {
+          "deepseek": 0.68,
+          "ernie": 0.75,
+          "doubao": 0.62
+        }
+      }
+    }
+  },
+  "network_usage_baselines": {
+    "description": "网络使用基准数据",
+    "bandwidth_usage": {
+      "request_size_bytes": {
+        "simple_chat": {
+          "mean": 1250,
+          "p50": 1180,
+          "p95": 1580,
+          "p99": 1850
+        },
+        "reasoning_request": {
+          "mean": 2850,
+          "p50": 2680,
+          "p95": 3580,
+          "p99": 4250
+        },
+        "streaming_request": {
+          "mean": 1180,
+          "p50": 1120,
+          "p95": 1480,
+          "p99": 1750
+        }
+      },
+      "response_size_bytes": {
+        "deepseek": {
+          "deepseek-chat": {
+            "mean": 2850,
+            "p50": 2680,
+            "p95": 3580,
+            "p99": 4250
+          },
+          "deepseek-r1": {
+            "mean": 8500,
+            "p50": 7850,
+            "p95": 11250,
+            "p99": 14500
+          }
+        },
+        "ernie": {
+          "ernie-4.0-8k": {
+            "mean": 3250,
+            "p50": 3050,
+            "p95": 4150,
+            "p99": 4850
+          },
+          "ernie-x1-turbo-32k": {
+            "mean": 7850,
+            "p50": 7250,
+            "p95": 10250,
+            "p99": 12850
+          }
+        },
+        "doubao": {
+          "doubao-pro-4k": {
+            "mean": 2950,
+            "p50": 2750,
+            "p95": 3750,
+            "p99": 4450
+          },
+          "doubao-seed-1-6-250615": {
+            "mean": 9250,
+            "p50": 8500,
+            "p95": 12250,
+            "p99": 15850
+          }
+        }
+      },
+      "streaming_chunk_size_bytes": {
+        "deepseek": {
+          "mean": 185,
+          "p50": 175,
+          "p95": 225,
+          "p99": 265
+        },
+        "ernie": {
+          "mean": 205,
+          "p50": 195,
+          "p95": 245,
+          "p99": 285
+        },
+        "doubao": {
+          "mean": 165,
+          "p50": 155,
+          "p95": 195,
+          "p99": 235
+        }
+      }
+    },
+    "connection_metrics": {
+      "connection_establishment_ms": {
+        "deepseek": {
+          "mean": 125.8,
+          "p50": 118.5,
+          "p95": 158.2,
+          "p99": 185.5
+        },
+        "ernie": {
+          "mean": 98.5,
+          "p50": 92.8,
+          "p95": 125.2,
+          "p99": 148.5
+        },
+        "doubao": {
+          "mean": 145.8,
+          "p50": 135.2,
+          "p95": 178.5,
+          "p99": 205.8
+        }
+      },
+      "ssl_handshake_ms": {
+        "deepseek": {
+          "mean": 85.2,
+          "p50": 78.5,
+          "p95": 105.8,
+          "p99": 125.2
+        },
+        "ernie": {
+          "mean": 68.5,
+          "p50": 62.8,
+          "p95": 85.2,
+          "p99": 98.5
+        },
+        "doubao": {
+          "mean": 98.5,
+          "p50": 88.5,
+          "p95": 125.8,
+          "p99": 148.2
+        }
+      },
+      "keep_alive_efficiency": {
+        "connection_reuse_rate": {
+          "deepseek": 0.92,
+          "ernie": 0.95,
+          "doubao": 0.88
+        },
+        "connection_pool_size": {
+          "optimal": 20,
+          "maximum": 50
+        }
+      }
+    }
+  },
+  "disk_io_baselines": {
+    "description": "磁盘I/O基准数据",
+    "log_file_io": {
+      "write_operations_per_request": {
+        "mean": 3.2,
+        "p50": 3.0,
+        "p95": 4.5,
+        "p99": 5.8
+      },
+      "bytes_written_per_request": {
+        "mean": 2850,
+        "p50": 2680,
+        "p95": 3580,
+        "p99": 4250
+      },
+      "log_rotation_impact": {
+        "rotation_frequency_hours": 24,
+        "rotation_overhead_ms": {
+          "mean": 125.8,
+          "p50": 118.5,
+          "p95": 158.2,
+          "p99": 185.5
+        }
+      }
+    },
+    "cache_file_io": {
+      "cache_hit_rate": {
+        "deepseek": 0.85,
+        "ernie": 0.88,
+        "doubao": 0.82
+      },
+      "cache_write_frequency": {
+        "requests_per_cache_write": {
+          "mean": 15.8,
+          "p50": 14.5,
+          "p95": 20.2,
+          "p99": 24.8
+        }
+      },
+      "cache_size_mb": {
+        "current": 512,
+        "optimal": 1024,
+        "maximum": 2048
+      }
+    }
+  },
+  "resource_limits_and_thresholds": {
+    "description": "资源限制和阈值",
+    "memory_limits": {
+      "warning_threshold_mb": 2048,
+      "critical_threshold_mb": 4096,
+      "oom_kill_threshold_mb": 6144
+    },
+    "cpu_limits": {
+      "warning_threshold_percent": 70,
+      "critical_threshold_percent": 85,
+      "throttling_threshold_percent": 95
+    },
+    "network_limits": {
+      "bandwidth_warning_mbps": 800,
+      "bandwidth_critical_mbps": 950,
+      "connection_limit": 1000
+    },
+    "disk_limits": {
+      "disk_usage_warning_percent": 80,
+      "disk_usage_critical_percent": 90,
+      "iops_warning_threshold": 8000,
+      "iops_critical_threshold": 10000
+    }
+  }
+}

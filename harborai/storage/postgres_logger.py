@@ -64,9 +64,21 @@ class PostgreSQLLogger:
         
         # 关闭数据库连接
         if self._connection:
-            self._connection.close()
-            
-        logger.info("PostgreSQL logger stopped")
+            try:
+                self._connection.close()
+            except Exception:
+                pass  # 忽略关闭连接时的错误
+        
+        # 安全地记录日志，避免在测试环境中出现I/O错误
+        try:
+            logger.info("PostgreSQL logger stopped")
+        except (ValueError, OSError, AttributeError, ImportError):
+            # 如果日志系统已关闭或不可用，使用stderr输出
+            try:
+                import sys
+                print("PostgreSQL logger stopped", file=sys.stderr)
+            except Exception:
+                pass  # 完全忽略日志错误
     
     def log_request(self, 
                    trace_id: str,

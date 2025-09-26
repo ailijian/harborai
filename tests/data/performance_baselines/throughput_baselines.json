@@ -1,0 +1,523 @@
+{
+  "baseline_metadata": {
+    "version": "1.0.0",
+    "created_date": "2024-01-15",
+    "description": "API吞吐量性能基准数据",
+    "measurement_conditions": {
+      "test_environment": "production_like",
+      "load_testing_tool": "custom_harness",
+      "test_duration": "4_hours",
+      "ramp_up_time": "10_minutes",
+      "steady_state_duration": "3_hours",
+      "measurement_interval": "30_seconds"
+    }
+  },
+  "requests_per_second_baselines": {
+    "deepseek": {
+      "models": {
+        "deepseek-chat": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 12.5,
+              "p50": 12.8,
+              "p95": 14.2,
+              "p99": 15.1,
+              "std_dev": 1.8
+            },
+            "burst_rps": {
+              "peak_30s": 18.5,
+              "peak_60s": 16.2,
+              "peak_300s": 14.8
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 45.2,
+              "per_user_rps": 9.04,
+              "success_rate": 0.998
+            },
+            "10_users": {
+              "total_rps": 82.5,
+              "per_user_rps": 8.25,
+              "success_rate": 0.995
+            },
+            "20_users": {
+              "total_rps": 148.0,
+              "per_user_rps": 7.40,
+              "success_rate": 0.990
+            },
+            "50_users": {
+              "total_rps": 320.0,
+              "per_user_rps": 6.40,
+              "success_rate": 0.980
+            },
+            "100_users": {
+              "total_rps": 580.0,
+              "per_user_rps": 5.80,
+              "success_rate": 0.960
+            }
+          }
+        },
+        "deepseek-r1": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 4.2,
+              "p50": 4.5,
+              "p95": 5.1,
+              "p99": 5.8,
+              "std_dev": 0.8
+            },
+            "burst_rps": {
+              "peak_30s": 6.8,
+              "peak_60s": 5.9,
+              "peak_300s": 5.2
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 18.5,
+              "per_user_rps": 3.70,
+              "success_rate": 0.998
+            },
+            "10_users": {
+              "total_rps": 32.0,
+              "per_user_rps": 3.20,
+              "success_rate": 0.995
+            },
+            "20_users": {
+              "total_rps": 58.0,
+              "per_user_rps": 2.90,
+              "success_rate": 0.990
+            },
+            "50_users": {
+              "total_rps": 125.0,
+              "per_user_rps": 2.50,
+              "success_rate": 0.975
+            }
+          }
+        }
+      }
+    },
+    "ernie": {
+      "models": {
+        "ernie-4.0-8k": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 14.8,
+              "p50": 15.2,
+              "p95": 16.8,
+              "p99": 17.9,
+              "std_dev": 2.1
+            },
+            "burst_rps": {
+              "peak_30s": 22.0,
+              "peak_60s": 19.5,
+              "peak_300s": 17.2
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 52.5,
+              "per_user_rps": 10.50,
+              "success_rate": 0.999
+            },
+            "10_users": {
+              "total_rps": 98.0,
+              "per_user_rps": 9.80,
+              "success_rate": 0.997
+            },
+            "20_users": {
+              "total_rps": 175.0,
+              "per_user_rps": 8.75,
+              "success_rate": 0.993
+            },
+            "50_users": {
+              "total_rps": 385.0,
+              "per_user_rps": 7.70,
+              "success_rate": 0.985
+            },
+            "100_users": {
+              "total_rps": 680.0,
+              "per_user_rps": 6.80,
+              "success_rate": 0.970
+            }
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 5.1,
+              "p50": 5.4,
+              "p95": 6.2,
+              "p99": 7.0,
+              "std_dev": 0.9
+            },
+            "burst_rps": {
+              "peak_30s": 8.2,
+              "peak_60s": 7.1,
+              "peak_300s": 6.3
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 22.0,
+              "per_user_rps": 4.40,
+              "success_rate": 0.998
+            },
+            "10_users": {
+              "total_rps": 38.5,
+              "per_user_rps": 3.85,
+              "success_rate": 0.996
+            },
+            "20_users": {
+              "total_rps": 68.0,
+              "per_user_rps": 3.40,
+              "success_rate": 0.992
+            },
+            "50_users": {
+              "total_rps": 145.0,
+              "per_user_rps": 2.90,
+              "success_rate": 0.980
+            }
+          }
+        }
+      }
+    },
+    "doubao": {
+      "models": {
+        "doubao-pro-4k": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 10.8,
+              "p50": 11.2,
+              "p95": 12.5,
+              "p99": 13.8,
+              "std_dev": 1.9
+            },
+            "burst_rps": {
+              "peak_30s": 16.5,
+              "peak_60s": 14.2,
+              "peak_300s": 12.8
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 38.5,
+              "per_user_rps": 7.70,
+              "success_rate": 0.997
+            },
+            "10_users": {
+              "total_rps": 68.0,
+              "per_user_rps": 6.80,
+              "success_rate": 0.994
+            },
+            "20_users": {
+              "total_rps": 118.0,
+              "per_user_rps": 5.90,
+              "success_rate": 0.988
+            },
+            "50_users": {
+              "total_rps": 250.0,
+              "per_user_rps": 5.00,
+              "success_rate": 0.975
+            },
+            "100_users": {
+              "total_rps": 420.0,
+              "per_user_rps": 4.20,
+              "success_rate": 0.950
+            }
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "single_user": {
+            "sustained_rps": {
+              "mean": 3.8,
+              "p50": 4.0,
+              "p95": 4.6,
+              "p99": 5.2,
+              "std_dev": 0.7
+            },
+            "burst_rps": {
+              "peak_30s": 5.8,
+              "peak_60s": 5.1,
+              "peak_300s": 4.5
+            }
+          },
+          "concurrent_users": {
+            "5_users": {
+              "total_rps": 16.5,
+              "per_user_rps": 3.30,
+              "success_rate": 0.997
+            },
+            "10_users": {
+              "total_rps": 28.0,
+              "per_user_rps": 2.80,
+              "success_rate": 0.994
+            },
+            "20_users": {
+              "total_rps": 48.0,
+              "per_user_rps": 2.40,
+              "success_rate": 0.988
+            },
+            "50_users": {
+              "total_rps": 95.0,
+              "per_user_rps": 1.90,
+              "success_rate": 0.970
+            }
+          }
+        }
+      }
+    }
+  },
+  "streaming_throughput_baselines": {
+    "description": "流式响应吞吐量基准",
+    "metrics": {
+      "deepseek": {
+        "chunks_per_second": {
+          "single_stream": {
+            "mean": 45.2,
+            "p50": 46.8,
+            "p95": 52.1,
+            "p99": 58.5
+          },
+          "concurrent_streams": {
+            "5_streams": 38.5,
+            "10_streams": 32.0,
+            "20_streams": 25.8
+          }
+        },
+        "bytes_per_second": {
+          "single_stream": {
+            "mean": 46284,
+            "p50": 47923,
+            "p95": 53350,
+            "p99": 59904
+          },
+          "concurrent_streams": {
+            "5_streams": 39424,
+            "10_streams": 32768,
+            "20_streams": 26419
+          }
+        }
+      },
+      "ernie": {
+        "chunks_per_second": {
+          "single_stream": {
+            "mean": 52.8,
+            "p50": 54.2,
+            "p95": 60.1,
+            "p99": 66.8
+          },
+          "concurrent_streams": {
+            "5_streams": 45.2,
+            "10_streams": 38.5,
+            "20_streams": 31.2
+          }
+        },
+        "bytes_per_second": {
+          "single_stream": {
+            "mean": 54067,
+            "p50": 55501,
+            "p95": 61542,
+            "p99": 68403
+          },
+          "concurrent_streams": {
+            "5_streams": 46285,
+            "10_streams": 39424,
+            "20_streams": 31949
+          }
+        }
+      },
+      "doubao": {
+        "chunks_per_second": {
+          "single_stream": {
+            "mean": 38.5,
+            "p50": 39.8,
+            "p95": 44.2,
+            "p99": 49.1
+          },
+          "concurrent_streams": {
+            "5_streams": 32.0,
+            "10_streams": 26.5,
+            "20_streams": 20.8
+          }
+        },
+        "bytes_per_second": {
+          "single_stream": {
+            "mean": 39424,
+            "p50": 40755,
+            "p95": 45261,
+            "p99": 50282
+          },
+          "concurrent_streams": {
+            "5_streams": 32768,
+            "10_streams": 27136,
+            "20_streams": 21299
+          }
+        }
+      }
+    }
+  },
+  "token_throughput_baselines": {
+    "description": "Token处理吞吐量基准",
+    "input_tokens_per_second": {
+      "deepseek": {
+        "deepseek-chat": {
+          "processing_rate": {
+            "mean": 2850,
+            "p50": 2920,
+            "p95": 3200,
+            "p99": 3450
+          }
+        },
+        "deepseek-r1": {
+          "processing_rate": {
+            "mean": 1950,
+            "p50": 2020,
+            "p95": 2280,
+            "p99": 2500
+          }
+        }
+      },
+      "ernie": {
+        "ernie-4.0-8k": {
+          "processing_rate": {
+            "mean": 3200,
+            "p50": 3280,
+            "p95": 3600,
+            "p99": 3850
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "processing_rate": {
+            "mean": 2200,
+            "p50": 2280,
+            "p95": 2520,
+            "p99": 2750
+          }
+        }
+      },
+      "doubao": {
+        "doubao-pro-4k": {
+          "processing_rate": {
+            "mean": 2650,
+            "p50": 2720,
+            "p95": 2980,
+            "p99": 3200
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "processing_rate": {
+            "mean": 1750,
+            "p50": 1820,
+            "p95": 2050,
+            "p99": 2250
+          }
+        }
+      }
+    },
+    "output_tokens_per_second": {
+      "deepseek": {
+        "deepseek-chat": {
+          "generation_rate": {
+            "mean": 48,
+            "p50": 50,
+            "p95": 56,
+            "p99": 62
+          }
+        },
+        "deepseek-r1": {
+          "generation_rate": {
+            "mean": 28,
+            "p50": 30,
+            "p95": 35,
+            "p99": 40
+          },
+          "reasoning_token_rate": {
+            "mean": 25,
+            "p50": 27,
+            "p95": 32,
+            "p99": 38
+          }
+        }
+      },
+      "ernie": {
+        "ernie-4.0-8k": {
+          "generation_rate": {
+            "mean": 51,
+            "p50": 53,
+            "p95": 59,
+            "p99": 65
+          }
+        },
+        "ernie-x1-turbo-32k": {
+          "generation_rate": {
+            "mean": 31,
+            "p50": 33,
+            "p95": 38,
+            "p99": 43
+          },
+          "reasoning_token_rate": {
+            "mean": 28,
+            "p50": 30,
+            "p95": 35,
+            "p99": 41
+          }
+        }
+      },
+      "doubao": {
+        "doubao-pro-4k": {
+          "generation_rate": {
+            "mean": 45,
+            "p50": 47,
+            "p95": 52,
+            "p99": 58
+          }
+        },
+        "doubao-seed-1-6-250615": {
+          "generation_rate": {
+            "mean": 25,
+            "p50": 27,
+            "p95": 32,
+            "p99": 37
+          },
+          "reasoning_token_rate": {
+            "mean": 22,
+            "p50": 24,
+            "p95": 29,
+            "p99": 34
+          }
+        }
+      }
+    }
+  },
+  "scalability_thresholds": {
+    "description": "可扩展性阈值基准",
+    "breaking_points": {
+      "deepseek": {
+        "max_concurrent_users": 150,
+        "max_sustained_rps": 650,
+        "degradation_threshold": {
+          "concurrent_users": 120,
+          "success_rate_drop": 0.05
+        }
+      },
+      "ernie": {
+        "max_concurrent_users": 180,
+        "max_sustained_rps": 750,
+        "degradation_threshold": {
+          "concurrent_users": 140,
+          "success_rate_drop": 0.03
+        }
+      },
+      "doubao": {
+        "max_concurrent_users": 120,
+        "max_sustained_rps": 480,
+        "degradation_threshold": {
+          "concurrent_users": 100,
+          "success_rate_drop": 0.05
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "deepseek_chat_completion": {
+    "id": "chatcmpl-deepseek-123456789",
+    "object": "chat.completion",
+    "created": 1704067200,
+    "model": "deepseek-chat",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "你好！我是DeepSeek助手，很高兴为您服务。有什么我可以帮助您的吗？"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 12,
+      "completion_tokens": 25,
+      "total_tokens": 37
+    },
+    "system_fingerprint": "fp_deepseek_v1"
+  },
+  "deepseek_r1_reasoning_completion": {
+    "id": "chatcmpl-deepseek-r1-987654321",
+    "object": "reasoning.completion",
+    "created": 1704067200,
+    "model": "deepseek-r1",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "根据数学推理，这个问题的答案是42。",
+          "reasoning_content": "让我分析这个问题：\n1. 首先理解题目要求\n2. 分析已知条件\n3. 应用相关数学公式\n4. 逐步计算得出结果\n5. 验证答案的合理性",
+          "reasoning_tokens": 156
+        },
+        "finish_reason": "reasoning_complete",
+        "reasoning_metadata": {
+          "reasoning_steps": 5,
+          "confidence_score": 0.95,
+          "reasoning_time_ms": 2340
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 45,
+      "completion_tokens": 28,
+      "reasoning_tokens": 156,
+      "total_tokens": 229
+    },
+    "reasoning_summary": {
+      "total_reasoning_time_ms": 2340,
+      "reasoning_quality_score": 0.92,
+      "reasoning_complexity": "moderate"
+    },
+    "system_fingerprint": "fp_deepseek_r1_v1"
+  },
+  "deepseek_streaming_chunk_start": {
+    "id": "chatcmpl-deepseek-stream-111",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "deepseek-chat",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "deepseek_streaming_chunk_content": {
+    "id": "chatcmpl-deepseek-stream-111",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "deepseek-chat",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "你好！"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "deepseek_streaming_chunk_end": {
+    "id": "chatcmpl-deepseek-stream-111",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "deepseek-chat",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 12,
+      "completion_tokens": 25,
+      "total_tokens": 37
+    }
+  },
+  "deepseek_r1_streaming_reasoning": {
+    "id": "chatcmpl-deepseek-r1-stream-222",
+    "object": "reasoning.completion.chunk",
+    "created": 1704067200,
+    "model": "deepseek-r1",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning_content": "正在分析问题的关键要素..."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "deepseek_error_rate_limit": {
+    "error": {
+      "message": "Rate limit exceeded. Please try again later.",
+      "type": "rate_limit_error",
+      "code": "rate_limit_exceeded",
+      "details": {
+        "request_id": "req_deepseek_123",
+        "timestamp": 1704067200,
+        "retry_after": 60,
+        "rate_limit": {
+          "limit": 100,
+          "remaining": 0,
+          "reset": 1704067260
+        }
+      }
+    },
+    "request_id": "req_deepseek_123",
+    "status_code": 429
+  },
+  "deepseek_error_invalid_model": {
+    "error": {
+      "message": "The model 'deepseek-invalid' does not exist.",
+      "type": "invalid_request_error",
+      "param": "model",
+      "code": "model_not_found"
+    },
+    "request_id": "req_deepseek_456",
+    "status_code": 400
+  }
+}

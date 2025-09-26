@@ -26,7 +26,7 @@ class ChatCompletions:
     def __init__(self, client_manager: ClientManager):
         self.client_manager = client_manager
         self.logger = get_logger("harborai.chat_completions")
-        self.api_logger = APICallLogger()
+        self.api_logger = APICallLogger(self.logger)
         self.settings = get_settings()
     
     @cost_tracking
@@ -66,6 +66,30 @@ class ChatCompletions:
         """创建聊天完成（同步版本）"""
         # 验证消息
         self._validate_messages(messages)
+        
+        # 验证temperature参数
+        if temperature is not None:
+            if not isinstance(temperature, (int, float)):
+                raise ValueError("temperature must be a number")
+            if temperature < 0 or temperature > 2.0:
+                raise ValueError("temperature must be between 0 and 2")
+        
+        # 验证max_tokens参数
+        if max_tokens is not None:
+            from ..core.models import get_model_capabilities
+            from ..core.exceptions import ValidationError
+            
+            if not isinstance(max_tokens, int):
+                raise ValueError("max_tokens must be an integer")
+            if max_tokens <= 0:
+                raise ValueError("max_tokens must be positive")
+            
+            capabilities = get_model_capabilities(model)
+            if capabilities and capabilities.max_tokens_limit:
+                if max_tokens > capabilities.max_tokens_limit:
+                    raise ValidationError(
+                        f"max_tokens ({max_tokens}) exceeds limit for model {model}: {capabilities.max_tokens_limit}"
+                    )
         
         # 处理fallback参数兼容性：fallback_models优先级高于fallback
         if fallback_models is not None:
@@ -116,13 +140,25 @@ class ChatCompletions:
             # 移除 None 值
             request_params = {k: v for k, v in request_params.items() if v is not None}
             
+            # 对推理模型进行参数过滤和消息处理
+            from ..core.models import filter_parameters_for_model, is_reasoning_model
+            if is_reasoning_model(model):
+                # 过滤不支持的参数
+                request_params = filter_parameters_for_model(model, request_params)
+                
+                # 处理推理模型的system消息
+                messages = self._process_messages_for_reasoning_model(messages)
+                request_params["messages"] = messages
+            
             try:
                 # 记录请求日志
+                from ..utils.logger import LogContext
+                log_context = LogContext(trace_id=trace_id)
                 self.api_logger.log_request(
                     method="POST",
                     url="/chat/completions",
-                    params=request_params,
-                    trace_id=trace_id
+                    body=request_params,
+                    context=log_context
                 )
                 
                 # 使用重试装饰器
@@ -165,20 +201,19 @@ class ChatCompletions:
                 
                 # 记录响应日志
                 self.api_logger.log_response(
-                    response=response,
-                    trace_id=trace_id
+                    status_code=200,
+                    body=response,
+                    context=log_context
                 )
                 
                 return response
                 
             except Exception as e:
                 # 记录错误日志
+                error_context = LogContext(trace_id=trace_id)
                 self.api_logger.log_error(
                     error=e,
-                    model=model,
-                    plugin_name="unknown",
-                    latency_ms=0,
-                    trace_id=trace_id
+                    context=error_context
                 )
                 raise e
     
@@ -219,6 +254,30 @@ class ChatCompletions:
         """创建聊天完成（异步版本）"""
         # 验证消息
         self._validate_messages(messages)
+        
+        # 验证temperature参数
+        if temperature is not None:
+            if not isinstance(temperature, (int, float)):
+                raise ValueError("temperature must be a number")
+            if temperature < 0 or temperature > 2.0:
+                raise ValueError("temperature must be between 0 and 2")
+        
+        # 验证max_tokens参数
+        if max_tokens is not None:
+            from ..core.models import get_model_capabilities
+            from ..core.exceptions import ValidationError
+            
+            if not isinstance(max_tokens, int):
+                raise ValueError("max_tokens must be an integer")
+            if max_tokens <= 0:
+                raise ValueError("max_tokens must be positive")
+            
+            capabilities = get_model_capabilities(model)
+            if capabilities and capabilities.max_tokens_limit:
+                if max_tokens > capabilities.max_tokens_limit:
+                    raise ValidationError(
+                        f"max_tokens ({max_tokens}) exceeds limit for model {model}: {capabilities.max_tokens_limit}"
+                    )
         
         # 处理fallback参数兼容性：fallback_models优先级高于fallback
         if fallback_models is not None:
@@ -268,6 +327,16 @@ class ChatCompletions:
             
             # 移除 None 值
             request_params = {k: v for k, v in request_params.items() if v is not None}
+            
+            # 对推理模型进行参数过滤和消息处理
+            from ..core.models import filter_parameters_for_model, is_reasoning_model
+            if is_reasoning_model(model):
+                # 过滤不支持的参数
+                request_params = filter_parameters_for_model(model, request_params)
+                
+                # 处理推理模型的system消息
+                messages = self._process_messages_for_reasoning_model(messages)
+                request_params["messages"] = messages
             
             try:
                 # 记录请求日志
@@ -359,6 +428,32 @@ class ChatCompletions:
                 raise ValidationError(
                     f"Message at index {i} must have either 'content' or 'tool_calls' field"
                 )
+    
+    def _process_messages_for_reasoning_model(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """处理推理模型的消息，将system消息合并到user消息中"""
+        processed_messages = []
+        system_content = ""
+        
+        # 收集所有system消息的内容
+        for message in messages:
+            if message.get("role") == "system":
+                if message.get("content"):
+                    system_content += message["content"] + "\n"
+            else:
+                processed_messages.append(message)
+        
+        # 如果有system内容，将其添加到第一个user消息中
+        if system_content and processed_messages:
+            for i, message in enumerate(processed_messages):
+                if message.get("role") == "user":
+                    original_content = message.get("content", "")
+                    processed_messages[i] = {
+                        **message,
+                        "content": f"{system_content.strip()}\n\n{original_content}"
+                    }
+                    break
+        
+        return processed_messages
 
 
 class Chat:
@@ -411,15 +506,16 @@ class HarborAI:
         # 初始化接口
         self.chat = Chat(self.client_manager)
         
+        trace_id = get_or_create_trace_id()
+        config_info = {
+            k: v for k, v in self.config.items() 
+            if k not in ['api_key', 'http_client']
+        }
         self.logger.info(
-            "HarborAI client initialized",
-            trace_id=get_or_create_trace_id(),
-            config={
-                k: v for k, v in self.config.items() 
-                if k not in ['api_key', 'http_client']
-            },
-            available_plugins=list(self.client_manager.plugins.keys()),
-            available_models=len(self.client_manager.model_to_plugin)
+            f"HarborAI client initialized [trace_id={trace_id}] - "
+            f"config: {config_info}, "
+            f"available_plugins: {list(self.client_manager.plugins.keys())}, "
+            f"available_models: {len(self.client_manager.model_to_plugin)}"
         )
     
     def get_available_models(self) -> List[str]:
@@ -457,17 +553,14 @@ class HarborAI:
                 try:
                     await plugin.aclose()
                 except Exception as e:
+                    trace_id = get_or_create_trace_id()
                     self.logger.warning(
-                        "Error closing plugin",
-                        trace_id=get_or_create_trace_id(),
-                        plugin=plugin.name,
-                        error=str(e)
+                        f"Error closing plugin [trace_id={trace_id}] - "
+                        f"plugin: {plugin.name}, error: {str(e)}"
                     )
         
-        self.logger.info(
-            "HarborAI client closed",
-            trace_id=get_or_create_trace_id()
-        )
+        trace_id = get_or_create_trace_id()
+        self.logger.info(f"HarborAI client closed [trace_id={trace_id}]")
     
     def close(self) -> None:
         """同步关闭客户端"""
@@ -477,17 +570,14 @@ class HarborAI:
                 try:
                     plugin.close()
                 except Exception as e:
+                    trace_id = get_or_create_trace_id()
                     self.logger.warning(
-                        "Error closing plugin",
-                        trace_id=get_or_create_trace_id(),
-                        plugin=plugin.name,
-                        error=str(e)
+                        f"Error closing plugin [trace_id={trace_id}] - "
+                        f"plugin: {plugin.name}, error: {str(e)}"
                     )
         
-        self.logger.info(
-            "HarborAI client closed",
-            trace_id=get_or_create_trace_id()
-        )
+        trace_id = get_or_create_trace_id()
+        self.logger.info(f"HarborAI client closed [trace_id={trace_id}]")
     
     def __enter__(self):
         return self

@@ -1,0 +1,426 @@
+{
+  "authentication_tests": {
+    "description": "身份认证安全测试用例",
+    "test_cases": [
+      {
+        "test_id": "SEC_AUTH_001",
+        "name": "API密钥验证测试",
+        "description": "测试各种API密钥验证场景",
+        "test_scenarios": [
+          {
+            "scenario": "有效API密钥",
+            "api_key": "valid_key_format",
+            "expected_result": {
+              "status": "success",
+              "access_granted": true
+            }
+          },
+          {
+            "scenario": "无效API密钥格式",
+            "api_key": "invalid_format",
+            "expected_result": {
+              "status": "error",
+              "error_code": "INVALID_API_KEY",
+              "access_granted": false
+            }
+          },
+          {
+            "scenario": "空API密钥",
+            "api_key": "",
+            "expected_result": {
+              "status": "error",
+              "error_code": "MISSING_API_KEY",
+              "access_granted": false
+            }
+          },
+          {
+            "scenario": "过期API密钥",
+            "api_key": "expired_key",
+            "expected_result": {
+              "status": "error",
+              "error_code": "EXPIRED_API_KEY",
+              "access_granted": false
+            }
+          },
+          {
+            "scenario": "被撤销的API密钥",
+            "api_key": "revoked_key",
+            "expected_result": {
+              "status": "error",
+              "error_code": "REVOKED_API_KEY",
+              "access_granted": false
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_AUTH_002",
+        "name": "多厂商认证一致性测试",
+        "description": "测试不同厂商API的认证机制一致性",
+        "vendors": [
+          {
+            "vendor": "deepseek",
+            "auth_method": "bearer_token",
+            "header_format": "Authorization: Bearer {api_key}",
+            "error_responses": {
+              "invalid_key": {
+                "status_code": 401,
+                "error_message": "Invalid API key"
+              },
+              "missing_key": {
+                "status_code": 401,
+                "error_message": "Missing API key"
+              }
+            }
+          },
+          {
+            "vendor": "ernie",
+            "auth_method": "api_key_header",
+            "header_format": "X-API-Key: {api_key}",
+            "error_responses": {
+              "invalid_key": {
+                "status_code": 403,
+                "error_message": "Forbidden: Invalid API key"
+              },
+              "missing_key": {
+                "status_code": 401,
+                "error_message": "Unauthorized: Missing API key"
+              }
+            }
+          },
+          {
+            "vendor": "doubao",
+            "auth_method": "bearer_token",
+            "header_format": "Authorization: Bearer {api_key}",
+            "error_responses": {
+              "invalid_key": {
+                "status_code": 401,
+                "error_message": "Authentication failed"
+              },
+              "missing_key": {
+                "status_code": 401,
+                "error_message": "Authentication required"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "input_validation_tests": {
+    "description": "输入验证安全测试用例",
+    "test_cases": [
+      {
+        "test_id": "SEC_INPUT_001",
+        "name": "恶意输入检测测试",
+        "description": "测试对各种恶意输入的检测和处理",
+        "malicious_inputs": [
+          {
+            "input_type": "sql_injection",
+            "content": "'; DROP TABLE users; --",
+            "expected_behavior": {
+              "blocked": true,
+              "sanitized": true,
+              "logged": true
+            }
+          },
+          {
+            "input_type": "xss_script",
+            "content": "<script>alert('XSS')</script>",
+            "expected_behavior": {
+              "blocked": true,
+              "sanitized": true,
+              "logged": true
+            }
+          },
+          {
+            "input_type": "command_injection",
+            "content": "; rm -rf / --no-preserve-root",
+            "expected_behavior": {
+              "blocked": true,
+              "sanitized": true,
+              "logged": true
+            }
+          },
+          {
+            "input_type": "path_traversal",
+            "content": "../../../etc/passwd",
+            "expected_behavior": {
+              "blocked": true,
+              "sanitized": true,
+              "logged": true
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_INPUT_002",
+        "name": "输入长度限制测试",
+        "description": "测试超长输入的处理机制",
+        "test_scenarios": [
+          {
+            "input_size": "normal",
+            "content_length": 1000,
+            "expected_result": "正常处理"
+          },
+          {
+            "input_size": "large",
+            "content_length": 10000,
+            "expected_result": "正常处理或适当截断"
+          },
+          {
+            "input_size": "oversized",
+            "content_length": 100000,
+            "expected_result": {
+              "status": "error",
+              "error_code": "INPUT_TOO_LARGE",
+              "max_allowed_length": 32768
+            }
+          },
+          {
+            "input_size": "extreme",
+            "content_length": 1000000,
+            "expected_result": {
+              "status": "error",
+              "error_code": "REQUEST_ENTITY_TOO_LARGE",
+              "connection_terminated": true
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_INPUT_003",
+        "name": "特殊字符处理测试",
+        "description": "测试各种特殊字符和编码的处理",
+        "special_characters": [
+          {
+            "type": "unicode_control",
+            "content": "\u0000\u0001\u0002\u0003",
+            "expected_behavior": "过滤或转义控制字符"
+          },
+          {
+            "type": "emoji_and_symbols",
+            "content": "🚀💻🔒🛡️",
+            "expected_behavior": "正常处理Unicode表情符号"
+          },
+          {
+            "type": "mixed_encoding",
+            "content": "Hello世界🌍",
+            "expected_behavior": "正确处理混合编码文本"
+          },
+          {
+            "type": "zero_width_chars",
+            "content": "text\u200B\u200C\u200Dhere",
+            "expected_behavior": "检测并处理零宽字符"
+          }
+        ]
+      }
+    ]
+  },
+  "rate_limiting_tests": {
+    "description": "速率限制安全测试用例",
+    "test_cases": [
+      {
+        "test_id": "SEC_RATE_001",
+        "name": "API调用频率限制测试",
+        "description": "测试API调用频率限制机制",
+        "rate_limit_scenarios": [
+          {
+            "scenario": "正常频率",
+            "requests_per_minute": 60,
+            "expected_result": "所有请求成功"
+          },
+          {
+            "scenario": "接近限制",
+            "requests_per_minute": 95,
+            "expected_result": "大部分请求成功，可能有警告"
+          },
+          {
+            "scenario": "超出限制",
+            "requests_per_minute": 120,
+            "expected_result": {
+              "status": "error",
+              "error_code": "RATE_LIMIT_EXCEEDED",
+              "retry_after": 60
+            }
+          },
+          {
+            "scenario": "突发请求",
+            "burst_requests": 50,
+            "time_window_seconds": 10,
+            "expected_result": {
+              "initial_requests_success": true,
+              "subsequent_requests_blocked": true,
+              "rate_limit_headers_present": true
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_RATE_002",
+        "name": "分布式拒绝服务防护测试",
+        "description": "测试DDoS攻击防护机制",
+        "attack_scenarios": [
+          {
+            "attack_type": "high_frequency_requests",
+            "concurrent_connections": 1000,
+            "requests_per_connection": 100,
+            "expected_protection": {
+              "connection_throttling": true,
+              "request_queuing": true,
+              "automatic_blocking": true
+            }
+          },
+          {
+            "attack_type": "slow_loris",
+            "slow_connections": 500,
+            "connection_timeout": 30,
+            "expected_protection": {
+              "connection_timeout_enforcement": true,
+              "resource_cleanup": true,
+              "service_availability": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "data_privacy_tests": {
+    "description": "数据隐私安全测试用例",
+    "test_cases": [
+      {
+        "test_id": "SEC_PRIV_001",
+        "name": "敏感信息检测测试",
+        "description": "测试对敏感信息的检测和处理",
+        "sensitive_data_types": [
+          {
+            "data_type": "credit_card",
+            "test_input": "我的信用卡号是 4532-1234-5678-9012",
+            "expected_behavior": {
+              "detected": true,
+              "masked": true,
+              "logged_securely": true,
+              "user_warned": true
+            }
+          },
+          {
+            "data_type": "social_security",
+            "test_input": "我的身份证号是 123456789012345678",
+            "expected_behavior": {
+              "detected": true,
+              "masked": true,
+              "logged_securely": true,
+              "user_warned": true
+            }
+          },
+          {
+            "data_type": "email_address",
+            "test_input": "我的邮箱是 user@example.com",
+            "expected_behavior": {
+              "detected": true,
+              "handling_policy_applied": true
+            }
+          },
+          {
+            "data_type": "phone_number",
+            "test_input": "我的电话是 +86-138-0013-8000",
+            "expected_behavior": {
+              "detected": true,
+              "handling_policy_applied": true
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_PRIV_002",
+        "name": "数据传输加密测试",
+        "description": "测试数据传输过程中的加密保护",
+        "encryption_tests": [
+          {
+            "protocol": "HTTPS",
+            "tls_version": "1.3",
+            "cipher_suite": "TLS_AES_256_GCM_SHA384",
+            "expected_result": "数据传输完全加密"
+          },
+          {
+            "protocol": "HTTP",
+            "expected_result": {
+              "status": "blocked",
+              "redirect_to_https": true,
+              "security_warning": true
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "access_control_tests": {
+    "description": "访问控制安全测试用例",
+    "test_cases": [
+      {
+        "test_id": "SEC_ACCESS_001",
+        "name": "权限边界测试",
+        "description": "测试不同权限级别的访问控制",
+        "permission_levels": [
+          {
+            "level": "basic",
+            "allowed_operations": ["chat", "simple_completion"],
+            "denied_operations": ["reasoning", "fine_tuning", "admin_functions"]
+          },
+          {
+            "level": "premium",
+            "allowed_operations": ["chat", "simple_completion", "reasoning", "advanced_features"],
+            "denied_operations": ["fine_tuning", "admin_functions"]
+          },
+          {
+            "level": "enterprise",
+            "allowed_operations": ["chat", "simple_completion", "reasoning", "advanced_features", "fine_tuning"],
+            "denied_operations": ["admin_functions"]
+          },
+          {
+            "level": "admin",
+            "allowed_operations": ["all_operations"],
+            "denied_operations": []
+          }
+        ]
+      },
+      {
+        "test_id": "SEC_ACCESS_002",
+        "name": "会话管理测试",
+        "description": "测试会话的创建、维护和销毁",
+        "session_tests": [
+          {
+            "test_type": "session_creation",
+            "expected_behavior": {
+              "unique_session_id": true,
+              "secure_token_generation": true,
+              "session_timeout_set": true
+            }
+          },
+          {
+            "test_type": "session_hijacking_prevention",
+            "attack_scenarios": [
+              "session_id_prediction",
+              "session_fixation",
+              "cross_site_request_forgery"
+            ],
+            "expected_protection": true
+          },
+          {
+            "test_type": "session_cleanup",
+            "cleanup_triggers": [
+              "explicit_logout",
+              "session_timeout",
+              "security_violation"
+            ],
+            "expected_behavior": {
+              "session_invalidated": true,
+              "resources_cleaned": true,
+              "audit_logged": true
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

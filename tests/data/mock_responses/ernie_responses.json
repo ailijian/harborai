@@ -1,0 +1,168 @@
+{
+  "ernie_chat_completion": {
+    "id": "as-bcfa6dcc-4dd0-4d5c-9b6e-7f8a9b0c1d2e",
+    "object": "chat.completion",
+    "created": 1704067200,
+    "model": "ernie-4.0-8k",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "您好！我是文心一言，百度全新一代知识增强大语言模型。我可以帮助您解答问题、提供信息和进行对话。请问有什么我可以为您做的吗？"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 8,
+      "completion_tokens": 42,
+      "total_tokens": 50
+    },
+    "system_fingerprint": "fp_ernie_v4"
+  },
+  "ernie_x1_turbo_reasoning_completion": {
+    "id": "as-x1turbo-1234567890abcdef",
+    "object": "reasoning.completion",
+    "created": 1704067200,
+    "model": "ernie-x1-turbo-32k",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "经过深入分析和推理，我认为这个问题的最佳解决方案是采用分层架构设计。",
+          "reasoning_content": "让我逐步分析这个问题：\n\n第一步：问题理解\n- 需要设计一个可扩展的系统架构\n- 要考虑性能、可维护性和安全性\n\n第二步：方案对比\n- 单体架构：简单但扩展性差\n- 微服务架构：复杂但灵活性高\n- 分层架构：平衡了复杂性和可维护性\n\n第三步：技术选型\n- 数据层：使用关系型数据库保证一致性\n- 业务层：采用领域驱动设计\n- 表现层：RESTful API设计\n\n第四步：风险评估\n- 性能瓶颈：通过缓存和负载均衡解决\n- 安全风险：实施多层安全防护\n\n结论：分层架构是当前最适合的解决方案",
+          "reasoning_tokens": 245
+        },
+        "finish_reason": "reasoning_complete",
+        "reasoning_metadata": {
+          "reasoning_steps": 4,
+          "confidence_score": 0.88,
+          "reasoning_time_ms": 3200
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 67,
+      "completion_tokens": 45,
+      "reasoning_tokens": 245,
+      "total_tokens": 357
+    },
+    "reasoning_summary": {
+      "total_reasoning_time_ms": 3200,
+      "reasoning_quality_score": 0.89,
+      "reasoning_complexity": "complex"
+    },
+    "system_fingerprint": "fp_ernie_x1_turbo_v1"
+  },
+  "ernie_streaming_chunk_start": {
+    "id": "as-stream-ernie-333",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "ernie-4.0-8k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "ernie_streaming_chunk_content": {
+    "id": "as-stream-ernie-333",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "ernie-4.0-8k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "您好！我是文心一言"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "ernie_streaming_chunk_end": {
+    "id": "as-stream-ernie-333",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "ernie-4.0-8k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 8,
+      "completion_tokens": 42,
+      "total_tokens": 50
+    }
+  },
+  "ernie_x1_streaming_reasoning": {
+    "id": "as-x1-stream-444",
+    "object": "reasoning.completion.chunk",
+    "created": 1704067200,
+    "model": "ernie-x1-turbo-32k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning_content": "正在进行深度推理分析，考虑多个维度的因素..."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "ernie_error_authentication": {
+    "error": {
+      "message": "Invalid authentication credentials",
+      "type": "authentication_error",
+      "code": "invalid_api_key",
+      "details": {
+        "request_id": "req_ernie_789",
+        "timestamp": 1704067200
+      }
+    },
+    "request_id": "req_ernie_789",
+    "status_code": 401
+  },
+  "ernie_error_quota_exceeded": {
+    "error": {
+      "message": "Quota exceeded for the current billing period",
+      "type": "api_error",
+      "code": "quota_exceeded",
+      "details": {
+        "request_id": "req_ernie_101112",
+        "timestamp": 1704067200,
+        "usage_exceeded": {
+          "current_usage": 1000000,
+          "limit": 1000000,
+          "reset_date": "2024-02-01T00:00:00Z"
+        }
+      }
+    },
+    "request_id": "req_ernie_101112",
+    "status_code": 429
+  },
+  "ernie_error_content_filter": {
+    "error": {
+      "message": "Content was filtered due to policy violations",
+      "type": "invalid_request_error",
+      "code": "content_filter",
+      "param": "messages",
+      "details": {
+        "request_id": "req_ernie_131415",
+        "timestamp": 1704067200
+      }
+    },
+    "request_id": "req_ernie_131415",
+    "status_code": 400
+  }
+}

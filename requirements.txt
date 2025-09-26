@@ -1,47 +1,49 @@
-# HarborAI Project Dependencies
+# HarborAI核心依赖
+# Web框架
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
 
-# Core dependencies
-openai>=1.108.2  # 保持指定版本
-requests>=2.32.3  # 更新到最新稳定版
-aiohttp>=3.9.5  # 更新到最新稳定版
-pydantic>=2.10.0  # 更新到最新稳定版
-pydantic-settings>=2.6.0  # 更新到最新稳定版
+# HTTP客户端
+httpx>=0.25.0
 
-# Structured output
-agently>=4.0.3  # 保持指定版本
+# 数据库
+redis>=5.0.0
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+psycopg2-binary>=2.9.0
 
-# Async and concurrency
-asyncio-throttle>=1.0.2  # 更新到最新稳定版
+# 认证和安全
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
 
-# Logging and monitoring
-structlog>=24.4.0  # 更新到最新稳定版
-psutil>=6.1.0  # 更新到最新稳定版
+# 配置管理
+python-dotenv>=1.0.0
 
-# Configuration management
-python-dotenv>=1.0.1  # 更新到最新稳定版
-pyyaml>=6.0.2  # 更新到最新稳定版
+# 日志和监控
+structlog>=23.2.0
+prometheus-client>=0.19.0
 
-# Database
-asyncpg>=0.30.0  # 更新到最新稳定版
-sqlalchemy>=2.0.36  # 更新到最新稳定版
-alembic>=1.14.0  # 更新到最新稳定版
+# 分布式追踪
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation-fastapi>=0.42b0
+opentelemetry-instrumentation-httpx>=0.42b0
+opentelemetry-instrumentation-redis>=0.42b0
+opentelemetry-instrumentation-sqlalchemy>=0.42b0
+opentelemetry-exporter-prometheus>=1.12.0rc1
 
-# Retry and fault tolerance
-tenacity>=9.0.0  # 更新到最新稳定版
+# 重试和容错
+tenacity>=8.2.0
 
-# CLI tools
-click>=8.1.7  # 更新到最新稳定版
-rich>=13.9.4  # 更新到最新稳定版
+# 文件处理
+aiofiles>=23.2.0
 
-# Development tools
-mypy>=1.13.0  # 更新到最新稳定版
-pytest>=8.3.4  # 更新到最新稳定版
-pytest-asyncio>=0.25.0  # 更新到最新稳定版
-pytest-cov>=6.0.0  # 更新到最新稳定版
-black>=24.10.0  # 更新到最新稳定版
-isort>=5.13.2  # 更新到最新稳定版
-flake8>=7.1.1  # 更新到最新稳定版
+# 模板引擎
+jinja2>=3.1.0
 
-# Type checking
-types-requests>=2.32.0  # 更新到最新稳定版
-types-PyYAML>=6.0.12  # 更新到最新稳定版
+# CLI工具
+click>=8.1.0
+rich>=13.7.0
+typer>=0.9.0

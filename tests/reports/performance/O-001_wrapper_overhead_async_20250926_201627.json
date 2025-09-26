@@ -1,0 +1,10 @@
+{
+  "test_name": "O-001_wrapper_overhead_async",
+  "trace_id": "8ea80f5e-d063-4b63-b526-5b1a984241f3",
+  "avg_ms": 0.02496801782399416,
+  "stddev_ms": 0.045912850204453515,
+  "min_ms": 0.011299969628453255,
+  "max_ms": 0.3988000098615885,
+  "samples": 100,
+  "resource_usage": {}
+}

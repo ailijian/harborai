@@ -1,62 +1,72 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "harborai"
-version = "0.1.0"
-authors = [
-    {name = "HarborAI Team", email = "team@harborai.dev"},
-]
-description = "A unified LLM client with OpenAI-compatible interface and advanced features"
+version = "1.0.0"
+description = "HarborAI - 高性能AI API代理和管理平台"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "HarborAI Team", email = "team@harborai.com"},
+]
+maintainers = [
+    {name = "HarborAI Team", email = "team@harborai.com"},
+]
+keywords = [
+    "ai",
+    "api",
+    "proxy",
+    "openai",
+    "anthropic",
+    "llm",
+    "machine-learning",
+    "artificial-intelligence",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
-]
-keywords = [
-    "llm",
-    "openai",
-    "ai",
-    "machine-learning",
-    "artificial-intelligence",
-    "chatgpt",
-    "gpt",
-    "api",
-    "client",
-    "sdk",
-    "deepseek",
-    "doubao",
-    "wenxin",
-    "reasoning",
-    "structured-output",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
 ]
 dependencies = [
-    "openai>=1.0.0",
-    "requests>=2.31.0",
-    "aiohttp>=3.8.0",
-    "pydantic>=2.0.0",
-    "agently>=3.0.0",
-    "asyncio-throttle>=1.0.0",
-    "structlog>=23.0.0",
-    "psutil>=5.9.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "httpx>=0.25.0",
+    "redis>=5.0.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "psycopg2-binary>=2.9.0",
+    "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
     "python-dotenv>=1.0.0",
-    "pyyaml>=6.0",
+    "structlog>=23.2.0",
+    "prometheus-client>=0.19.0",
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation-fastapi>=0.42b0",
+    "opentelemetry-instrumentation-httpx>=0.42b0",
+    "opentelemetry-instrumentation-redis>=0.42b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.42b0",
+    "opentelemetry-exporter-prometheus>=1.12.0rc1",
     "tenacity>=8.2.0",
+    "aiofiles>=23.2.0",
+    "jinja2>=3.1.0",
     "click>=8.1.0",
-    "rich>=13.0.0",
+    "rich>=13.7.0",
+    "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
@@ -64,53 +74,75 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "black>=23.7.0",
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
-    "types-requests>=2.31.0",
-    "types-PyYAML>=6.0.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-html>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "black>=23.12.0",
+    "isort>=5.13.0",
+    "flake8>=6.1.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "pre-commit>=3.6.0",
 ]
-database = [
-    "asyncpg>=0.28.0",
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.12.0",
-]
-all = [
+test = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "black>=23.7.0",
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "mypy>=1.5.0",
-    "types-requests>=2.31.0",
-    "types-PyYAML>=6.0.0",
-    "asyncpg>=0.28.0",
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.12.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-html>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "httpx>=0.25.0",
+    "respx>=0.20.0",
+    "factory-boy>=3.3.0",
+    "faker>=20.1.0",
+    "freezegun>=1.2.0",
+    "testcontainers>=3.7.0",
+    "psutil>=5.9.0",
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.1.0",
+    "locust>=2.17.0",
+    "aioresponses>=0.7.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+    "mkdocs-mermaid2-plugin>=1.1.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+all = [
+    "harborai[dev,test,docs]",
 ]
 
-[project.scripts]
-harborai = "harborai.cli.main:cli"
-
 [project.urls]
-"Homepage" = "https://github.com/harborai/harborai"
-"Bug Reports" = "https://github.com/harborai/harborai/issues"
-"Source" = "https://github.com/harborai/harborai"
-"Documentation" = "https://docs.harborai.dev"
+Homepage = "https://github.com/harborai/harborai"
+Documentation = "https://harborai.github.io/harborai/"
+Repository = "https://github.com/harborai/harborai.git"
+"Bug Tracker" = "https://github.com/harborai/harborai/issues"
+Changelog = "https://github.com/harborai/harborai/blob/main/CHANGELOG.md"
 
-[tool.setuptools.packages.find]
-where = ["."] 
-exclude = ["tests*"]
+[project.scripts]
+harborai = "harborai.cli:main"
 
-[tool.setuptools.package-data]
-harborai = ["py.typed"]
+[tool.hatch.build.targets.wheel]
+packages = ["harborai"]
 
-# Black configuration
+[tool.hatch.build.targets.sdist]
+include = [
+    "/harborai",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+]
+
+# Black配置
 [tool.black]
 line-length = 88
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+target-version = ['py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 (
@@ -125,11 +157,12 @@ extend-exclude = '''
     | buck-out
     | build
     | dist
+    | migrations
   )/
 )
 '''
 
-# isort configuration
+# isort配置
 [tool.isort]
 profile = "black"
 line_length = 88
@@ -138,10 +171,11 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+skip_glob = ["migrations/*"]
 
-# MyPy configuration
+# MyPy配置
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -154,47 +188,84 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [
-    "agently.*",
-    "asyncio_throttle.*",
-    "structlog.*",
-    "psutil.*",
-    "tenacity.*",
-    "rich.*",
+    "redis.*",
+    "sqlalchemy.*",
+    "alembic.*",
+    "psycopg2.*",
+    "prometheus_client.*",
+    "opentelemetry.*",
+    "testcontainers.*",
+    "locust.*",
+    "memory_profiler.*",
+    "line_profiler.*",
 ]
 ignore_missing_imports = true
 
-# Pytest configuration
+# Pytest配置
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config"
-testpaths = ["tests"]
+addopts = """
+    -ra
+    --strict-markers
+    --strict-config
+    --cov=harborai
+    --cov-report=term-missing:skip-covered
+    --cov-report=html:htmlcov
+    --cov-report=xml
+    --cov-fail-under=80
+    --tb=short
+"""
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-]
+testpaths = ["tests"]
 filterwarnings = [
     "error",
     "ignore::UserWarning",
     "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
-asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "functional: Functional tests",
+    "integration: Integration tests",
+    "performance: Performance tests",
+    "security: Security tests",
+    "smoke: Smoke tests",
+    "regression: Regression tests",
+    "real_api: Real API tests",
+    "mock_api: Mock API tests",
+    "slow: Slow tests",
+    "benchmark: Benchmark tests",
+    "stress: Stress tests",
+    "load: Load tests",
+    "api_compatibility: API compatibility tests",
+    "streaming: Streaming response tests",
+    "structured_output: Structured output tests",
+    "reasoning_model: Reasoning model tests",
+    "error_handling: Error handling tests",
+    "concurrency: Concurrency tests",
+    "resource_monitoring: Resource monitoring tests",
+    "openai_alignment: OpenAI alignment tests",
+]
 
-# Coverage configuration
+# Coverage配置
 [tool.coverage.run]
 source = ["harborai"]
 omit = [
     "*/tests/*",
-    "*/test_*.py",
-    "*/__pycache__/*",
     "*/migrations/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/virtualenv/*",
+    "*/.venv/*",
+    "*/site-packages/*",
 ]
+branch = true
 
 [tool.coverage.report]
 exclude_lines = [
@@ -209,6 +280,43 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
+ignore_errors = true
+show_missing = true
+skip_covered = false
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+# Bandit配置
+[tool.bandit]
+exclude_dirs = ["tests", "migrations"]
+skips = ["B101", "B601"]
+
+# Ruff配置（可选的更快的linter）
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*" = ["B011", "B018"]
+
+[tool.ruff.isort]
+known-first-party = ["harborai"]
+
+[tool.ruff.pyupgrade]
+keep-runtime-typing = true

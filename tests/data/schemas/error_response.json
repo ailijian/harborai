@@ -1,0 +1,134 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "错误响应结构",
+  "description": "用于验证API错误响应的JSON Schema",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "description": "错误信息对象",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "错误消息"
+        },
+        "type": {
+          "type": "string",
+          "description": "错误类型",
+          "enum": [
+            "invalid_request_error",
+            "authentication_error",
+            "permission_error",
+            "not_found_error",
+            "rate_limit_error",
+            "api_error",
+            "overloaded_error",
+            "timeout_error",
+            "server_error"
+          ]
+        },
+        "param": {
+          "type": ["string", "null"],
+          "description": "导致错误的参数名称"
+        },
+        "code": {
+          "type": ["string", "integer"],
+          "description": "错误代码"
+        },
+        "details": {
+          "type": "object",
+          "description": "错误详细信息",
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "description": "请求ID"
+            },
+            "timestamp": {
+              "type": "integer",
+              "description": "错误发生时间戳"
+            },
+            "retry_after": {
+              "type": "integer",
+              "description": "重试等待时间（秒）",
+              "minimum": 0
+            },
+            "rate_limit": {
+              "type": "object",
+              "description": "速率限制信息",
+              "properties": {
+                "limit": {
+                  "type": "integer",
+                  "description": "速率限制值"
+                },
+                "remaining": {
+                  "type": "integer",
+                  "description": "剩余请求数"
+                },
+                "reset": {
+                  "type": "integer",
+                  "description": "重置时间戳"
+                },
+                "reset_tokens": {
+                  "type": "integer",
+                  "description": "token重置时间戳"
+                }
+              }
+            },
+            "usage_exceeded": {
+              "type": "object",
+              "description": "使用量超限信息",
+              "properties": {
+                "current_usage": {
+                  "type": "integer",
+                  "description": "当前使用量"
+                },
+                "limit": {
+                  "type": "integer",
+                  "description": "使用限制"
+                },
+                "reset_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "重置日期"
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["message", "type"]
+    },
+    "request_id": {
+      "type": "string",
+      "description": "请求唯一标识符"
+    },
+    "status_code": {
+      "type": "integer",
+      "description": "HTTP状态码",
+      "enum": [400, 401, 403, 404, 429, 500, 502, 503, 504]
+    },
+    "headers": {
+      "type": "object",
+      "description": "响应头信息",
+      "properties": {
+        "x-ratelimit-limit": {
+          "type": "string",
+          "description": "速率限制"
+        },
+        "x-ratelimit-remaining": {
+          "type": "string",
+          "description": "剩余请求数"
+        },
+        "x-ratelimit-reset": {
+          "type": "string",
+          "description": "重置时间"
+        },
+        "retry-after": {
+          "type": "string",
+          "description": "重试等待时间"
+        }
+      }
+    }
+  },
+  "required": ["error"]
+}

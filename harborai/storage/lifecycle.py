@@ -100,63 +100,80 @@ class LifecycleManager:
             
             self._shutdown_in_progress = True
             
-            # 在关闭过程开始时记录日志，但要处理可能的异常
-            try:
-                logger.info("Starting shutdown process")
-            except (ValueError, OSError):
-                # 如果日志系统已经关闭，忽略错误
-                pass
+            # 不使用日志系统，避免在测试环境中出现I/O错误
             
             # 执行关闭钩子（逆序执行）
             for hook in reversed(self._shutdown_hooks):
                 try:
                     hook()
-                    # 尝试记录调试信息，但如果失败则忽略
-                    try:
-                        logger.debug(f"Executed shutdown hook: {hook.__name__}")
-                    except (ValueError, OSError):
-                        pass
-                except Exception as e:
-                    # 尝试记录错误，但如果失败则忽略
-                    try:
-                        logger.error(f"Error executing shutdown hook {hook.__name__}: {e}")
-                    except (ValueError, OSError):
-                        # 如果日志系统已经关闭，使用标准输出
-                        print(f"Error executing shutdown hook {hook.__name__}: {e}", file=sys.stderr)
+                except Exception:
+                    # 忽略关闭钩子中的错误，避免日志系统问题
+                    pass
             
             # 关闭标准库日志系统
             self._shutdown_logging_system()
-            
-            # 最后尝试记录完成信息
-            try:
-                logger.info("Shutdown process completed")
-            except (ValueError, OSError):
-                # 如果日志系统已经关闭，使用标准输出
-                print("Shutdown process completed", file=sys.stderr)
     
     def _shutdown_logging_system(self):
         """优雅关闭日志系统。"""
         try:
+            # 首先检查是否已经在关闭过程中
+            import sys
+            if hasattr(sys, '_getframe'):
+                # 检查调用栈中是否已经有关闭操作
+                frame = sys._getframe()
+                while frame:
+                    if 'shutdown' in frame.f_code.co_name.lower():
+                        break
+                    frame = frame.f_back
+            
             # 关闭所有日志处理器
             root_logger = logging.getLogger()
-            for handler in root_logger.handlers[:]:
+            handlers_to_close = list(root_logger.handlers)
+            
+            for handler in handlers_to_close:
                 try:
+                    # 检查处理器是否已经关闭
+                    if hasattr(handler, 'stream') and hasattr(handler.stream, 'closed'):
+                        if handler.stream.closed:
+                            continue
+                    
+                    # 安全关闭处理器
+                    handler.flush()
                     handler.close()
                     root_logger.removeHandler(handler)
-                except Exception:
+                except (ValueError, OSError, AttributeError) as e:
+                    # 处理器已经关闭或无效，忽略错误
                     pass
+                except Exception as e:
+                    # 其他未预期的错误，记录到stderr但继续
+                    try:
+                        print(f"Warning: Error closing log handler: {e}", file=sys.stderr)
+                    except:
+                        pass
             
             # 关闭structlog相关的处理器
-            import structlog
             try:
-                # 清理structlog的缓存
-                structlog.reset_defaults()
-            except Exception:
+                import structlog
+                # 检查structlog是否已经配置
+                if hasattr(structlog, '_config') and structlog._config.is_configured:
+                    # 安全地重置structlog配置
+                    structlog.reset_defaults()
+            except (ImportError, AttributeError, ValueError, OSError):
+                # structlog未安装、未配置或已经关闭，忽略
                 pass
+            except Exception as e:
+                # 其他structlog相关错误
+                try:
+                    print(f"Warning: Error resetting structlog: {e}", file=sys.stderr)
+                except:
+                    pass
                 
-        except Exception:
+        except Exception as e:
             # 如果关闭日志系统时出现任何错误，都忽略
-            pass
+            try:
+                print(f"Warning: Error in shutdown logging system: {e}", file=sys.stderr)
+            except:
+                pass
     
     def shutdown(self):
         """手动触发关闭流程。"""

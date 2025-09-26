@@ -15,7 +15,7 @@ import openai
 from openai import OpenAI, AsyncOpenAI
 from openai.types.chat import ChatCompletion as OpenAIChatCompletion, ChatCompletionChunk as OpenAIChatCompletionChunk
 
-from ..base_plugin import BaseLLMPlugin, ModelInfo, ChatMessage, ChatChoice, Usage, ChatCompletion, ChatCompletionChunk
+from ..base_plugin import BaseLLMPlugin, ModelInfo, ChatMessage, ChatChoice, ChatChoiceDelta, Usage, ChatCompletion, ChatCompletionChunk
 from ...utils.exceptions import APIError, AuthenticationError, RateLimitError, TimeoutError
 from ...utils.logger import get_logger
 from ...utils.tracer import get_current_trace_id
@@ -405,7 +405,7 @@ class OpenAIPlugin(BaseLLMPlugin):
                     choices=[
                         ChatChoice(
                             index=0,
-                            delta=ChatMessage(
+                            delta=ChatChoiceDelta(
                                 role="assistant",
                                 content=str(parsed_data)
                             ),
@@ -454,7 +454,7 @@ class OpenAIPlugin(BaseLLMPlugin):
                     choices=[
                         ChatChoice(
                             index=0,
-                            delta=ChatMessage(
+                            delta=ChatChoiceDelta(
                                 role="assistant",
                                 content=str(parsed_data)
                             ),
@@ -490,8 +490,8 @@ class OpenAIPlugin(BaseLLMPlugin):
                         }
                     })
             
-            # 创建 ChatMessage 对象作为 delta
-            delta_message = ChatMessage(
+            # 创建 ChatChoiceDelta 对象作为 delta
+            delta_obj = ChatChoiceDelta(
                 role=getattr(delta, 'role', None),
                 content=getattr(delta, 'content', None),
                 tool_calls=tool_calls
@@ -499,12 +499,12 @@ class OpenAIPlugin(BaseLLMPlugin):
             
             # 添加思考内容（对于 o1 模型的流式响应）
             if hasattr(delta, 'reasoning_content'):
-                delta_message.reasoning_content = delta.reasoning_content
+                delta_obj.reasoning_content = delta.reasoning_content
             
             # 创建 ChatChoice 对象
             harbor_choice = ChatChoice(
                 index=choice.index,
-                delta=delta_message,
+                delta=delta_obj,
                 finish_reason=choice.finish_reason
             )
             

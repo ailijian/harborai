@@ -3,27 +3,44 @@
 ## 1. 项目概述
 
 ### 1.1 设计目标
+
 本文档为 HarborAI 项目设计一个完整的测试项目，基于 `HarborAI功能与性能测试清单.md` 中定义的测试需求，构建一个全面、可靠、高效的测试体系。
 
 ### 1.2 核心要求
-- **全面覆盖**：覆盖功能测试（A-Q模块）和性能测试（O模块）的所有测试项
-- **多厂商支持**：支持 DeepSeek、ERNIE、Doubao 等多厂商 API 测试
-- **推理模型支持**：专门测试推理模型（deepseek-r1、ernie-x1-turbo-32k、doubao-seed-1-6-250615）的特殊功能
-- **环境适配**：完全适配 Windows 11 + PowerShell 环境
-- **框架统一**：使用 pytest 作为主要测试框架
-- **并发支持**：支持同步、异步、并发测试场景
-- **性能基准**：包含完整的性能基准测试和监控
-- **容器化**：支持 Docker 化的 PostgreSQL 测试环境
-- **安全性**：包含测试数据脱敏和安全性验证
+
+* **全面覆盖**：覆盖功能测试（A-Q模块）和性能测试（O模块）的所有测试项
+
+* **多厂商支持**：支持 DeepSeek、ERNIE、Doubao 等多厂商 API 测试
+
+* **推理模型支持**：专门测试推理模型（deepseek-r1、ernie-x1-turbo-32k、doubao-seed-1-6-250615）的特殊功能
+
+* **环境适配**：完全适配 Windows 11 + PowerShell 环境
+
+* **框架统一**：使用 pytest 作为主要测试框架
+
+* **并发支持**：支持同步、异步、并发测试场景
+
+* **性能基准**：包含完整的性能基准测试和监控
+
+* **容器化**：支持 Docker 化的 PostgreSQL 测试环境
+
+* **安全性**：包含测试数据脱敏和安全性验证
 
 ### 1.3 技术栈选择
-- **测试框架**：pytest + pytest-asyncio + pytest-benchmark
-- **性能测试**：locust + psutil + memory_profiler
-- **Mock 工具**：pytest-mock + responses + aioresponses
-- **数据库**：PostgreSQL (Docker) + psycopg2
-- **监控工具**：prometheus_client + grafana
-- **报告生成**：pytest-html + allure-pytest
-- **CI/CD**：GitHub Actions + Docker
+
+* **测试框架**：pytest + pytest-asyncio + pytest-benchmark
+
+* **性能测试**：locust + psutil + memory\_profiler
+
+* **Mock 工具**：pytest-mock + responses + aioresponses
+
+* **数据库**：PostgreSQL (Docker) + psycopg2
+
+* **监控工具**：prometheus\_client + grafana
+
+* **报告生成**：pytest-html + allure-pytest
+
+* **CI/CD**：GitHub Actions + Docker
 
 ## 2. 测试项目整体架构设计
 
@@ -99,21 +116,21 @@ tests/
 │
 ├── functional/                 # 功能测试
 │   ├── __init__.py
-│   ├── test_api_compatibility.py      # 模块A: API兼容性
-│   ├── test_sync_async_stream.py      # 模块B: 同步异步流式
-│   ├── test_structured_output.py      # 模块C: 结构化输出
-│   ├── test_reasoning_models.py       # 模块D: 推理模型
-│   ├── test_plugin_system.py          # 模块E: 插件系统
-│   ├── test_exception_retry.py        # 模块F: 异常重试
-│   ├── test_fallback_strategy.py      # 模块G: 降级策略
-│   ├── test_observability.py          # 模块H: 可观测性
-│   ├── test_cost_tracking.py          # 模块I: 成本统计
-│   ├── test_persistence.py            # 模块J: 持久化
-│   ├── test_configuration.py          # 模块K: 配置管理
-│   ├── test_cli.py                    # 模块L: CLI
-│   ├── test_security.py               # 模块M: 安全合规
-│   ├── test_openai_alignment.py       # 模块N: OpenAI对齐
-│   ├── test_error_robustness.py       # 模块P: 错误健壮性
+│   ├── test_a_api_compatibility.py      # 模块A: API兼容性
+│   ├── test_b_sync_async_stream.py      # 模块B: 同步异步流式
+│   ├── test_c_structured_output.py      # 模块C: 结构化输出
+│   ├── test_d_reasoning_models.py       # 模块D: 推理模型
+│   ├── test_e_plugin_system.py          # 模块E: 插件系统
+│   ├── test_f_exception_retry.py        # 模块F: 异常重试
+│   ├── test_g_fallback_strategy.py      # 模块G: 降级策略
+│   ├── test_h_observability.py          # 模块H: 可观测性
+│   ├── test_i_cost_tracking.py          # 模块I: 成本统计
+│   ├── test_j_persistence.py            # 模块J: 持久化
+│   ├── test_k_configuration.py          # 模块K: 配置管理
+│   ├── test_l_cli.py                    # 模块L: CLI
+│   ├── test_m_security.py               # 模块M: 安全合规
+│   ├── test_n_standard_alignment.py     # 模块N: 标准格式对齐
+│   ├── test_p_error_robustness.py       # 模块P: 错误健壮性
 │   ├── test_native_vs_agently.py      # 原生Schema vs Agently对比测试
 │   └── test_resource_monitoring.py    # 资源监控测试
 │
@@ -165,6 +182,7 @@ tests/
 ### 3.1 测试框架核心组件
 
 #### 3.1.1 pytest 配置 (pytest.ini)
+
 ```ini
 [tool:pytest]
 minversion = 6.0
@@ -208,7 +226,7 @@ markers =
     stream_test: 流式测试
     mock: Mock测试（默认执行）
     real_api: 真实API测试（需手动开启）
-    openai_alignment: OpenAI对齐测试
+    standard_alignment: 标准格式对齐测试
     reasoning_content: 推理内容检测测试
     structured_output: 结构化输出测试
     native_schema: 原生Schema测试
@@ -225,6 +243,7 @@ asyncio_mode = auto
 ```
 
 #### 3.1.2 全局配置 (conftest.py)
+
 ```python
 """
 全局测试配置和夹具定义
@@ -315,7 +334,8 @@ def setup_test_environment(test_config):
 
 ### 3.2 测试夹具设计
 
-#### 3.2.1 客户端夹具 (fixtures/client_fixtures.py)
+#### 3.2.1 客户端夹具 (fixtures/client\_fixtures.py)
+
 ```python
 """
 客户端相关测试夹具
@@ -470,7 +490,8 @@ def multi_vendor_client(request):
     }
 ```
 
-#### 3.2.2 数据夹具 (fixtures/data_fixtures.py)
+#### 3.2.2 数据夹具 (fixtures/data\_fixtures.py)
+
 ```python
 """
 测试数据相关夹具
@@ -593,7 +614,8 @@ def non_reasoning_models():
 
 ### 3.3 测试工具设计
 
-#### 3.3.1 测试辅助函数 (utils/test_helpers.py)
+#### 3.3.1 测试辅助函数 (utils/test\_helpers.py)
+
 ```python
 """
 测试辅助函数
@@ -685,8 +707,8 @@ async def measure_async_execution_time(coro):
     
     return result
 
-def validate_openai_response_format(response) -> bool:
-    """验证响应格式是否符合OpenAI标准 - 字段级严格对齐"""
+def validate_standard_response_format(response) -> bool:
+    """验证响应格式是否符合标准格式 - 字段级严格对齐"""
     required_fields = ['choices', 'usage', 'model', 'id', 'object', 'created']
     
     for field in required_fields:
@@ -725,8 +747,8 @@ def validate_openai_response_format(response) -> bool:
     
     return True
 
-def validate_openai_chunk_format(chunk) -> bool:
-    """验证流式响应Chunk格式是否符合OpenAI标准"""
+def validate_standard_chunk_format(chunk) -> bool:
+    """验证流式响应Chunk格式是否符合标准格式"""
     required_fields = ['id', 'object', 'created', 'model', 'choices']
     
     for field in required_fields:
@@ -794,7 +816,7 @@ def sanitize_api_key(text: str) -> str:
     import re
     # 匹配常见的API密钥格式
     patterns = [
-        r'sk-[a-zA-Z0-9]{48}',  # OpenAI格式
+        r'sk-[a-zA-Z0-9]{48}',  # 标准格式
         r'[a-zA-Z0-9]{32,}',    # 通用长字符串
     ]
     
@@ -864,7 +886,8 @@ class AsyncTestHelper:
 
 ### 4.1 性能测试架构
 
-#### 4.1.1 性能测试基础类 (utils/performance_utils.py)
+#### 4.1.1 性能测试基础类 (utils/performance\_utils.py)
+
 ```python
 """
 性能测试工具类
@@ -1228,8 +1251,9 @@ class BenchmarkRunner:
 
 ### 4.2 性能测试用例设计
 
-#### 4.2.1 基础性能测试 (performance/test_basic_performance.py)
-```python
+#### 4.2.1 基础性能测试 (performance/test\_basic\_performance.py)
+
+````python
 """
 基础性能测试
 """
@@ -1265,16 +1289,9 @@ class TestBasicPerformance:
     @pytest.mark.p0
     def test_wrapper_overhead_benchmark(self):
         """测试封装开销基准 - O-001"""
-        from openai import OpenAI
-        
-        # 原生SDK客户端（用于对比）
-        # 注意：这里应该使用对应厂商的原生SDK进行对比
-        # 为了演示，这里仍使用OpenAI格式的客户端
-        from openai import OpenAI
-        native_client = OpenAI(
-            api_key=self.credentials['api_key'],
-            base_url=self.credentials['base_url']
-        )
+        # 使用对应厂商的原生SDK进行对比
+        # 这里使用标准的HTTP客户端作为基准
+        import requests
         
         test_message = [{"role": "user", "content": "Hello"}]
         iterations = 100
@@ -1282,30 +1299,35 @@ class TestBasicPerformance:
         # 预热
         for _ in range(10):
             try:
-                openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=test_message
-                )
                 self.client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="deepseek-chat",
                     messages=test_message
                 )
             except Exception:
                 pass
         
-        # 测试原生SDK
+        # 测试基准性能（使用HTTP直接调用）
         native_times = []
         test_model = "deepseek-chat"  # 使用实际可用的模型
         
         for _ in range(iterations):
             start = time.perf_counter()
             try:
-                native_client.chat.completions.create(
-                    model=test_model,
-                    messages=test_message
+                # 使用requests直接调用API作为基准
+                response = requests.post(
+                    f"{self.credentials['base_url']}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.credentials['api_key']}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "model": test_model,
+                        "messages": test_message
+                    }
                 )
                 end = time.perf_counter()
-                native_times.append(end - start)
+                if response.status_code == 200:
+                    native_times.append(end - start)
             except Exception:
                 pass
         
@@ -1329,7 +1351,7 @@ class TestBasicPerformance:
             harbor_avg = sum(harbor_times) / len(harbor_times)
             overhead = harbor_avg - native_avg
             
-            print(f"原生SDK平均时间: {native_avg*1000:.2f}ms")
+            print(f"基准HTTP调用平均时间: {native_avg*1000:.2f}ms")
             print(f"HarborAI平均时间: {harbor_avg*1000:.2f}ms")
             print(f"封装开销: {overhead*1000:.2f}ms")
             
@@ -1338,7 +1360,7 @@ class TestBasicPerformance:
             
             # 保存基准数据
             baseline_data = {
-                'native_avg_time': native_avg,
+                'baseline_avg_time': native_avg,
                 'harbor_avg_time': harbor_avg,
                 'wrapper_overhead': overhead,
                 'test_model': test_model
@@ -1692,103 +1714,106 @@ class TestReasoningModels:
             print(f"\n对比结果:")
             print(f"推理模型内容长度: {reasoning_result['content_length']}")
             print(f"非推理模型内容长度: {non_reasoning_result['content_length']}")
+````
+
 ```
+@pytest.mark.performance
+@pytest.mark.p1
+def test_memory_leak_detection(self):
+    """测试内存泄露检测 - O-003"""
+    import psutil
+    import gc
     
-    @pytest.mark.performance
-    @pytest.mark.p1
-    def test_memory_leak_detection(self):
-        """测试内存泄露检测 - O-003"""
-        import psutil
-        import gc
-        
-        process = psutil.Process()
-        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
-        
-        # 执行大量请求
-        for i in range(1000):
-            try:
-                response = self.client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": f"测试消息 {i}"}]
-                )
-                # 确保响应被处理
-                _ = response.choices[0].message.content
-            except Exception:
-                pass
-            
-            # 每100次请求检查一次内存
-            if i % 100 == 0:
-                gc.collect()  # 强制垃圾回收
-                current_memory = process.memory_info().rss / 1024 / 1024
-                memory_growth = current_memory - initial_memory
-                
-                print(f"请求 {i}: 内存使用 {current_memory:.2f}MB, 增长 {memory_growth:.2f}MB")
-                
-                # 验证内存增长不超过50MB
-                assert memory_growth < 50, f"内存增长{memory_growth:.2f}MB超过50MB阈值"
-        
-        # 最终内存检查
-        gc.collect()
-        final_memory = process.memory_info().rss / 1024 / 1024
-        total_growth = final_memory - initial_memory
-        
-        print(f"总内存增长: {total_growth:.2f}MB")
-        assert total_growth < 100, f"总内存增长{total_growth:.2f}MB超过100MB阈值"
+    process = psutil.Process()
+    initial_memory = process.memory_info().rss / 1024 / 1024  # MB
     
-    @pytest.mark.performance
-    @pytest.mark.p1
-    @pytest.mark.asyncio
-    async def test_streaming_performance(self):
-        """测试流式调用性能 - O-004"""
-        ttfb_times = []  # Time To First Byte
-        chunk_intervals = []
+    # 执行大量请求
+    for i in range(1000):
+        try:
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": f"测试消息 {i}"}]
+            )
+            # 确保响应被处理
+            _ = response.choices[0].message.content
+        except Exception:
+            pass
         
-        for _ in range(10):  # 测试10次流式调用
-            start_time = time.perf_counter()
-            first_chunk_time = None
-            last_chunk_time = start_time
+        # 每100次请求检查一次内存
+        if i % 100 == 0:
+            gc.collect()  # 强制垃圾回收
+            current_memory = process.memory_info().rss / 1024 / 1024
+            memory_growth = current_memory - initial_memory
             
-            try:
-                stream = self.client.chat.completions.create(
-                    model="deepseek-chat",
-                    messages=[{"role": "user", "content": "请写一个100字的故事"}],
-                    stream=True
-                )
-                
-                chunk_count = 0
-                for chunk in stream:
-                    current_time = time.perf_counter()
-                    
-                    if first_chunk_time is None:
-                        first_chunk_time = current_time
-                        ttfb = first_chunk_time - start_time
-                        ttfb_times.append(ttfb)
-                    else:
-                        interval = current_time - last_chunk_time
-                        chunk_intervals.append(interval)
-                    
-                    last_chunk_time = current_time
-                    chunk_count += 1
-                
-                print(f"流式调用完成: {chunk_count}个chunk")
-                
-            except Exception as e:
-                print(f"流式调用失败: {e}")
+            print(f"请求 {i}: 内存使用 {current_memory:.2f}MB, 增长 {memory_growth:.2f}MB")
+            
+            # 验证内存增长不超过50MB
+            assert memory_growth < 50, f"内存增长{memory_growth:.2f}MB超过50MB阈值"
+    
+    # 最终内存检查
+    gc.collect()
+    final_memory = process.memory_info().rss / 1024 / 1024
+    total_growth = final_memory - initial_memory
+    
+    print(f"总内存增长: {total_growth:.2f}MB")
+    assert total_growth < 100, f"总内存增长{total_growth:.2f}MB超过100MB阈值"
+
+@pytest.mark.performance
+@pytest.mark.p1
+@pytest.mark.asyncio
+async def test_streaming_performance(self):
+    """测试流式调用性能 - O-004"""
+    ttfb_times = []  # Time To First Byte
+    chunk_intervals = []
+    
+    for _ in range(10):  # 测试10次流式调用
+        start_time = time.perf_counter()
+        first_chunk_time = None
+        last_chunk_time = start_time
         
-        if ttfb_times:
-            avg_ttfb = sum(ttfb_times) / len(ttfb_times)
-            print(f"平均TTFB: {avg_ttfb*1000:.2f}ms")
+        try:
+            stream = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": "请写一个100字的故事"}],
+                stream=True
+            )
             
-            # 验证TTFB小于500ms
-            assert avg_ttfb < 0.5, f"平均TTFB {avg_ttfb*1000:.2f}ms超过500ms阈值"
+            chunk_count = 0
+            for chunk in stream:
+                current_time = time.perf_counter()
+                
+                if first_chunk_time is None:
+                    first_chunk_time = current_time
+                    ttfb = first_chunk_time - start_time
+                    ttfb_times.append(ttfb)
+                else:
+                    interval = current_time - last_chunk_time
+                    chunk_intervals.append(interval)
+                
+                last_chunk_time = current_time
+                chunk_count += 1
+            
+            print(f"流式调用完成: {chunk_count}个chunk")
+            
+        except Exception as e:
+            print(f"流式调用失败: {e}")
+    
+    if ttfb_times:
+        avg_ttfb = sum(ttfb_times) / len(ttfb_times)
+        print(f"平均TTFB: {avg_ttfb*1000:.2f}ms")
         
-        if chunk_intervals:
-            avg_interval = sum(chunk_intervals) / len(chunk_intervals)
-            print(f"平均chunk间隔: {avg_interval*1000:.2f}ms")
-            
-            # 验证chunk间隔小于100ms
-            assert avg_interval < 0.1, f"平均chunk间隔{avg_interval*1000:.2f}ms超过100ms阈值"
+        # 验证TTFB小于500ms
+        assert avg_ttfb < 0.5, f"平均TTFB {avg_ttfb*1000:.2f}ms超过500ms阈值"
+    
+    if chunk_intervals:
+        avg_interval = sum(chunk_intervals) / len(chunk_intervals)
+        print(f"平均chunk间隔: {avg_interval*1000:.2f}ms")
+        
+        # 验证chunk间隔小于100ms
+        assert avg_interval < 0.1, f"平均chunk间隔{avg_interval*1000:.2f}ms超过100ms阈值"
 ```
+
+````
 
 ## 5. 测试环境配置与依赖管理
 
@@ -1850,9 +1875,10 @@ docker-compose>=1.29.0
 aiohttp>=3.8.0
 httpx>=0.24.0
 websockets>=11.0.0
-```
+````
 
 ### 5.2 Docker环境配置 (docker-compose.yml)
+
 ```yaml
 version: '3.8'
 
@@ -1940,6 +1966,7 @@ networks:
 ```
 
 ### 5.3 测试环境变量配置 (.env.test)
+
 ```env
 # 测试模式
 HARBORAI_TEST_MODE=true
@@ -1970,7 +1997,8 @@ GRAFANA_PORT=3000
 MONITORING_ENABLED=true
 ```
 
-### 5.4 数据库初始化脚本 (scripts/init_db.sql)
+### 5.4 数据库初始化脚本 (scripts/init\_db.sql)
+
 ```sql
 -- 创建测试数据库和用户
 CREATE DATABASE harborai_test;
@@ -2026,17 +2054,25 @@ CREATE INDEX idx_test_sessions_session_id ON test_sessions(session_id);
 ### 6.1 测试数据分类
 
 #### 6.1.1 静态测试数据
-- **Schema文件**: JSON Schema定义文件
-- **Mock响应**: 预定义的API响应数据
-- **测试用例**: 标准化的测试输入数据
-- **性能基准**: 历史性能数据基准
+
+* **Schema文件**: JSON Schema定义文件
+
+* **Mock响应**: 预定义的API响应数据
+
+* **测试用例**: 标准化的测试输入数据
+
+* **性能基准**: 历史性能数据基准
 
 #### 6.1.2 动态测试数据
-- **随机生成**: 使用Faker库生成随机测试数据
-- **参数化数据**: pytest参数化测试数据
-- **环境相关**: 根据测试环境动态调整的数据
 
-### 6.2 数据生成器设计 (utils/data_generators.py)
+* **随机生成**: 使用Faker库生成随机测试数据
+
+* **参数化数据**: pytest参数化测试数据
+
+* **环境相关**: 根据测试环境动态调整的数据
+
+### 6.2 数据生成器设计 (utils/data\_generators.py)
+
 ```python
 """
 测试数据生成器
@@ -2134,12 +2170,9 @@ class TestDataGenerator:
             }
     
     @staticmethod
-    def generate_api_key(vendor: str = 'openai') -> str:
+    def generate_api_key(vendor: str = 'deepseek') -> str:
         """生成测试用API密钥"""
-        if vendor == 'openai':
-            return f"sk-{''.join(random.choices(string.ascii_letters + string.digits, k=48))}"
-        else:
-            return ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+        return ''.join(random.choices(string.ascii_letters + string.digits, k=32))
     
     @staticmethod
     def generate_performance_data(concurrent_levels: List[int]) -> Dict[str, Any]:
@@ -2161,7 +2194,8 @@ class TestDataGenerator:
         return data
 ```
 
-### 6.3 数据脱敏工具 (utils/security_utils.py)
+### 6.3 数据脱敏工具 (utils/security\_utils.py)
+
 ```python
 """
 安全和数据脱敏工具
@@ -2176,7 +2210,6 @@ class DataSanitizer:
     # 敏感数据模式
     SENSITIVE_PATTERNS = {
         'api_key': [
-            r'sk-[a-zA-Z0-9]{48}',  # OpenAI API Key
             r'[a-zA-Z0-9]{32,64}',  # 通用API Key
         ],
         'email': [
@@ -2273,16 +2306,15 @@ class SecurityValidator:
     """安全验证器"""
     
     @staticmethod
-    def validate_api_key_format(api_key: str, vendor: str = 'openai') -> bool:
+    def validate_api_key_format(api_key: str, vendor: str = 'deepseek') -> bool:
         """验证API密钥格式"""
         if not api_key:
             return False
         
         patterns = {
-            'openai': r'^sk-[a-zA-Z0-9]{48}$',
             'deepseek': r'^[a-zA-Z0-9]{32,}$',
             'doubao': r'^[a-zA-Z0-9]{32,}$',
-            'wenxin': r'^[a-zA-Z0-9]{32,}$'
+            'ernie': r'^[a-zA-Z0-9]{32,}$'
         }
         
         pattern = patterns.get(vendor, r'^[a-zA-Z0-9]{16,}$')
@@ -2295,7 +2327,6 @@ class SecurityValidator:
         
         # 检查API密钥
         api_key_patterns = [
-            r'sk-[a-zA-Z0-9]{48}',
             r'[a-zA-Z0-9]{32,64}'
         ]
         
@@ -2349,6 +2380,7 @@ class SecurityValidator:
 ## 7. CI/CD集成方案
 
 ### 7.1 GitHub Actions工作流 (.github/workflows/test.yml)
+
 ```yaml
 name: HarborAI Test Suite
 
@@ -2600,11 +2632,12 @@ jobs:
               body: summary
             });
            }
- ```
+```
 
 ### 7.2 PowerShell自动化脚本
 
-#### 7.2.1 测试环境设置脚本 (scripts/setup_test_env.ps1)
+#### 7.2.1 测试环境设置脚本 (scripts/setup\_test\_env.ps1)
+
 ```powershell
 # HarborAI测试环境设置脚本
 # 适用于Windows 11 + PowerShell
@@ -2744,7 +2777,8 @@ Write-Host "  .\tests\scripts\run_all_tests.ps1" -ForegroundColor White
 Write-Host "  .\tests\scripts\run_performance_tests.ps1" -ForegroundColor White
 ```
 
-#### 7.2.2 运行所有测试脚本 (scripts/run_all_tests.ps1)
+#### 7.2.2 运行所有测试脚本 (scripts/run\_all\_tests.ps1)
+
 ```powershell
 # 运行所有测试的PowerShell脚本
 
@@ -2858,14 +2892,15 @@ try {
 }
 ```
 
-#### 7.2.3 性能测试脚本 (scripts/run_performance_tests.ps1)
+#### 7.2.3 性能测试脚本 (scripts/run\_performance\_tests.ps1)
+
 ```powershell
 # 性能测试专用脚本
 
 param(
     [int]$MaxConcurrent = 100,
     [int]$Iterations = 1000,
-    [string]$Vendor = "openai",
+    [string]$Vendor = "deepseek",
     [switch]$Benchmark,
     [switch]$LoadTest
 )
@@ -2949,7 +2984,8 @@ if (Test-Path $benchmarkReport) {
 
 ### 8.1 测试报告生成
 
-#### 8.1.1 报告生成工具 (utils/report_utils.py)
+#### 8.1.1 报告生成工具 (utils/report\_utils.py)
+
 ```python
 """
 测试报告生成工具
@@ -3160,7 +3196,8 @@ class MetricsCollector:
 
 ### 8.2 监控集成
 
-#### 8.2.1 Prometheus指标导出 (utils/prometheus_exporter.py)
+#### 8.2.1 Prometheus指标导出 (utils/prometheus\_exporter.py)
+
 ```python
 """
 Prometheus指标导出器
@@ -3277,29 +3314,29 @@ def get_metrics_exporter() -> TestMetricsExporter:
 
 ## 8. 具体测试用例实现
 
-### 8.1 OpenAI对齐测试用例 (tests/test_openai_alignment.py)
+### 8.1 标准格式对齐测试用例 (tests/test\_standard\_alignment.py)
 
 ```python
 import pytest
 import json
 from typing import Dict, Any, List
 from harborai import HarborAI
-from tests.utils.test_helpers import validate_openai_response_format, validate_openai_chunk_format
+from tests.utils.test_helpers import validate_standard_response_format, validate_standard_chunk_format
 
-@pytest.mark.openai_alignment
+@pytest.mark.standard_alignment
 @pytest.mark.mock
-class TestOpenAIAlignment:
-    """OpenAI API对齐测试"""
+class TestStandardAlignment:
+    """标准API格式对齐测试"""
     
     def test_chat_completion_response_format(self, mock_harborai_client):
         """测试ChatCompletion响应格式对齐"""
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Hello"}]
         )
         
-        # 验证响应格式完全符合OpenAI标准
-        assert validate_openai_response_format(response)
+        # 验证响应格式完全符合标准
+        assert validate_standard_response_format(response)
         
         # 验证必需字段
         assert hasattr(response, 'id')
@@ -3332,7 +3369,7 @@ class TestOpenAIAlignment:
     def test_streaming_chunk_format(self, mock_harborai_client):
         """测试流式响应Chunk格式对齐"""
         stream = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Hello"}],
             stream=True
         )
@@ -3341,8 +3378,8 @@ class TestOpenAIAlignment:
         assert len(chunks) > 0
         
         for chunk in chunks:
-            # 验证每个chunk格式符合OpenAI标准
-            assert validate_openai_chunk_format(chunk)
+            # 验证每个chunk格式符合标准
+            assert validate_standard_chunk_format(chunk)
             
             # 验证基础字段
             assert hasattr(chunk, 'id')
@@ -3363,14 +3400,14 @@ class TestOpenAIAlignment:
         """测试finish_reason值的标准化"""
         # 测试正常完成
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Hello"}]
         )
         assert response.choices[0].finish_reason in ['stop', 'length', 'content_filter', 'tool_calls']
         
         # 测试长度限制
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Very long prompt..."}],
             max_tokens=1
         )
@@ -3378,7 +3415,7 @@ class TestOpenAIAlignment:
     
     def test_error_code_mapping(self, mock_harborai_client):
         """测试错误码到异常的映射"""
-        from openai import AuthenticationError, RateLimitError, APIError
+        from harborai.exceptions import AuthenticationError, RateLimitError, APIError
         
         # 测试认证错误
         with pytest.raises(AuthenticationError):
@@ -3404,7 +3441,7 @@ class TestOpenAIAlignment:
         }
         
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Generate a person"}],
             response_format={
                 "type": "json_schema",
@@ -3427,7 +3464,7 @@ class TestOpenAIAlignment:
     def test_parsed_response_format(self, mock_harborai_client):
         """测试parsed响应格式"""
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             messages=[{"role": "user", "content": "Generate JSON"}],
             response_format={"type": "json_object"}
         )
@@ -3439,7 +3476,7 @@ class TestOpenAIAlignment:
             assert isinstance(parsed, dict)
 ```
 
-### 8.2 推理模型测试用例 (tests/test_reasoning_models.py)
+### 8.2 推理模型测试用例 (tests/test\_reasoning\_models.py)
 
 ```python
 import pytest
@@ -3552,7 +3589,7 @@ class TestReasoningModels:
         assert len(full_content) > 0
 ```
 
-### 8.3 原生Schema对比测试 (tests/test_native_vs_agently.py)
+### 8.3 原生Schema对比测试 (tests/test\_native\_vs\_agently.py)
 
 ```python
 import pytest
@@ -3710,9 +3747,9 @@ class TestNativeVsAgentlySchema:
         
         # 验证额外属性限制
          assert len(native_content.keys()) == 1  # 严格模式不应有额外属性
- ```
+```
 
-### 8.4 资源监控测试 (tests/test_resource_monitoring.py)
+### 8.4 资源监控测试 (tests/test\_resource\_monitoring.py)
 
 ```python
 import pytest
@@ -3735,7 +3772,7 @@ class TestResourceMonitoring:
         # 执行多次API调用
         for i in range(10):
             response = mock_harborai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="deepseek-chat",
                 messages=[{"role": "user", "content": f"Test {i}"}]
             )
         
@@ -3756,7 +3793,7 @@ class TestResourceMonitoring:
         responses = []
         for i in range(100):
             response = mock_harborai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="deepseek-chat",
                 messages=[{"role": "user", "content": f"Large test {i} with more content"}]
             )
             responses.append(response)
@@ -3776,7 +3813,7 @@ class TestResourceMonitoring:
             """工作线程函数"""
             for i in range(5):
                 response = mock_harborai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="deepseek-chat",
                     messages=[{"role": "user", "content": f"Thread {thread_id} request {i}"}]
                 )
         
@@ -3821,7 +3858,7 @@ class TestResourceMonitoring:
                     mock_harborai_client._simulate_error('rate_limit_error')
                 else:
                     response = mock_harborai_client.chat.completions.create(
-                        model="gpt-3.5-turbo",
+                        model="deepseek-chat",
                         messages=[{"role": "user", "content": f"Test {i}"}]
                     )
             except Exception:
@@ -3842,7 +3879,7 @@ class TestResourceMonitoring:
         assert error_count > 0, "应该有错误发生"
 ```
 
-### 8.5 降级策略测试 (tests/test_fallback_strategy.py)
+### 8.5 降级策略测试 (tests/test\_fallback\_strategy.py)
 
 ```python
 import pytest
@@ -3872,7 +3909,7 @@ class TestFallbackStrategy:
         
         # 配置降级策略
         mock_harborai_client.configure_fallback(
-            fallback_models=["gpt-3.5-turbo", "claude-3-haiku"],
+            fallback_models=["deepseek-chat", "ernie-3.5-8k"],
             fallback_handler=mock_fallback_handler
         )
         
@@ -3882,7 +3919,7 @@ class TestFallbackStrategy:
             
             try:
                 response = mock_harborai_client.chat.completions.create(
-                    model="gpt-4",
+                    model="deepseek-r1",
                     messages=[{"role": "user", "content": "Test"}],
                     timeout=1.0
                 )
@@ -3891,7 +3928,7 @@ class TestFallbackStrategy:
         
         # 验证降级被触发
         assert fallback_triggered, "超时时应该触发降级"
-        assert fallback_model == "gpt-3.5-turbo", "应该降级到第一个备选模型"
+        assert fallback_model == "deepseek-chat", "应该降级到第一个备选模型"
     
     def test_rate_limit_fallback_order(self, mock_harborai_client):
         """测试限流时的降级顺序"""
@@ -3903,7 +3940,7 @@ class TestFallbackStrategy:
         
         # 配置多级降级
         mock_harborai_client.configure_fallback(
-            fallback_models=["gpt-3.5-turbo", "claude-3-haiku", "gemini-pro"],
+            fallback_models=["deepseek-chat", "ernie-3.5-8k", "doubao-1-5-pro-32k-character-250715"],
             fallback_handler=track_fallback
         )
         
@@ -3918,7 +3955,7 @@ class TestFallbackStrategy:
             for i in range(3):
                 try:
                     mock_harborai_client.chat.completions.create(
-                        model="gpt-4",
+                        model="deepseek-r1",
                         messages=[{"role": "user", "content": f"Test {i}"}]
                     )
                 except RateLimitError:
@@ -3926,9 +3963,9 @@ class TestFallbackStrategy:
         
         # 验证降级顺序
         assert len(fallback_sequence) == 3
-        assert fallback_sequence[0] == ("gpt-4", "gpt-3.5-turbo")
-        assert fallback_sequence[1] == ("gpt-4", "gpt-3.5-turbo")
-        assert fallback_sequence[2] == ("gpt-4", "gpt-3.5-turbo")
+        assert fallback_sequence[0] == ("deepseek-r1", "deepseek-chat")
+        assert fallback_sequence[1] == ("deepseek-r1", "deepseek-chat")
+        assert fallback_sequence[2] == ("deepseek-r1", "deepseek-chat")
     
     def test_quota_exceeded_fallback(self, mock_harborai_client):
         """测试配额不足触发降级"""
@@ -3945,7 +3982,7 @@ class TestFallbackStrategy:
             
             try:
                 response = mock_harborai_client.chat.completions.create(
-                    model="gpt-4",
+                    model="deepseek-r1",
                     messages=[{"role": "user", "content": "Test"}]
                 )
             except QuotaExceededError:
@@ -3965,7 +4002,7 @@ class TestFallbackStrategy:
             return fallback_models[0] if fallback_models else None
         
         mock_harborai_client.configure_fallback(
-            fallback_models=["gpt-3.5-turbo"],
+            fallback_models=["deepseek-chat"],
             fallback_handler=track_fallback
         )
         
@@ -3975,7 +4012,7 @@ class TestFallbackStrategy:
             
             with pytest.raises(AuthenticationError):
                 mock_harborai_client.chat.completions.create(
-                    model="gpt-4",
+                    model="deepseek-r1",
                     messages=[{"role": "user", "content": "Test"}]
                 )
         
@@ -4000,9 +4037,9 @@ class TestFallbackStrategy:
             mock_request.side_effect = [TimeoutError("Timeout"), MagicMock()]  # 第一次超时，第二次成功
             
             response = mock_harborai_client.chat.completions.create(
-                model="gpt-4",
+                model="deepseek-r1",
                 messages=[{"role": "user", "content": "Test"}],
-                fallback_models=["gpt-3.5-turbo"]
+                fallback_models=["deepseek-chat"]
             )
         
         # 验证指标上报
@@ -4016,7 +4053,7 @@ class TestFallbackStrategy:
             assert 'error_type' in metric['tags']
 ```
 
-### 8.6 成本统计测试 (tests/test_cost_tracking.py)
+### 8.6 成本统计测试 (tests/test\_cost\_tracking.py)
 
 ```python
 import pytest
@@ -4036,18 +4073,18 @@ class TestCostTracking:
         """测试多厂商价格参数化"""
         # 配置各厂商价格
         pricing_config = {
-            'openai': {
-                'gpt-4': {'input': Decimal('0.03'), 'output': Decimal('0.06')},
-                'gpt-3.5-turbo': {'input': Decimal('0.001'), 'output': Decimal('0.002')}
-            },
             'deepseek': {
-                'deepseek-chat': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')}
+                'deepseek-chat': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')},
+                'deepseek-r1': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')}
             },
             'doubao': {
-                'doubao-pro-32k': {'input': Decimal('0.0008'), 'output': Decimal('0.002')}
+                'doubao-1-5-pro-32k-character-250715': {'input': Decimal('0.0008'), 'output': Decimal('0.002')},
+                'doubao-seed-1-6-250615': {'input': Decimal('0.0008'), 'output': Decimal('0.002')}
             },
-            'wenxin': {
-                'ernie-bot-turbo': {'input': Decimal('0.0008'), 'output': Decimal('0.002')}
+            'ernie': {
+                'ernie-3.5-8k': {'input': Decimal('0.0008'), 'output': Decimal('0.002')},
+                'ernie-4.0-turbo-8k': {'input': Decimal('0.0008'), 'output': Decimal('0.002')},
+                'ernie-x1-turbo-32k': {'input': Decimal('0.0008'), 'output': Decimal('0.002')}
             }
         }
         
@@ -4055,9 +4092,9 @@ class TestCostTracking:
         
         # 测试不同厂商的成本计算
         test_cases = [
-            ('openai', 'gpt-4', 1000, 500, Decimal('0.06')),  # 0.03*1000/1000 + 0.06*500/1000
             ('deepseek', 'deepseek-chat', 2000, 1000, Decimal('0.0056')),  # 0.0014*2 + 0.0028*1
-            ('doubao', 'doubao-pro-32k', 1500, 800, Decimal('0.0028')),  # 0.0008*1.5 + 0.002*0.8
+            ('doubao', 'doubao-1-5-pro-32k-character-250715', 1500, 800, Decimal('0.0028')),  # 0.0008*1.5 + 0.002*0.8
+            ('ernie', 'ernie-3.5-8k', 1000, 500, Decimal('0.0018')),  # 0.0008*1 + 0.002*0.5
         ]
         
         for vendor, model, input_tokens, output_tokens, expected_cost in test_cases:
@@ -4078,7 +4115,7 @@ class TestCostTracking:
         
         for i in range(10):
             response = mock_harborai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="deepseek-chat",
                 messages=[{"role": "user", "content": f"Test message {i}"}]
             )
             
@@ -4087,8 +4124,8 @@ class TestCostTracking:
             output_tokens = 20 + i
             
             cost = cost_tracker.track_request(
-                vendor="openai",
-                model="gpt-3.5-turbo",
+                vendor="deepseek",
+                model="deepseek-chat",
                 input_tokens=input_tokens,
                 output_tokens=output_tokens
             )
@@ -4111,7 +4148,7 @@ class TestCostTracking:
             
             for i in range(5):
                 response = mock_harborai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="deepseek-chat",
                     messages=[{"role": "user", "content": f"Thread {thread_id} message {i}"}]
                 )
                 
@@ -4119,8 +4156,8 @@ class TestCostTracking:
                 request_id = f"thread_{thread_id}_request_{i}"
                 
                 cost = cost_tracker.track_request(
-                    vendor="openai",
-                    model="gpt-3.5-turbo",
+                    vendor="deepseek",
+                    model="deepseek-chat",
                     input_tokens=15,
                     output_tokens=25,
                     request_id=request_id
@@ -4156,14 +4193,14 @@ class TestCostTracking:
         
         # 执行API调用
         response = mock_harborai_client.chat.completions.create(
-            model="gpt-4",
+            model="deepseek-r1",
             messages=[{"role": "user", "content": "Sensitive business data: API key abc123"}]
         )
         
         # 记录成本并获取脱敏数据
         cost_tracker.track_request(
-            vendor="openai",
-            model="gpt-4",
+            vendor="deepseek",
+            model="deepseek-r1",
             input_tokens=50,
             output_tokens=30,
             request_content="Sensitive business data: API key abc123"
@@ -4185,13 +4222,13 @@ class TestCostTracking:
         # 执行多次API调用
         for i in range(5):
             response = mock_harborai_client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="deepseek-chat",
                 messages=[{"role": "user", "content": f"Test {i}"}]
             )
             
             cost_tracker.track_request(
-                vendor="openai",
-                model="gpt-3.5-turbo",
+                vendor="deepseek",
+                model="deepseek-chat",
                 input_tokens=10,
                 output_tokens=15,
                 request_id=f"req_{i}"
@@ -4206,8 +4243,8 @@ class TestCostTracking:
         
         # 验证记录完整性
         for record in db_records:
-            assert record['vendor'] == 'openai'
-            assert record['model'] == 'gpt-3.5-turbo'
+            assert record['vendor'] == 'deepseek'
+            assert record['model'] == 'deepseek-chat'
             assert record['cost'] > 0
             assert record['input_tokens'] == 10
             assert record['output_tokens'] == 15
@@ -4219,10 +4256,10 @@ class TestCostTracking:
         
         # 模拟不同厂商的API调用
         vendor_calls = [
-            ('openai', 'gpt-4', 100, 50),
-            ('openai', 'gpt-3.5-turbo', 200, 100),
-            ('deepseek', 'deepseek-chat', 300, 150),
-            ('doubao', 'doubao-pro-32k', 150, 75)
+            ('deepseek', 'deepseek-r1', 100, 50),
+            ('deepseek', 'deepseek-chat', 200, 100),
+            ('ernie', 'ernie-3.5-8k', 300, 150),
+            ('doubao', 'doubao-1-5-pro-32k-character-250715', 150, 75)
         ]
         
         for vendor, model, input_tokens, output_tokens in vendor_calls:
@@ -4237,97 +4274,143 @@ class TestCostTracking:
         vendor_costs = cost_tracker.get_costs_by_vendor()
         
         # 验证聚合结果
-        assert 'openai' in vendor_costs
         assert 'deepseek' in vendor_costs
+        assert 'ernie' in vendor_costs
         assert 'doubao' in vendor_costs
         
-        # 验证OpenAI成本是两个模型的总和
-        openai_total = vendor_costs['openai']
-        assert openai_total > 0
+        # 验证DeepSeek成本是两个模型的总和
+        deepseek_total = vendor_costs['deepseek']
+        assert deepseek_total > 0
         
         # 验证总成本等于各厂商成本之和
         total_by_vendor = sum(vendor_costs.values())
         total_overall = cost_tracker.get_total_cost()
         assert abs(total_by_vendor - total_overall) < Decimal('0.0001')
- ```
- 
- ## 9. 项目实施计划
+```
+
+## 9. 项目实施计划
 
 ### 9.1 实施阶段
 
 #### 阶段一：基础框架搭建（1-2周）
+
 1. **环境配置**
-   - 设置Python虚拟环境
-   - 安装测试依赖
-   - 配置Docker环境
-   - 设置数据库
+
+   * 设置Python虚拟环境
+
+   * 安装测试依赖
+
+   * 配置Docker环境
+
+   * 设置数据库
 
 2. **核心框架**
-   - 实现pytest配置
-   - 创建基础夹具
-   - 实现测试工具类
-   - 设置CI/CD流水线
+
+   * 实现pytest配置
+
+   * 创建基础夹具
+
+   * 实现测试工具类
+
+   * 设置CI/CD流水线
 
 #### 阶段二：功能测试实现（2-3周）
+
 1. **P0优先级测试**
-   - API兼容性测试（模块A）
-   - 同步异步流式测试（模块B）
-   - 结构化输出测试（模块C）
+
+   * API兼容性测试（模块A）
+
+   * 同步异步流式测试（模块B）
+
+   * 结构化输出测试（模块C）
 
 2. **P1优先级测试**
-   - 推理模型测试（模块D）
-   - 插件系统测试（模块E）
-   - 异常重试测试（模块F）
+
+   * 推理模型测试（模块D）
+
+   * 插件系统测试（模块E）
+
+   * 异常重试测试（模块F）
 
 #### 阶段三：性能测试实现（1-2周）
+
 1. **基础性能测试**
-   - 封装开销测试
-   - 并发性能测试
-   - 资源监控测试
+
+   * 封装开销测试
+
+   * 并发性能测试
+
+   * 资源监控测试
 
 2. **高级性能测试**
-   - 流式性能测试
-   - 压力测试
-   - 基准测试
+
+   * 流式性能测试
+
+   * 压力测试
+
+   * 基准测试
 
 #### 阶段四：集成与优化（1周）
+
 1. **集成测试**
-   - 端到端测试
-   - 多厂商集成测试
-   - 安全测试
+
+   * 端到端测试
+
+   * 多厂商集成测试
+
+   * 安全测试
 
 2. **报告与监控**
-   - 测试报告生成
-   - 监控集成
-   - 文档完善
+
+   * 测试报告生成
+
+   * 监控集成
+
+   * 文档完善
 
 ### 9.2 质量保证
 
 #### 代码质量
-- 代码覆盖率 > 90%
-- 所有P0测试必须通过
-- 性能测试符合基准要求
-- 安全测试无高危漏洞
+
+* 代码覆盖率 > 90%
+
+* 所有P0测试必须通过
+
+* 性能测试符合基准要求
+
+* 安全测试无高危漏洞
 
 #### 文档质量
-- 完整的API文档
-- 详细的使用说明
-- 故障排除指南
-- 最佳实践文档
+
+* 完整的API文档
+
+* 详细的使用说明
+
+* 故障排除指南
+
+* 最佳实践文档
 
 ### 9.3 维护计划
 
 #### 日常维护
-- 每日自动化测试执行
-- 性能指标监控
-- 测试结果分析
-- 问题跟踪处理
+
+* 每日自动化测试执行
+
+* 性能指标监控
+
+* 测试结果分析
+
+* 问题跟踪处理
 
 #### 定期维护
-- 每周测试用例审查
-- 每月性能基准更新
-- 每季度测试策略评估
-- 年度测试框架升级
+
+* 每周测试用例审查
+
+* 每月性能基准更新
+
+* 每季度测试策略评估
+
+* 年度测试框架升级
 
 ## 10. 总结
 
@@ -4343,7 +4426,7 @@ class TestCostTracking:
 
 ### 10.2 技术特色
 
-1. **多厂商支持**：支持OpenAI、DeepSeek、Doubao、Wenxin等多个厂商的API测试
+1. **多厂商支持**：支持DeepSeek、Doubao、Wenxin等多个厂商的API测试
 2. **性能基准**：建立完整的性能基准体系，支持性能回归检测
 3. **安全保障**：包含数据脱敏、安全验证等安全测试功能
 4. **CI/CD集成**：完整的GitHub Actions工作流，支持自动化测试和部署

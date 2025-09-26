@@ -1,0 +1,186 @@
+{
+  "doubao_chat_completion": {
+    "id": "doubao-chatcmpl-7QyqpwdfhqwajicIEznoc6Q47XAyW",
+    "object": "chat.completion",
+    "created": 1704067200,
+    "model": "doubao-pro-4k",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "你好！我是豆包，字节跳动开发的AI助手。我可以帮助您回答问题、提供信息、协助创作等。有什么我可以为您做的吗？"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 38,
+      "total_tokens": 48
+    },
+    "system_fingerprint": "fp_doubao_v1"
+  },
+  "doubao_seed_reasoning_completion": {
+    "id": "doubao-seed-reasoning-abcdef123456",
+    "object": "reasoning.completion",
+    "created": 1704067200,
+    "model": "doubao-seed-1-6-250615",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "通过系统性推理分析，我得出的结论是应该采用渐进式优化策略。",
+          "reasoning_content": "让我系统地分析这个复杂问题：\n\n**问题分解**\n1. 核心目标识别\n2. 约束条件分析\n3. 可行方案枚举\n\n**方案评估**\n方案A：激进式改革\n- 优点：变化快速，效果明显\n- 缺点：风险高，阻力大\n- 适用性：低\n\n方案B：渐进式优化\n- 优点：风险可控，易于接受\n- 缺点：见效较慢\n- 适用性：高\n\n方案C：混合策略\n- 优点：兼顾效率和稳定性\n- 缺点：复杂度高\n- 适用性：中等\n\n**决策推理**\n考虑到当前环境的复杂性和变化的敏感性，渐进式优化策略最为合适：\n1. 降低实施风险\n2. 便于过程调整\n3. 提高成功概率\n\n**实施建议**\n- 分阶段推进\n- 建立反馈机制\n- 持续监控效果",
+          "reasoning_tokens": 312
+        },
+        "finish_reason": "reasoning_complete",
+        "reasoning_metadata": {
+          "reasoning_steps": 6,
+          "confidence_score": 0.91,
+          "reasoning_time_ms": 4100
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 89,
+      "completion_tokens": 52,
+      "reasoning_tokens": 312,
+      "total_tokens": 453
+    },
+    "reasoning_summary": {
+      "total_reasoning_time_ms": 4100,
+      "reasoning_quality_score": 0.93,
+      "reasoning_complexity": "very_complex"
+    },
+    "system_fingerprint": "fp_doubao_seed_v1"
+  },
+  "doubao_streaming_chunk_start": {
+    "id": "doubao-stream-555",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "doubao-pro-4k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "role": "assistant",
+          "content": ""
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "doubao_streaming_chunk_content": {
+    "id": "doubao-stream-555",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "doubao-pro-4k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "content": "你好！我是豆包"
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "doubao_streaming_chunk_end": {
+    "id": "doubao-stream-555",
+    "object": "chat.completion.chunk",
+    "created": 1704067200,
+    "model": "doubao-pro-4k",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {},
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 38,
+      "total_tokens": 48
+    }
+  },
+  "doubao_seed_streaming_reasoning": {
+    "id": "doubao-seed-stream-666",
+    "object": "reasoning.completion.chunk",
+    "created": 1704067200,
+    "model": "doubao-seed-1-6-250615",
+    "choices": [
+      {
+        "index": 0,
+        "delta": {
+          "reasoning_content": "开始深度推理过程，分析问题的多个层面和潜在影响..."
+        },
+        "finish_reason": null
+      }
+    ]
+  },
+  "doubao_error_server_overload": {
+    "error": {
+      "message": "The server is currently overloaded, please try again later",
+      "type": "overloaded_error",
+      "code": "server_overloaded",
+      "details": {
+        "request_id": "req_doubao_161718",
+        "timestamp": 1704067200,
+        "retry_after": 30
+      }
+    },
+    "request_id": "req_doubao_161718",
+    "status_code": 503
+  },
+  "doubao_error_timeout": {
+    "error": {
+      "message": "Request timeout after 30 seconds",
+      "type": "timeout_error",
+      "code": "request_timeout",
+      "details": {
+        "request_id": "req_doubao_192021",
+        "timestamp": 1704067200,
+        "timeout_duration": 30000
+      }
+    },
+    "request_id": "req_doubao_192021",
+    "status_code": 504
+  },
+  "doubao_error_invalid_parameter": {
+    "error": {
+      "message": "Invalid parameter value for 'temperature'. Must be between 0 and 2.",
+      "type": "invalid_request_error",
+      "param": "temperature",
+      "code": "invalid_parameter_value",
+      "details": {
+        "request_id": "req_doubao_222324",
+        "timestamp": 1704067200,
+        "valid_range": {
+          "min": 0,
+          "max": 2
+        }
+      }
+    },
+    "request_id": "req_doubao_222324",
+    "status_code": 400
+  },
+  "doubao_embedding_response": {
+    "id": "doubao-embed-789012",
+    "object": "embedding",
+    "created": 1704067200,
+    "model": "doubao-embedding-v1",
+    "data": [
+      {
+        "index": 0,
+        "embedding": [0.1234, -0.5678, 0.9012, -0.3456, 0.7890],
+        "object": "embedding"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 5,
+      "total_tokens": 5
+    }
+  }
+}

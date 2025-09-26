@@ -1,0 +1,169 @@
+# HarborAI测试环境Docker Compose配置
+version: '3.8'
+
+services:
+  # 主测试服务
+  harborai-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: harborai-test
+    environment:
+      - PYTHONPATH=/app
+      - PYTEST_CURRENT_TEST=""
+      - CI=true
+      - TEST_ENV=docker
+      # API密钥（从环境变量或.env文件读取）
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-test-key-placeholder}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-test-key-placeholder}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-test-key-placeholder}
+      # 数据库配置
+      - DATABASE_URL=postgresql://testuser:testpass@postgres:5432/harborai_test
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./tests/reports:/app/tests/reports
+      - ./tests/logs:/app/tests/logs
+      - ./tests/data:/app/tests/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - harborai-test-network
+    command: >
+      sh -c "
+        echo '等待服务启动...' &&
+        sleep 5 &&
+        python -m pytest tests/ -v --tb=short
+      "
+
+  # PostgreSQL数据库（用于集成测试）
+  postgres:
+    image: postgres:15-alpine
+    container_name: harborai-postgres-test
+    environment:
+      - POSTGRES_DB=harborai_test
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./tests/fixtures/sql:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"
+    networks:
+      - harborai-test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d harborai_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis缓存（用于集成测试）
+  redis:
+    image: redis:7-alpine
+    container_name: harborai-redis-test
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_test_data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - harborai-test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # 性能测试服务（独立运行）
+  harborai-performance:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: harborai-performance-test
+    environment:
+      - PYTHONPATH=/app
+      - TEST_ENV=docker
+      - PERFORMANCE_TEST=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-test-key-placeholder}
+    volumes:
+      - ./tests/reports:/app/tests/reports
+      - ./tests/data:/app/tests/data:ro
+    networks:
+      - harborai-test-network
+    profiles:
+      - performance
+    command: >
+      python -m pytest tests/performance/ 
+      -v --tb=short 
+      -m "performance" 
+      --html=tests/reports/performance_report.html 
+      --self-contained-html
+
+  # 安全测试服务（独立运行）
+  harborai-security:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: harborai-security-test
+    environment:
+      - PYTHONPATH=/app
+      - TEST_ENV=docker
+      - SECURITY_TEST=true
+    volumes:
+      - ./tests/reports:/app/tests/reports
+      - ./tests/data:/app/tests/data:ro
+    networks:
+      - harborai-test-network
+    profiles:
+      - security
+    command: >
+      python -m pytest tests/security/ tests/functional/test_m_security.py 
+      -v --tb=short 
+      -m "security" 
+      --html=tests/reports/security_report.html 
+      --self-contained-html
+
+  # 测试报告服务（用于查看报告）
+  report-server:
+    image: nginx:alpine
+    container_name: harborai-report-server
+    volumes:
+      - ./tests/reports:/usr/share/nginx/html:ro
+      - ./tests/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    networks:
+      - harborai-test-network
+    profiles:
+      - reports
+    depends_on:
+      - harborai-test
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+
+networks:
+  harborai-test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 扩展配置
+x-common-variables: &common-variables
+  PYTHONPATH: /app
+  TEST_ENV: docker
+  CI: true
+
+x-common-volumes: &common-volumes
+  - ./tests/reports:/app/tests/reports
+  - ./tests/logs:/app/tests/logs
+  - ./tests/data:/app/tests/data:ro

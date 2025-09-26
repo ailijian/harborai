@@ -1,0 +1,315 @@
+{
+  "latency_tests": {
+    "description": "延迟性能测试用例",
+    "test_cases": [
+      {
+        "test_id": "PERF_LAT_001",
+        "name": "单次请求延迟测试",
+        "description": "测试单次API请求的响应延迟",
+        "test_config": {
+          "request_count": 1,
+          "concurrent_users": 1,
+          "timeout_ms": 30000
+        },
+        "vendors": [
+          {
+            "name": "deepseek",
+            "model": "deepseek-chat",
+            "expected_latency_ms": {
+              "p50": 2000,
+              "p95": 5000,
+              "p99": 8000
+            }
+          },
+          {
+            "name": "ernie",
+            "model": "ernie-4.0-8k",
+            "expected_latency_ms": {
+              "p50": 1800,
+              "p95": 4500,
+              "p99": 7000
+            }
+          },
+          {
+            "name": "doubao",
+            "model": "doubao-pro-4k",
+            "expected_latency_ms": {
+              "p50": 2200,
+              "p95": 5500,
+              "p99": 9000
+            }
+          }
+        ],
+        "input_template": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请简单回答：什么是人工智能？"
+            }
+          ],
+          "temperature": 0.7,
+          "max_tokens": 100
+        }
+      },
+      {
+        "test_id": "PERF_LAT_002",
+        "name": "推理模型延迟测试",
+        "description": "测试推理模型的响应延迟（包含推理时间）",
+        "test_config": {
+          "request_count": 5,
+          "concurrent_users": 1,
+          "timeout_ms": 60000
+        },
+        "reasoning_models": [
+          {
+            "vendor": "deepseek",
+            "model": "deepseek-r1",
+            "expected_latency_ms": {
+              "p50": 8000,
+              "p95": 15000,
+              "p99": 25000
+            },
+            "expected_reasoning_time_ms": {
+              "p50": 3000,
+              "p95": 8000,
+              "p99": 15000
+            }
+          },
+          {
+            "vendor": "ernie",
+            "model": "ernie-x1-turbo-32k",
+            "expected_latency_ms": {
+              "p50": 7500,
+              "p95": 14000,
+              "p99": 22000
+            },
+            "expected_reasoning_time_ms": {
+              "p50": 2800,
+              "p95": 7500,
+              "p99": 12000
+            }
+          },
+          {
+            "vendor": "doubao",
+            "model": "doubao-seed-1-6-250615",
+            "expected_latency_ms": {
+              "p50": 9000,
+              "p95": 16000,
+              "p99": 28000
+            },
+            "expected_reasoning_time_ms": {
+              "p50": 3500,
+              "p95": 9000,
+              "p99": 18000
+            }
+          }
+        ],
+        "input_template": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请分析以下问题并给出详细推理：一个公司要在3个城市开设分店，每个城市的成本和预期收益不同，如何制定最优的开店策略？"
+            }
+          ],
+          "temperature": 0.3,
+          "max_tokens": 800
+        }
+      }
+    ]
+  },
+  "throughput_tests": {
+    "description": "吞吐量性能测试用例",
+    "test_cases": [
+      {
+        "test_id": "PERF_THR_001",
+        "name": "并发请求吞吐量测试",
+        "description": "测试不同并发级别下的API吞吐量",
+        "test_scenarios": [
+          {
+            "concurrent_users": 5,
+            "requests_per_user": 10,
+            "duration_seconds": 60,
+            "expected_rps": {
+              "deepseek": 8,
+              "ernie": 10,
+              "doubao": 7
+            }
+          },
+          {
+            "concurrent_users": 10,
+            "requests_per_user": 20,
+            "duration_seconds": 120,
+            "expected_rps": {
+              "deepseek": 15,
+              "ernie": 18,
+              "doubao": 12
+            }
+          },
+          {
+            "concurrent_users": 20,
+            "requests_per_user": 30,
+            "duration_seconds": 180,
+            "expected_rps": {
+              "deepseek": 25,
+              "ernie": 30,
+              "doubao": 20
+            }
+          }
+        ],
+        "input_template": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请用一句话总结人工智能的核心概念"
+            }
+          ],
+          "temperature": 0.5,
+          "max_tokens": 50
+        }
+      },
+      {
+        "test_id": "PERF_THR_002",
+        "name": "流式响应吞吐量测试",
+        "description": "测试流式响应模式下的吞吐量性能",
+        "test_config": {
+          "concurrent_streams": 10,
+          "stream_duration_seconds": 30,
+          "chunk_size_bytes": 1024
+        },
+        "expected_metrics": {
+          "chunks_per_second": {
+            "deepseek": 50,
+            "ernie": 60,
+            "doubao": 45
+          },
+          "bytes_per_second": {
+            "deepseek": 51200,
+            "ernie": 61440,
+            "doubao": 46080
+          }
+        },
+        "input_template": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "请详细介绍机器学习的发展历程，包括重要的里程碑事件"
+            }
+          ],
+          "stream": true,
+          "temperature": 0.7,
+          "max_tokens": 1000
+        }
+      }
+    ]
+  },
+  "resource_usage_tests": {
+    "description": "资源使用率测试用例",
+    "test_cases": [
+      {
+        "test_id": "PERF_RES_001",
+        "name": "内存使用率测试",
+        "description": "测试不同负载下的内存使用情况",
+        "test_scenarios": [
+          {
+            "load_level": "low",
+            "concurrent_requests": 5,
+            "expected_memory_mb": {
+              "baseline": 100,
+              "peak": 200,
+              "average": 150
+            }
+          },
+          {
+            "load_level": "medium",
+            "concurrent_requests": 20,
+            "expected_memory_mb": {
+              "baseline": 150,
+              "peak": 400,
+              "average": 250
+            }
+          },
+          {
+            "load_level": "high",
+            "concurrent_requests": 50,
+            "expected_memory_mb": {
+              "baseline": 200,
+              "peak": 800,
+              "average": 500
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "PERF_RES_002",
+        "name": "CPU使用率测试",
+        "description": "测试不同负载下的CPU使用情况",
+        "test_scenarios": [
+          {
+            "load_level": "low",
+            "concurrent_requests": 5,
+            "expected_cpu_percent": {
+              "average": 15,
+              "peak": 30
+            }
+          },
+          {
+            "load_level": "medium",
+            "concurrent_requests": 20,
+            "expected_cpu_percent": {
+              "average": 40,
+              "peak": 70
+            }
+          },
+          {
+            "load_level": "high",
+            "concurrent_requests": 50,
+            "expected_cpu_percent": {
+              "average": 75,
+              "peak": 95
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scalability_tests": {
+    "description": "可扩展性测试用例",
+    "test_cases": [
+      {
+        "test_id": "PERF_SCALE_001",
+        "name": "负载递增测试",
+        "description": "测试系统在负载递增情况下的性能表现",
+        "test_phases": [
+          {
+            "phase": 1,
+            "duration_minutes": 5,
+            "concurrent_users": 5,
+            "expected_success_rate": 0.99
+          },
+          {
+            "phase": 2,
+            "duration_minutes": 5,
+            "concurrent_users": 15,
+            "expected_success_rate": 0.98
+          },
+          {
+            "phase": 3,
+            "duration_minutes": 5,
+            "concurrent_users": 30,
+            "expected_success_rate": 0.95
+          },
+          {
+            "phase": 4,
+            "duration_minutes": 5,
+            "concurrent_users": 50,
+            "expected_success_rate": 0.90
+          }
+        ],
+        "breaking_point": {
+          "max_concurrent_users": 100,
+          "min_success_rate": 0.80
+        }
+      }
+    ]
+  }
+}

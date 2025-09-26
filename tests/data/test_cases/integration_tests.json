@@ -1,0 +1,282 @@
+{
+  "multi_vendor_integration": {
+    "description": "多厂商API集成测试用例",
+    "test_cases": [
+      {
+        "test_id": "INT_MV_001",
+        "name": "统一接口多厂商调用测试",
+        "description": "测试通过统一接口调用不同厂商API的功能",
+        "test_scenario": {
+          "input_message": "请解释什么是深度学习",
+          "vendors_to_test": [
+            {
+              "vendor": "deepseek",
+              "model": "deepseek-chat",
+              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+            },
+            {
+              "vendor": "ernie",
+              "model": "ernie-4.0-8k",
+              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+            },
+            {
+              "vendor": "doubao",
+              "model": "doubao-pro-4k",
+              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+            }
+          ],
+          "validation_rules": {
+            "response_format_consistency": true,
+            "field_type_consistency": true,
+            "content_quality_check": true
+          }
+        }
+      },
+      {
+        "test_id": "INT_MV_002",
+        "name": "推理模型跨厂商对比测试",
+        "description": "测试不同厂商推理模型的输出质量和一致性",
+        "test_scenario": {
+          "reasoning_prompt": "分析以下逻辑推理题：如果所有的猫都是动物，而小花是一只猫，那么小花是什么？请详细说明推理过程。",
+          "reasoning_models": [
+            {
+              "vendor": "deepseek",
+              "model": "deepseek-r1",
+              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+            },
+            {
+              "vendor": "ernie",
+              "model": "ernie-x1-turbo-32k",
+              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+            },
+            {
+              "vendor": "doubao",
+              "model": "doubao-seed-1-6-250615",
+              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+            }
+          ],
+          "comparison_metrics": {
+            "reasoning_depth": "评估推理过程的深度和逻辑性",
+            "conclusion_accuracy": "评估结论的准确性",
+            "reasoning_clarity": "评估推理过程的清晰度"
+          }
+        }
+      }
+    ]
+  },
+  "end_to_end_tests": {
+    "description": "端到端集成测试用例",
+    "test_cases": [
+      {
+        "test_id": "INT_E2E_001",
+        "name": "完整对话流程测试",
+        "description": "测试从请求发起到响应接收的完整流程",
+        "test_flow": [
+          {
+            "step": 1,
+            "action": "初始化客户端",
+            "expected_result": "客户端成功初始化，配置加载完成"
+          },
+          {
+            "step": 2,
+            "action": "发送聊天请求",
+            "request_data": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "你好，请介绍一下你自己"
+                }
+              ],
+              "temperature": 0.7,
+              "max_tokens": 200
+            },
+            "expected_result": "请求成功发送，返回有效响应"
+          },
+          {
+            "step": 3,
+            "action": "验证响应格式",
+            "validation_checks": [
+              "响应包含必需字段",
+              "消息内容非空",
+              "token使用统计正确"
+            ]
+          },
+          {
+            "step": 4,
+            "action": "继续对话",
+            "request_data": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "你好，请介绍一下你自己"
+                },
+                {
+                  "role": "assistant",
+                  "content": "{{previous_response}}"
+                },
+                {
+                  "role": "user",
+                  "content": "你能帮我解决什么问题？"
+                }
+              ],
+              "temperature": 0.7,
+              "max_tokens": 300
+            },
+            "expected_result": "上下文对话正常，响应相关性良好"
+          }
+        ]
+      },
+      {
+        "test_id": "INT_E2E_002",
+        "name": "流式响应端到端测试",
+        "description": "测试流式响应的完整处理流程",
+        "test_flow": [
+          {
+            "step": 1,
+            "action": "发起流式请求",
+            "request_data": {
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "请详细介绍人工智能的发展历程"
+                }
+              ],
+              "stream": true,
+              "temperature": 0.6,
+              "max_tokens": 800
+            }
+          },
+          {
+            "step": 2,
+            "action": "接收流式数据块",
+            "validation_checks": [
+              "数据块格式正确",
+              "增量内容有效",
+              "流式标识正确"
+            ]
+          },
+          {
+            "step": 3,
+            "action": "组装完整响应",
+            "expected_result": "所有数据块正确组装成完整响应"
+          },
+          {
+            "step": 4,
+            "action": "验证流式结束",
+            "validation_checks": [
+              "接收到结束标识",
+              "最终token统计正确",
+              "连接正常关闭"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "error_handling_integration": {
+    "description": "错误处理集成测试用例",
+    "test_cases": [
+      {
+        "test_id": "INT_ERR_001",
+        "name": "API错误恢复测试",
+        "description": "测试API错误情况下的恢复机制",
+        "error_scenarios": [
+          {
+            "error_type": "rate_limit",
+            "trigger_condition": "短时间内发送大量请求",
+            "expected_behavior": {
+              "error_detection": "正确识别限流错误",
+              "retry_mechanism": "按指数退避策略重试",
+              "fallback_strategy": "切换到备用厂商或降级服务"
+            }
+          },
+          {
+            "error_type": "timeout",
+            "trigger_condition": "网络延迟或服务响应慢",
+            "expected_behavior": {
+              "timeout_detection": "正确检测超时",
+              "connection_cleanup": "清理超时连接",
+              "retry_logic": "重新尝试请求"
+            }
+          },
+          {
+            "error_type": "authentication_failure",
+            "trigger_condition": "使用无效或过期的API密钥",
+            "expected_behavior": {
+              "auth_error_handling": "正确处理认证错误",
+              "credential_refresh": "尝试刷新凭据",
+              "user_notification": "通知用户认证问题"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "configuration_integration": {
+    "description": "配置集成测试用例",
+    "test_cases": [
+      {
+        "test_id": "INT_CFG_001",
+        "name": "多环境配置测试",
+        "description": "测试不同环境下的配置加载和切换",
+        "environments": [
+          {
+            "env_name": "development",
+            "config_source": "local_config_file",
+            "expected_settings": {
+              "debug_mode": true,
+              "log_level": "debug",
+              "timeout_ms": 30000
+            }
+          },
+          {
+            "env_name": "testing",
+            "config_source": "environment_variables",
+            "expected_settings": {
+              "debug_mode": false,
+              "log_level": "info",
+              "timeout_ms": 15000
+            }
+          },
+          {
+            "env_name": "production",
+            "config_source": "remote_config_service",
+            "expected_settings": {
+              "debug_mode": false,
+              "log_level": "warn",
+              "timeout_ms": 10000
+            }
+          }
+        ]
+      },
+      {
+        "test_id": "INT_CFG_002",
+        "name": "动态配置更新测试",
+        "description": "测试运行时配置更新的处理",
+        "test_scenario": {
+          "initial_config": {
+            "max_retries": 3,
+            "timeout_ms": 5000,
+            "preferred_vendor": "deepseek"
+          },
+          "config_updates": [
+            {
+              "update_type": "parameter_change",
+              "changes": {
+                "timeout_ms": 8000
+              },
+              "expected_behavior": "新请求使用更新后的超时设置"
+            },
+            {
+              "update_type": "vendor_switch",
+              "changes": {
+                "preferred_vendor": "ernie"
+              },
+              "expected_behavior": "后续请求路由到新的首选厂商"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全测试报告</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background: #f5f5f5; padding: 20px; border-radius: 5px; }
+        .security-score { font-size: 48px; font-weight: bold; text-align: center; margin: 20px 0; }
+        .score-excellent { color: #4CAF50; }
+        .score-good { color: #FF9800; }
+        .score-poor { color: #F44336; }
+        .vulnerabilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0; }
+        .vuln-card { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 5px; text-align: center; }
+        .vuln-critical { border-left: 5px solid #F44336; }
+        .vuln-high { border-left: 5px solid #FF9800; }
+        .vuln-medium { border-left: 5px solid #FFC107; }
+        .vuln-low { border-left: 5px solid #4CAF50; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>安全测试报告</h1>
+        <p>生成时间：{{ timestamp }}</p>
+        <p>扫描时长：{{ "%.2f" | format(security.scan_duration) }}秒</p>
+    </div>
+    
+    <div class="security-score {% if security.security_score >= 80 %}score-excellent{% elif security.security_score >= 60 %}score-good{% else %}score-poor{% endif %}">
+        安全评分：{{ "%.1f" | format(security.security_score) }}/100
+    </div>
+    
+    <div class="vulnerabilities">
+        <div class="vuln-card vuln-critical">
+            <h3>{{ security.critical_issues }}</h3>
+            <p>严重漏洞</p>
+        </div>
+        <div class="vuln-card vuln-high">
+            <h3>{{ security.high_issues }}</h3>
+            <p>高危漏洞</p>
+        </div>
+        <div class="vuln-card vuln-medium">
+            <h3>{{ security.medium_issues }}</h3>
+            <p>中危漏洞</p>
+        </div>
+        <div class="vuln-card vuln-low">
+            <h3>{{ security.low_issues }}</h3>
+            <p>低危漏洞</p>
+        </div>
+    </div>
+    
+    <h2>安全建议</h2>
+    <ul>
+        {% if security.critical_issues > 0 %}
+        <li><strong>紧急：</strong>发现{{ security.critical_issues }}个严重安全漏洞，请立即修复</li>
+        {% endif %}
+        {% if security.high_issues > 0 %}
+        <li><strong>重要：</strong>发现{{ security.high_issues }}个高危漏洞，建议优先处理</li>
+        {% endif %}
+        {% if security.vulnerabilities_found == 0 %}
+        <li>✅ 未发现明显安全漏洞，系统安全性良好</li>
+        {% endif %}
+        <li>建议定期进行安全扫描和渗透测试</li>
+        <li>确保所有输入都经过适当的验证和清理</li>
+        <li>使用最新的安全补丁和依赖版本</li>
+    </ul>
+</body>
+</html>
