@@ -370,9 +370,19 @@ class MockConcurrentAPI:
         """
         if semaphore:
             async with semaphore:
-                return await self._send_async_request(request_id)
+                # 获取连接并跟踪并发数
+                self._acquire_connection()
+                try:
+                    return await self._send_async_request(request_id)
+                finally:
+                    self._release_connection()
         else:
-            return await self._send_async_request(request_id)
+            # 获取连接并跟踪并发数
+            self._acquire_connection()
+            try:
+                return await self._send_async_request(request_id)
+            finally:
+                self._release_connection()
     
     async def _send_async_request(self, request_id: str = None) -> Dict[str, Any]:
         """

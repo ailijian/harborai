@@ -36,32 +36,40 @@ BENCHMARK_CONFIG = {
             'poor': 5.0        # 较差：5秒以下
         },
         'throughput': {
-            'requests_per_second': {
-                'excellent': 100,
-                'good': 50,
-                'acceptable': 20,
-                'poor': 10
-            },
-            'tokens_per_second': {
-                'excellent': 1000,
-                'good': 500,
-                'acceptable': 200,
-                'poor': 100
-            }
+            'excellent': 10,     # 请求/秒 >= 10
+            'good': 5,           # 请求/秒 >= 5
+            'acceptable': 1,     # 请求/秒 >= 1
+            'poor': 0.5          # 请求/秒 >= 0.5
+        },
+        'requests_per_second': {
+            'excellent': 100,
+            'good': 50,
+            'acceptable': 20,
+            'poor': 10
+        },
+        'tokens_per_second': {
+            'excellent': 1000,
+            'good': 500,
+            'acceptable': 200,
+            'poor': 100
         },
         'concurrent_performance': {
-            'max_concurrent_users': {
-                'excellent': 100,
-                'good': 50,
-                'acceptable': 20,
-                'poor': 10
-            },
-            'response_time_degradation': {
-                'excellent': 1.2,  # 响应时间增长不超过20%
-                'good': 1.5,       # 响应时间增长不超过50%
-                'acceptable': 2.0,  # 响应时间增长不超过100%
-                'poor': 3.0        # 响应时间增长不超过200%
-            }
+            'excellent': 50.0,   # 并发吞吐量 * 效率比 >= 50
+            'good': 30.0,        # 并发吞吐量 * 效率比 >= 30
+            'acceptable': 15.0,  # 并发吞吐量 * 效率比 >= 15
+            'poor': 5.0          # 并发吞吐量 * 效率比 >= 5
+        },
+        'max_concurrent_users': {
+            'excellent': 100,
+            'good': 50,
+            'acceptable': 20,
+            'poor': 10
+        },
+        'response_time_degradation': {
+            'excellent': 1.2,  # 响应时间增长不超过20%
+            'good': 1.5,       # 响应时间增长不超过50%
+            'acceptable': 2.0,  # 响应时间增长不超过100%
+            'poor': 3.0        # 响应时间增长不超过200%
         },
         'resource_usage': {
             'cpu_usage_percent': {
@@ -106,6 +114,9 @@ BENCHMARK_CONFIG = {
         'openai': ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'],
         'anthropic': ['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'],
         'google': ['gemini-pro', 'gemini-pro-vision'],
+        'deepseek': ['deepseek-chat', 'deepseek-r1'],
+        'ernie': ['ernie-bot', 'ernie-bot-turbo'],
+        'doubao': ['doubao-pro', 'doubao-lite'],
         'local': ['llama2-7b', 'llama2-13b']
     },
     

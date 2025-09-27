@@ -115,6 +115,44 @@ curl -X POST http://localhost:8000/v1/chat/completions \
   }'
 ```
 
+### 4. Python客户端示例
+
+```python
+import asyncio
+from harborai import HarborAI
+
+# 初始化客户端
+client = HarborAI(
+    api_key="your-api-key",
+    base_url="http://localhost:8000"
+)
+
+# 同步调用
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": "Hello, world!"}
+    ]
+)
+print(response.choices[0].message.content)
+
+# 异步调用
+async def async_chat():
+    response = await client.chat.completions.acreate(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": "Tell me a joke"}
+        ],
+        stream=True
+    )
+    async for chunk in response:
+        if chunk.choices[0].delta.content:
+            print(chunk.choices[0].delta.content, end="")
+
+# 运行异步示例
+asyncio.run(async_chat())
+```
+
 ## ⚙️ 配置
 
 ### 环境变量

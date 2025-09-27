@@ -190,6 +190,8 @@ warn_unreachable = true
 strict_equality = true
 show_error_codes = true
 
+
+
 [[tool.mypy.overrides]]
 module = [
     "redis.*",
@@ -251,6 +253,19 @@ markers = [
     "concurrency: Concurrency tests",
     "resource_monitoring: Resource monitoring tests",
     "openai_alignment: OpenAI alignment tests",
+    "standard_benchmark: Standard benchmark tests",
+    "comprehensive_benchmark: Comprehensive benchmark tests",
+    "regression_benchmark: Regression benchmark tests",
+    "performance_benchmark: Performance benchmark tests",
+    "concurrent: Concurrent tests",
+    "memory: Memory tests",
+    "network: Network tests",
+    "endurance: Endurance tests",
+    "scalability: Scalability tests",
+    "throughput: Throughput tests",
+    "latency: Latency tests",
+    "capacity: Capacity tests",
+    "api: API tests",
 ]
 
 # Coverage配置

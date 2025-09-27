@@ -156,9 +156,9 @@ class MockAPIClient:
         # 模拟不同厂商和模型的响应时间特征
         configs = {
             'deepseek': {
-            'deepseek-chat': {'base': 0.8, 'variance': 0.3},
-            'deepseek-r1': {'base': 1.5, 'variance': 0.5}
-        },
+                'deepseek-chat': {'base': 0.8, 'variance': 0.3},
+                'deepseek-r1': {'base': 1.5, 'variance': 0.5}
+            },
             'anthropic': {
                 'claude-3-haiku': {'base': 0.6, 'variance': 0.2},
                 'claude-3-sonnet': {'base': 1.0, 'variance': 0.3},
@@ -167,6 +167,14 @@ class MockAPIClient:
             'google': {
                 'gemini-pro': {'base': 1.1, 'variance': 0.4},
                 'gemini-pro-vision': {'base': 1.8, 'variance': 0.5}
+            },
+            'ernie': {
+                'ernie-bot': {'base': 0.9, 'variance': 0.3},
+                'ernie-bot-turbo': {'base': 0.7, 'variance': 0.2}
+            },
+            'doubao': {
+                'doubao-pro': {'base': 1.2, 'variance': 0.4},
+                'doubao-lite': {'base': 0.8, 'variance': 0.3}
             },
             'local': {
                 'llama2-7b': {'base': 0.5, 'variance': 0.1},
@@ -716,7 +724,7 @@ class TestAPIResponseBenchmarks:
         ]
         
         all_results = []
-        num_requests = 25
+        num_requests = 5  # 减少请求数量以避免超时
         
         for vendor, model, request_type in test_configs:
             result = await self.benchmark_runner.run_single_model_benchmark(

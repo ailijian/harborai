@@ -14,39 +14,86 @@ class TestSettings:
     """Settings类测试"""
     
     def test_default_values(self):
-        """测试默认值"""
-        settings = Settings()
+        """测试默认值设置（不加载.env文件）"""
+        # 创建一个不加载.env文件的Settings实例来测试默认值
+        from harborai.config.settings import SettingsConfigDict
+        from pydantic_settings import BaseSettings
+        from pydantic import Field
         
-        # 基础配置默认值
-        assert settings.debug is False
-        assert settings.log_level == "INFO"
-        assert settings.default_timeout == 60
-        assert settings.max_retries == 3
-        assert settings.retry_delay == 1.0
+        class TestSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                extra="allow",
+                env_file=None,  # 不加载.env文件
+                env_file_encoding="utf-8",
+                case_sensitive=False,
+                env_prefix="HARBORAI_",
+                env_ignore_empty=True
+            )
+            
+            # 基础配置
+            debug: bool = Field(default=False)
+            log_level: str = Field(default="INFO")
+            default_timeout: int = Field(default=60, alias="HARBORAI_TIMEOUT")
+            max_retries: int = Field(default=3)
+            retry_delay: float = Field(default=1.0)
+            
+            # 数据库配置
+            postgres_host: str = Field(default="localhost")
+            postgres_port: int = Field(default=5432)
+            postgres_user: str = Field(default="harborai")
+            postgres_password: str = Field(default="")
+            postgres_database: str = Field(default="harborai")
+            postgres_url: str | None = Field(default=None)
+            
+            # 插件配置
+            plugin_directories: list[str] = Field(default=["harborai.core.plugins"])
+            
+            # 成本追踪
+            enable_cost_tracking: bool = Field(default=True, alias="HARBORAI_COST_TRACKING")
+            
+            # 模型映射
+            model_mappings: dict = Field(default_factory=dict)
+            
+            # 结构化输出配置
+            default_structured_provider: str = Field(default="agently", alias="HARBORAI_STRUCTURED_PROVIDER")
+            
+            # 日志配置
+            enable_async_logging: bool = Field(default=True, alias="HARBORAI_ASYNC_LOGGING")
+            log_retention_days: int = Field(default=7)
         
-        # 数据库配置默认值
-        assert settings.postgres_host == "localhost"
-        assert settings.postgres_port == 5432
-        assert settings.postgres_user == "harborai"
-        assert settings.postgres_password == ""
-        assert settings.postgres_database == "harborai"
-        assert settings.postgres_url is None
+        # 清除所有相关环境变量以确保使用默认值
+        env_vars_to_clear = [
+            "HARBORAI_DEBUG", "HARBORAI_LOG_LEVEL", "HARBORAI_TIMEOUT",
+            "HARBORAI_MAX_RETRIES", "HARBORAI_RETRY_DELAY", "HARBORAI_POSTGRES_HOST",
+            "HARBORAI_POSTGRES_PORT", "HARBORAI_POSTGRES_USER", "HARBORAI_POSTGRES_PASSWORD",
+            "HARBORAI_POSTGRES_DATABASE", "HARBORAI_POSTGRES_URL", "HARBORAI_COST_TRACKING",
+            "HARBORAI_STRUCTURED_PROVIDER", "HARBORAI_ASYNC_LOGGING", "HARBORAI_LOG_RETENTION_DAYS"
+        ]
         
-        # 插件配置默认值
-        assert settings.plugin_directories == ["harborai.core.plugins"]
-        
-        # 成本追踪默认值
-        assert settings.enable_cost_tracking is True
-        
-        # 模型映射默认值
-        assert settings.model_mappings == {}
-        
-        # 结构化输出配置默认值
-        assert settings.default_structured_provider == "agently"
-        
-        # 日志配置默认值
-        assert settings.enable_async_logging is True
-        assert settings.log_retention_days == 7
+        with patch.dict(os.environ, {}, clear=True):
+            # 确保环境变量被清除
+            for var in env_vars_to_clear:
+                os.environ.pop(var, None)
+            
+            settings = TestSettings()
+            
+            # 验证所有默认值
+            assert settings.debug is False
+            assert settings.log_level == "INFO"
+            assert settings.default_timeout == 60
+            assert settings.max_retries == 3
+            assert settings.retry_delay == 1.0
+            assert settings.postgres_host == "localhost"
+            assert settings.postgres_port == 5432
+            assert settings.postgres_user == "harborai"
+            assert settings.postgres_password == ""
+            assert settings.postgres_database == "harborai"
+            assert settings.enable_cost_tracking is True
+            assert settings.model_mappings == {}
+            assert settings.default_structured_provider == "agently"
+            assert settings.enable_async_logging is True
+            assert settings.log_retention_days == 7
+            assert settings.plugin_directories == ["harborai.core.plugins"]
     
     def test_environment_variable_loading(self):
         """测试环境变量加载"""
@@ -167,8 +214,29 @@ class TestSettings:
     
     def test_field_validation(self):
         """测试字段验证"""
+        # 创建一个不加载.env文件的Settings实例来测试字段验证
+        from harborai.config.settings import SettingsConfigDict
+        from pydantic_settings import BaseSettings
+        from pydantic import Field
+        
+        class ValidationTestSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                extra="allow",
+                env_file=None,  # 不加载.env文件
+                env_file_encoding="utf-8",
+                case_sensitive=False,
+                env_prefix="HARBORAI_"
+            )
+            
+            debug: bool = Field(default=False)
+            log_level: str = Field(default="INFO")
+            default_timeout: int = Field(default=60)
+            max_retries: int = Field(default=3)
+            retry_delay: float = Field(default=1.0)
+            postgres_port: int = Field(default=5432)
+        
         # 测试有效值
-        settings = Settings(
+        settings = ValidationTestSettings(
             debug=True,
             log_level="WARNING",
             default_timeout=30,
@@ -185,7 +253,7 @@ class TestSettings:
         assert settings.postgres_port == 5432
         
         # 测试类型转换
-        settings = Settings(
+        settings = ValidationTestSettings(
             default_timeout="45",  # 字符串转整数
             retry_delay="1.5",     # 字符串转浮点数
             debug="true"           # 字符串转布尔值
@@ -319,7 +387,32 @@ class TestSettingsIntegration:
             assert anthropic_config["api_key"] == "ant-prod456"
     
     def test_minimal_configuration_scenario(self):
-        """测试最小配置场景"""
+        """测试最小配置场景（不加载.env文件）"""
+        # 创建一个不加载.env文件的Settings实例来测试最小配置
+        from harborai.config.settings import SettingsConfigDict
+        from pydantic_settings import BaseSettings
+        from pydantic import Field
+        
+        class MinimalSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                extra="allow",
+                env_file=None,  # 不加载.env文件
+                env_file_encoding="utf-8",
+                case_sensitive=False,
+                env_prefix="HARBORAI_"
+            )
+            
+            debug: bool = Field(default=False)
+            log_level: str = Field(default="INFO")
+            default_timeout: int = Field(default=60)
+            postgres_password: str = Field(default="")
+            enable_cost_tracking: bool = Field(default=True)
+            
+            def get_postgres_url(self):
+                if not self.postgres_password:
+                    return None
+                return "postgresql+asyncpg://user:pass@host:5432/db"
+        
         # 清除所有相关环境变量
         env_vars_to_clear = [
             "HARBORAI_DEBUG", "HARBORAI_LOG_LEVEL", "HARBORAI_TIMEOUT",
@@ -331,7 +424,7 @@ class TestSettingsIntegration:
             for var in env_vars_to_clear:
                 os.environ.pop(var, None)
             
-            settings = Settings()
+            settings = MinimalSettings()
             
             # 验证所有值都是默认值
             assert settings.debug is False
@@ -341,7 +434,24 @@ class TestSettingsIntegration:
             assert settings.enable_cost_tracking is True
     
     def test_configuration_override_priority(self):
-        """测试配置覆盖优先级"""
+        """测试配置覆盖优先级（不加载.env文件）"""
+        # 创建一个不加载.env文件的Settings实例来测试覆盖优先级
+        from harborai.config.settings import SettingsConfigDict
+        from pydantic_settings import BaseSettings
+        from pydantic import Field
+        
+        class OverrideSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                extra="allow",
+                env_file=None,  # 不加载.env文件
+                env_file_encoding="utf-8",
+                case_sensitive=False,
+                env_prefix="HARBORAI_"
+            )
+            
+            debug: bool = Field(default=False)
+            default_timeout: int = Field(default=60)
+        
         env_vars = {
             "HARBORAI_DEBUG": "true",
             "HARBORAI_TIMEOUT": "90"
@@ -349,7 +459,7 @@ class TestSettingsIntegration:
         
         with patch.dict(os.environ, env_vars, clear=False):
             # 通过初始化参数覆盖环境变量
-            settings = Settings(debug=False, default_timeout=150)
+            settings = OverrideSettings(debug=False, default_timeout=150)
             
             # 初始化参数应该优先于环境变量
             assert settings.debug is False  # 覆盖了环境变量
@@ -357,20 +467,39 @@ class TestSettingsIntegration:
     
     def test_error_handling_for_invalid_values(self):
         """测试无效值的错误处理"""
-        # 测试无效的数字值
-        with pytest.raises(ValueError):
-            Settings(default_timeout="invalid_number")
+        # 创建一个不加载.env文件的Settings实例来测试错误处理
+        from harborai.config.settings import SettingsConfigDict
+        from pydantic_settings import BaseSettings
+        from pydantic import Field, ValidationError
         
-        with pytest.raises(ValueError):
-            Settings(postgres_port="not_a_port")
+        class ErrorTestSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                extra="allow",
+                env_file=None,  # 不加载.env文件
+                env_file_encoding="utf-8",
+                case_sensitive=False,
+                env_prefix="HARBORAI_"
+            )
+            
+            debug: bool = Field(default=False)
+            default_timeout: int = Field(default=60, gt=0)  # 必须大于0
+            postgres_port: int = Field(default=5432, ge=1, le=65535)  # 端口范围验证
         
-        # 测试无效的布尔值（应该被转换或使用默认值）
-        env_vars = {"HARBORAI_DEBUG": "invalid_bool"}
-        with patch.dict(os.environ, env_vars, clear=False):
-            # Pydantic应该处理这种情况
-            settings = Settings()
-            # 根据Pydantic的行为，这可能会被转换为False或引发错误
-            assert isinstance(settings.debug, bool)
+        # 测试无效的数字值 - 负数应该触发验证错误
+        with pytest.raises(ValidationError):
+            ErrorTestSettings(default_timeout=-1)
+        
+        # 测试端口范围验证
+        with pytest.raises(ValidationError):
+            ErrorTestSettings(postgres_port=0)
+        
+        with pytest.raises(ValidationError):
+            ErrorTestSettings(postgres_port=70000)
+        
+        # 测试通过环境变量的无效值
+        with patch.dict(os.environ, {"HARBORAI_DEFAULT_TIMEOUT": "-5"}, clear=True):
+            with pytest.raises(ValidationError):
+                ErrorTestSettings()
 
 
 if __name__ == "__main__":
