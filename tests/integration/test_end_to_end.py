@@ -363,8 +363,8 @@ class TestEndToEndIntegration:
         """
         # 配置错误响应序列（前两次失败，第三次成功）
         error_responses = [
-            APIError("API调用失败", status_code=500),
-            RateLimitError("请求频率限制", retry_after=1),
+            APIError("API调用失败"),
+            RateLimitError("请求频率限制"),
             Mock(  # 成功响应
                 choices=[Mock(
                     message=Mock(
@@ -692,8 +692,8 @@ class TestEndToEndWorkflows:
         """
         # 配置错误恢复序列
         error_sequence = [
-            APIError("网络错误", status_code=503),
-            RateLimitError("频率限制", retry_after=1),
+            APIError("网络错误"),
+            RateLimitError("频率限制"),
             Mock(  # 恢复成功
                 choices=[Mock(
                     message=Mock(

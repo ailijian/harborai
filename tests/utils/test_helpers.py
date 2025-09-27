@@ -369,6 +369,13 @@ class MockDataGenerator:
                 all_patterns.extend(patterns)
             return random.choice(all_patterns)
     
+    @classmethod
+    def generate_test_id(cls, prefix: str = "test", length: int = 8) -> str:
+        """生成测试ID"""
+        generator = cls()
+        suffix = generator.generate_string(length, string.ascii_letters + string.digits)
+        return f"{prefix}_{suffix}"
+    
     def generate_test_dataset(self, size: int = 100) -> Dict[str, List]:
         """生成测试数据集"""
         return {
@@ -622,3 +629,6 @@ class TestMetrics:
 
 # 全局测试指标实例
 test_metrics = TestMetrics()
+
+# TestDataGenerator别名，用于向后兼容
+TestDataGenerator = MockDataGenerator

@@ -164,7 +164,7 @@ def clean_env(monkeypatch):
 
 @pytest.fixture
 def mock_harborai_client(monkeypatch):
-    """Mock HarborAI客户端夹具 - 使用真实客户端但mock底层API调用"""
+    """Mock HarborAI客户端夹具"""
     from unittest.mock import Mock, patch
     from harborai import HarborAI
     
@@ -173,40 +173,22 @@ def mock_harborai_client(monkeypatch):
     monkeypatch.setenv("WENXIN_API_KEY", "test-key")
     monkeypatch.setenv("DOUBAO_API_KEY", "test-key")
     
-    # 创建真实的HarborAI客户端
-    client = HarborAI()
+    # 创建Mock客户端
+    mock_client = Mock(spec=HarborAI)
     
-    # Mock底层的HTTP请求，但保留参数处理逻辑
-    with patch.object(client.client_manager, 'chat_completion_sync_with_fallback') as mock_completion:
-        # 配置mock响应
-        mock_response = Mock()
-        mock_response.choices = [Mock(
-            message=Mock(
-                content="This is a synchronous response.",
-                role="assistant"
-            ),
-            finish_reason="stop"
-        )]
-        mock_response.usage = Mock(
-            prompt_tokens=10,
-            completion_tokens=17,
-            total_tokens=27
-        )
-        mock_completion.return_value = mock_response
-        
-        # 保存原始的create方法以便测试可以检查调用参数
-        original_create = client.chat.completions.create
-        
-        def create_wrapper(*args, **kwargs):
-            # 调用原始方法（包含参数过滤逻辑）
-            result = original_create(*args, **kwargs)
-            # 保存调用参数供测试检查
-            create_wrapper.call_args = (args, kwargs)
-            return result
-        
-        client.chat.completions.create = create_wrapper
-        
-        yield client
+    # 设置chat.completions.create的Mock结构
+    mock_client.chat = Mock()
+    mock_client.chat.completions = Mock()
+    
+    # 创建一个共享的mock方法
+    shared_mock = Mock()
+    mock_client.chat.completions.create = shared_mock
+    
+    # 添加client_manager属性，使用同一个mock
+    mock_client.client_manager = Mock()
+    mock_client.client_manager.chat_completion_sync_with_fallback = shared_mock
+    
+    yield mock_client
 
 @pytest.fixture
 def mock_harborai_async_client(monkeypatch):

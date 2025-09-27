@@ -24,7 +24,7 @@ from .exceptions import (
     RateLimitError,
     TimeoutError,
     QuotaExceededError,
-    ModelNotAvailableError
+    ModelNotFoundError
 )
 
 

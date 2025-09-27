@@ -27,7 +27,7 @@ from harborai.core.exceptions import (
     RateLimitError,
     TimeoutError,
     QuotaExceededError,
-    ModelNotAvailableError
+    ModelNotFoundError
 )
 from harborai.core.fallback import (
     FallbackManager,

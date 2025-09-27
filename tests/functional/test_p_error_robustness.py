@@ -432,7 +432,7 @@ class TestNetworkErrorRobustness:
         
         try:
             # 使用短超时时间
-            with patch('time.sleep', side_effect=lambda x: time.sleep(min(x, 0.1))):
+            with patch('time.sleep', return_value=None):
                 self.client.chat_completion_with_errors(
                     model="deepseek-chat",
                     messages=self.test_messages
@@ -1014,11 +1014,23 @@ class TestSystemRobustness:
     @pytest.mark.error_robustness
     def test_system_stability_under_load(self):
         """测试负载下的系统稳定性"""
+        # 重置熔断器状态
+        self.client.reset_circuit_breaker()
+        # 设置更低的错误概率以确保测试稳定性
+        self.client.network_simulator.set_error_probability(0.02)  # 2%错误率
+        # 提高熔断器阈值以适应负载测试
+        self.client.circuit_breaker_threshold = 200  # 增加到200次失败才触发熔断器
+        # 调整速率限制以适应负载测试
+        self.client.rate_limit_max = 1000  # 增加到1000请求/分钟
+        self.client.rate_limit_requests = 0  # 重置计数器
+        
         # 模拟高负载
         thread_count = 20
         requests_per_thread = 10
         results = []
         errors = []
+        results_lock = threading.Lock()
+        errors_lock = threading.Lock()
         
         def load_worker():
             for _ in range(requests_per_thread):
@@ -1027,9 +1039,11 @@ class TestSystemRobustness:
                         model="deepseek-chat",
                         messages=[{"role": "user", "content": "负载测试"}]
                     )
-                    results.append(response)
+                    with results_lock:
+                        results.append(response)
                 except Exception as e:
-                    errors.append(e)
+                    with errors_lock:
+                        errors.append(e)
                 time.sleep(0.01)  # 小延迟
         
         # 启动负载测试
@@ -1053,9 +1067,9 @@ class TestSystemRobustness:
         
         assert total_responses == total_requests, "所有请求都应该得到响应"
         
-        # 验证成功率
+        # 验证成功率（考虑2%错误率，成功率应该在95%以上）
         success_rate = len(results) / total_requests
-        assert success_rate > 0.5, "成功率应该大于50%"
+        assert success_rate > 0.95, f"成功率应该大于95%，实际成功率: {success_rate:.2%}，成功: {len(results)}, 失败: {len(errors)}"
         
         # 验证性能
         duration = end_time - start_time

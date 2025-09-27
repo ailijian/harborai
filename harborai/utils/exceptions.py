@@ -52,9 +52,11 @@ class APIError(HarborAIError):
         message: str,
         status_code: Optional[int] = None,
         response_body: Optional[str] = None,
-        **kwargs
+        error_code: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        trace_id: Optional[str] = None,
     ):
-        super().__init__(message, **kwargs)
+        super().__init__(message, error_code=error_code, details=details, trace_id=trace_id)
         self.status_code = status_code
         self.response_body = response_body
     

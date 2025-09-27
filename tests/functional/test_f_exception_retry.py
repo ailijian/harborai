@@ -107,7 +107,7 @@ class MockRetryableOperation:
         """根据尝试次数生成不同类型的错误"""
         error_types = [
             NetworkError("Network connection failed"),
-            RateLimitError("Rate limit exceeded", retry_after=1),
+            RateLimitError("Rate limit exceeded"),
             TimeoutError("Request timeout"),
             QuotaExceededError("API quota exceeded")
         ]
@@ -257,10 +257,10 @@ class TestExceptionClassification:
         # 测试不同错误的上下文分析
         test_cases = [
             {
-                "exception": RateLimitError("Rate limited", retry_after=30),
+                "exception": RateLimitError("Rate limited"),
                 "context": {"operation": "chat_completion", "model": "deepseek-r1"},
                 "expected_strategy": "rate_limit_backoff",
-                "expected_delay": 30
+                "expected_delay": 60
             },
             {
                 "exception": NetworkError("Connection failed"),
