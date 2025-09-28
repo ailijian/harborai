@@ -44,7 +44,11 @@ class TestSyncOperations:
         )
         mock_response.model = "deepseek-chat"
         
-        mock_harborai_client.chat.completions.create.return_value = mock_response
+        # 使用side_effect而不是return_value来确保mock正确工作
+        def mock_create(*args, **kwargs):
+            return mock_response
+        
+        mock_harborai_client.chat.completions.create.side_effect = mock_create
         
         # 记录开始时间
         start_time = time.time()

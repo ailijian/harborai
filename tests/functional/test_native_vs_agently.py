@@ -190,6 +190,10 @@ class NativeSchemaProcessor:
         end_time = time.perf_counter()
         processing_time = max(end_time - start_time, 1e-6)  # 确保不为0
         
+        # 确保处理时间被记录
+        if not self.processing_times:
+            self.processing_times.append(processing_time)
+        
         return {
             "total_processed": len(data_list),
             "success_count": success_count,
@@ -407,6 +411,10 @@ class AgentlySchemaProcessor:
         end_time = time.perf_counter()
         processing_time = max(end_time - start_time, 1e-6)  # 确保不为0
         
+        # 确保处理时间被记录
+        if not self.processing_times:
+            self.processing_times.append(processing_time)
+        
         return {
             "total_processed": len(data_list),
             "success_count": success_count,
@@ -498,6 +506,15 @@ class SchemaComparator:
         data_count: int = 1000
     ) -> ComparisonResult:
         """对比性能"""
+        # 重置处理器状态
+        self.native_processor.processed_count = 0
+        self.native_processor.error_count = 0
+        self.native_processor.processing_times = []
+        
+        self.agently_processor.processed_count = 0
+        self.agently_processor.error_count = 0
+        self.agently_processor.processing_times = []
+        
         # 生成测试数据
         test_data = self.generate_test_data(complexity, data_count)
         schema_type = "simple" if complexity == TestComplexity.SIMPLE else "complex"
@@ -707,6 +724,14 @@ class TestPerformanceComparison:
     def setup_method(self):
         """测试方法设置"""
         self.comparator = SchemaComparator()
+        # 确保处理器状态完全重置
+        self.comparator.native_processor.processed_count = 0
+        self.comparator.native_processor.error_count = 0
+        self.comparator.native_processor.processing_times = []
+        
+        self.comparator.agently_processor.processed_count = 0
+        self.comparator.agently_processor.error_count = 0
+        self.comparator.agently_processor.processing_times = []
     
     @pytest.mark.performance
     @pytest.mark.p1
@@ -820,6 +845,14 @@ class TestConcurrencyComparison:
     def setup_method(self):
         """测试方法设置"""
         self.comparator = SchemaComparator()
+        # 确保处理器状态完全重置
+        self.comparator.native_processor.processed_count = 0
+        self.comparator.native_processor.error_count = 0
+        self.comparator.native_processor.processing_times = []
+        
+        self.comparator.agently_processor.processed_count = 0
+        self.comparator.agently_processor.error_count = 0
+        self.comparator.agently_processor.processing_times = []
     
     @pytest.mark.performance
     @pytest.mark.p2

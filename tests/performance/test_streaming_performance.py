@@ -101,8 +101,16 @@ class StreamingMetrics:
         # 延迟统计
         if self.first_chunk_latencies:
             summary['avg_first_chunk_latency'] = statistics.mean(self.first_chunk_latencies)
-            summary['p95_first_chunk_latency'] = statistics.quantiles(self.first_chunk_latencies, n=20)[18]  # 95th percentile
-            summary['p99_first_chunk_latency'] = statistics.quantiles(self.first_chunk_latencies, n=100)[98]  # 99th percentile
+            if len(self.first_chunk_latencies) >= 2:
+                try:
+                    summary['p95_first_chunk_latency'] = statistics.quantiles(self.first_chunk_latencies, n=20)[18]  # 95th percentile
+                    summary['p99_first_chunk_latency'] = statistics.quantiles(self.first_chunk_latencies, n=100)[98]  # 99th percentile
+                except (statistics.StatisticsError, IndexError):
+                    summary['p95_first_chunk_latency'] = max(self.first_chunk_latencies)
+                    summary['p99_first_chunk_latency'] = max(self.first_chunk_latencies)
+            else:
+                summary['p95_first_chunk_latency'] = summary['avg_first_chunk_latency']
+                summary['p99_first_chunk_latency'] = summary['avg_first_chunk_latency']
         
         if self.chunk_intervals:
             summary['avg_chunk_interval'] = statistics.mean(self.chunk_intervals)
@@ -110,7 +118,13 @@ class StreamingMetrics:
         
         if self.total_response_times:
             summary['avg_total_response_time'] = statistics.mean(self.total_response_times)
-            summary['p95_total_response_time'] = statistics.quantiles(self.total_response_times, n=20)[18]
+            if len(self.total_response_times) >= 2:
+                try:
+                    summary['p95_total_response_time'] = statistics.quantiles(self.total_response_times, n=20)[18]
+                except (statistics.StatisticsError, IndexError):
+                    summary['p95_total_response_time'] = max(self.total_response_times)
+            else:
+                summary['p95_total_response_time'] = summary['avg_total_response_time']
         
         # 吞吐量统计
         if self.chunks_per_second:
@@ -179,7 +193,13 @@ class MockStreamingAPI:
         for i in range(self.chunk_count):
             await asyncio.sleep(self.chunk_interval)
             
-            content = f"数据块 {i+1}/{self.chunk_count} - 请求 {request_id} - " + "x" * self.chunk_size
+            # 确保内容长度严格等于chunk_size
+            prefix = f"数据块{i+1}/{self.chunk_count}-{request_id}-"
+            if len(prefix) >= self.chunk_size:
+                content = prefix[:self.chunk_size]
+            else:
+                padding_length = self.chunk_size - len(prefix)
+                content = prefix + "x" * padding_length
             
             chunk = StreamChunk(
                 timestamp=time.time(),

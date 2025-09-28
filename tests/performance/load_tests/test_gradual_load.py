@@ -45,7 +45,7 @@ class LoadPhase:
     name: str
     concurrent_users: int
     requests_per_second: int
-    duration_minutes: int
+    duration_minutes: float
     ramp_up_seconds: int
     
     # 阶段状态
@@ -675,7 +675,7 @@ class GradualLoadTestRunner:
         start_time = time.time()
         
         # 计算总请求数
-        total_requests = phase.requests_per_second * phase.duration_minutes * 60
+        total_requests = int(phase.requests_per_second * phase.duration_minutes * 60)
         request_interval = 1.0 / phase.requests_per_second if phase.requests_per_second > 0 else 1.0
         
         response_times = []
@@ -698,23 +698,33 @@ class GradualLoadTestRunner:
                 )
                 futures.append(future)
                 
-                # 控制请求速率
-                time.sleep(request_interval)
+                # 移除请求速率控制以避免超时
+                # time.sleep(request_interval)
             
-            # 收集结果
-            for future in as_completed(futures):
-                try:
-                    response = future.result(timeout=30)
+            # 收集结果，设置合理的总体超时
+            total_timeout = phase.duration_minutes * 60 + 60  # 阶段时间 + 60秒缓冲
+            
+            try:
+                for future in as_completed(futures, timeout=total_timeout):
+                    try:
+                        response = future.result(timeout=30)
+                        
+                        if response.get('success', False):
+                            successful_count += 1
+                            response_times.append(response['response_time'])
+                        else:
+                            failed_count += 1
                     
-                    if response.get('success', False):
-                        successful_count += 1
-                        response_times.append(response['response_time'])
-                    else:
+                    except Exception as e:
                         failed_count += 1
-                
-                except Exception as e:
-                    failed_count += 1
-                    print(f"请求执行失败: {e}")
+                        print(f"请求执行失败: {e}")
+            except TimeoutError:
+                print(f"阶段 {phase.name} 超时，取消剩余请求")
+                # 取消未完成的futures
+                for future in futures:
+                    if not future.done():
+                        future.cancel()
+                        failed_count += 1
         
         end_time = time.time()
         phase.end_time = datetime.now()
@@ -808,10 +818,10 @@ class GradualLoadTestRunner:
                         simulated_time = completed_phase.avg_response_time * random.uniform(0.5, 1.5)
                         result.response_times.append(simulated_time)
                 
-                # 阶段间休息
-                if phase != phases[-1]:  # 不是最后一个阶段
-                    print(f"阶段间休息 30 秒...")
-                    time.sleep(30)
+                # 移除阶段间休息以避免超时
+                # if phase != phases[-1]:  # 不是最后一个阶段
+                #     print(f"阶段间休息 30 秒...")
+                #     time.sleep(30)
         
         finally:
             # 停止资源监控

@@ -24,7 +24,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 # 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # 导入HarborAI相关模块
@@ -47,7 +47,7 @@ class TestDocumentationConsistency:
     @classmethod
     def setup_class(cls):
         """测试类初始化"""
-        cls.project_root = Path(__file__).parent.parent
+        cls.project_root = Path(__file__).parent.parent.parent
         cls.readme_path = cls.project_root / "README.md"
         cls.docs_path = cls.project_root / ".trae" / "documents"
         

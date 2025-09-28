@@ -1,0 +1,37 @@
+{
+  "test_name": "O-002_concurrent_success_rate",
+  "trace_id": "31af14df-b9dc-4419-8e70-4281f92ab70c",
+  "concurrency_level": 100,
+  "total_requests": 1000,
+  "success_count": 1000,
+  "error_count": 0,
+  "timeout_count": 0,
+  "success_rate": 1.0,
+  "error_rate": 0.0,
+  "timeout_rate": 0.0,
+  "total_duration_seconds": 0.03878307342529297,
+  "qps": 25784.444389800083,
+  "response_times": {
+    "avg_ms": 0.014600601512938738,
+    "p50_ms": 0.010600080713629723,
+    "p95_ms": 0.031090108677744865,
+    "p99_ms": 0.04979791585355997,
+    "min_ms": 0.009999843314290047,
+    "max_ms": 0.3478999715298414
+  },
+  "resource_usage": {
+    "duration_seconds": 0.03878307342529297,
+    "cpu_usage": {
+      "avg": 0.0,
+      "max": 0.0,
+      "min": 0.0,
+      "samples": 1000
+    },
+    "memory_usage_mb": {
+      "avg": 126.544421875,
+      "max": 126.5859375,
+      "min": 126.5234375,
+      "samples": 1000
+    }
+  }
+}

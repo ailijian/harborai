@@ -1,0 +1,23 @@
+{
+  "test_name": "O-002_async_concurrent_success_rate",
+  "trace_id": "e45d4dde-43d6-4256-8fca-f663dfa1fecc",
+  "concurrency_level": 100,
+  "total_requests": 1000,
+  "success_count": 1000,
+  "error_count": 0,
+  "timeout_count": 0,
+  "success_rate": 1.0,
+  "error_rate": 0.0,
+  "timeout_rate": 0.0,
+  "total_duration_seconds": 0.02434515953063965,
+  "qps": 41075.92717728746,
+  "response_times": {
+    "avg_ms": 0.017565203132107854,
+    "p50_ms": 0.014800112694501877,
+    "p95_ms": 0.025390181690454483,
+    "p99_ms": 0.05539418663829565,
+    "min_ms": 0.01109996810555458,
+    "max_ms": 0.4680999554693699
+  },
+  "resource_usage": {}
+}

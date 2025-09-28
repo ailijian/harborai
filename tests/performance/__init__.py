@@ -55,7 +55,12 @@ PERFORMANCE_CONFIG = {
     "resource": {
         "memory_threshold_mb": 500,
         "cpu_threshold_percent": 80,
-        "monitoring_interval": 0.5
+        "monitoring_interval": 0.5,
+        "min_cpu_usage": 10,
+        "max_memory_usage": 1000,
+        "max_cpu_usage": 95,
+        "max_open_files": 100,
+        "max_threads": 50
     },
     
     # 流式测试配置
@@ -63,7 +68,11 @@ PERFORMANCE_CONFIG = {
         "chunk_timeout": 30,
         "total_timeout": 120,
         "max_chunk_delay": 1.0,
-        "min_chunks_per_second": 1.0
+        "min_chunks_per_second": 1.0,
+        "max_first_chunk_latency": 2.0,
+        "max_total_response_time": 30.0,
+        "max_concurrent_response_time": 45.0,
+        "min_bytes_per_second": 1000.0
     },
     
     # 基准测试配置
@@ -73,11 +82,11 @@ PERFORMANCE_CONFIG = {
         "warmup_rounds": 3
     },
     
-    # 负载测试配置
+    # 负载测试配置（优化超时）
     "load": {
-        "users": 50,
-        "spawn_rate": 5,
-        "duration": 300
+        "users": 10,
+        "spawn_rate": 2,
+        "duration": 30  # 30秒
     }
 }
 

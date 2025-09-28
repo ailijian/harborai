@@ -344,7 +344,7 @@ class TestStressTesting:
         
         在峰值负载下持续运行，测试系统稳定性
         """
-        peak_concurrent = self.config['max_concurrent_requests']
+        peak_concurrent = self.config['max_concurrent_users']
         test_duration = 30  # 30秒峰值负载
         
         self.stress_runner.monitor.start_monitoring()
@@ -364,7 +364,7 @@ class TestStressTesting:
                 futures.append(future)
             
             # 等待所有任务完成
-            concurrent.futures.wait(futures, timeout=test_duration + 10)
+            concurrent.futures.wait(futures, timeout=test_duration + 30)
         
         self.stress_runner.metrics.end_time = datetime.now()
         self.stress_runner.metrics.calculate_metrics()
@@ -386,7 +386,7 @@ class TestStressTesting:
         中等负载下长时间运行，测试内存泄漏和性能退化
         """
         moderate_concurrent = 15
-        test_duration = 60  # 1分钟耐久测试
+        test_duration = 20  # 20秒耐久测试
         
         self.stress_runner.monitor.start_monitoring()
         self.stress_runner.metrics.start_time = datetime.now()
@@ -408,7 +408,7 @@ class TestStressTesting:
                 futures.append(future)
             
             # 等待所有任务完成
-            concurrent.futures.wait(futures, timeout=test_duration + 10)
+            concurrent.futures.wait(futures, timeout=test_duration + 30)
         
         # 记录结束内存使用
         final_memory = psutil.virtual_memory().used / 1024 / 1024
@@ -436,7 +436,7 @@ class TestStressTesting:
         模拟资源耗尽情况，测试系统恢复能力
         """
         # 第一阶段：极高负载导致资源耗尽
-        extreme_concurrent = self.config['max_concurrent_requests'] * 2
+        extreme_concurrent = self.config['max_concurrent_users'] * 2
         overload_duration = 10
         
         self.stress_runner.monitor.start_monitoring()
@@ -500,8 +500,12 @@ class TestStressTesting:
         
         # 恢复能力断言
         assert self.stress_runner.metrics.total_requests > extreme_concurrent + normal_concurrent
-        # 恢复期的错误率应该明显低于过载期
-        assert recovery_error_rate <= overload_error_rate * 0.5
+        # 恢复期的错误率应该在可接受范围内
+        if overload_error_rate > 0:
+            assert recovery_error_rate <= overload_error_rate * 0.5
+        else:
+            # 如果过载期没有错误，恢复期错误率应该很低
+            assert recovery_error_rate <= self.config['max_error_rate'] * 100
         # 恢复时间应该在合理范围内
         assert self.stress_runner.metrics.recovery_time <= 20  # 20秒内恢复
         

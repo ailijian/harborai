@@ -256,8 +256,7 @@ class TestExceptionClassification:
         
         # 测试不同错误的上下文分析
         test_cases = [
-            {
-                "exception": RateLimitError("Rate limited"),
+            {"exception": RateLimitError("Rate limited", retry_after=60),
                 "context": {"operation": "chat_completion", "model": "deepseek-r1"},
                 "expected_strategy": "rate_limit_backoff",
                 "expected_delay": 60

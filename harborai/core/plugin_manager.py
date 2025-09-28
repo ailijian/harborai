@@ -19,14 +19,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 
-from .base_plugin import BasePlugin
+from .base_plugin import BaseLLMPlugin as BasePlugin
 from .exceptions import (
     PluginError,
     ValidationError,
     ConfigurationError,
     HarborAIError
 )
-from .retry import retry, RetryConfig, RetryStrategy
+from .retry import retry, RetryConfig, FixedBackoff
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +175,7 @@ class PluginManager:
     
     @retry(
         max_attempts=3,
-        strategy=RetryStrategy.FIXED,
+        strategy=FixedBackoff(),
         base_delay=0.5,
         retryable_exceptions=(ImportError, AttributeError)
     )

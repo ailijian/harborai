@@ -23,6 +23,7 @@ from harborai.core.exceptions import (
 from harborai.core.retry import RetryManager, RetryConfig
 from harborai.api.decorators import cost_tracking, with_postgres_logging
 from harborai.monitoring.prometheus_metrics import PrometheusMetrics
+from harborai.monitoring.token_statistics import TokenStatisticsCollector
 
 
 class MockPlugin:
@@ -472,13 +473,15 @@ class TestIntegrationWithMonitoring:
                 duration = time.time() - start_time
                 self.prometheus_metrics.record_api_request(
                     method="plugin_execution",
-                    endpoint=f"/plugin/{plugin.name}",
-                    status_code=200,
-                    duration=duration
+                    model="mock_model",
+                    provider="mock_provider",
+                    duration=duration,
+                    status="success"
                 )
                 
                 # 记录Token使用统计
                 self.token_stats.record_usage(
+                    trace_id="test_trace_001",
                     model="mock_model",
                     input_tokens=10,
                     output_tokens=20,
@@ -492,9 +495,11 @@ class TestIntegrationWithMonitoring:
                 duration = time.time() - start_time
                 self.prometheus_metrics.record_api_request(
                     method="plugin_execution",
-                    endpoint=f"/plugin/{plugin.name}",
-                    status_code=500,
-                    duration=duration
+                    model="mock_model",
+                    provider="mock_provider",
+                    duration=duration,
+                    status="error",
+                    error_type="plugin_execution_error"
                 )
                 raise
         
@@ -529,9 +534,10 @@ class TestIntegrationWithMonitoring:
                     # 记录每个插件的执行指标
                     self.prometheus_metrics.record_api_request(
                         method="async_plugin_execution",
-                        endpoint=f"/async_plugin/{plugin.name}",
-                        status_code=200,
-                        duration=duration
+                        model="mock_model",
+                        provider="mock_provider",
+                        duration=duration,
+                        status="success"
                     )
                     
                     results.append(result)
@@ -541,9 +547,11 @@ class TestIntegrationWithMonitoring:
                     duration = time.time() - start_time
                     self.prometheus_metrics.record_api_request(
                         method="async_plugin_execution",
-                        endpoint=f"/async_plugin/{plugin.name}",
-                        status_code=500,
-                        duration=duration
+                        model="mock_model",
+                        provider="mock_provider",
+                        duration=duration,
+                        status="error",
+                        error_type="async_plugin_execution_error"
                     )
                     raise
             
