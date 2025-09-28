@@ -130,10 +130,12 @@ def retry_with_backoff(
                     if not config.retry_condition(e):
                         logger.warning(
                             "Exception not retryable, failing immediately",
-                            trace_id=trace_id,
-                            exception_type=type(e).__name__,
-                            exception_message=str(e),
-                            attempt=attempt,
+                            extra={
+                                "trace_id": trace_id,
+                                "exception_type": type(e).__name__,
+                                "exception_message": str(e),
+                                "attempt": attempt,
+                            }
                         )
                         raise
                     
@@ -141,10 +143,12 @@ def retry_with_backoff(
                     if attempt == config.max_attempts:
                         logger.error(
                             "All retry attempts exhausted",
-                            trace_id=trace_id,
-                            exception_type=type(e).__name__,
-                            exception_message=str(e),
-                            total_attempts=attempt,
+                            extra={
+                                "trace_id": trace_id,
+                                "exception_type": type(e).__name__,
+                                "exception_message": str(e),
+                                "total_attempts": attempt,
+                            }
                         )
                         raise
                     
@@ -159,12 +163,14 @@ def retry_with_backoff(
                     
                     logger.warning(
                         "Retrying after exception",
-                        trace_id=trace_id,
-                        exception_type=type(e).__name__,
-                        exception_message=str(e),
-                        attempt=attempt,
-                        max_attempts=config.max_attempts,
-                        delay_seconds=delay,
+                        extra={
+                            "trace_id": trace_id,
+                            "exception_type": type(e).__name__,
+                            "exception_message": str(e),
+                            "attempt": attempt,
+                            "max_attempts": config.max_attempts,
+                            "delay_seconds": delay,
+                        }
                     )
                     
                     # 等待后重试
@@ -201,10 +207,12 @@ def async_retry_with_backoff(
                     if not config.retry_condition(e):
                         logger.warning(
                             "Exception not retryable, failing immediately",
-                            trace_id=trace_id,
-                            exception_type=type(e).__name__,
-                            exception_message=str(e),
-                            attempt=attempt,
+                            extra={
+                                "trace_id": trace_id,
+                                "exception_type": type(e).__name__,
+                                "exception_message": str(e),
+                                "attempt": attempt,
+                            }
                         )
                         raise
                     
@@ -212,10 +220,12 @@ def async_retry_with_backoff(
                     if attempt == config.max_attempts:
                         logger.error(
                             "All retry attempts exhausted",
-                            trace_id=trace_id,
-                            exception_type=type(e).__name__,
-                            exception_message=str(e),
-                            total_attempts=attempt,
+                            extra={
+                                "trace_id": trace_id,
+                                "exception_type": type(e).__name__,
+                                "exception_message": str(e),
+                                "total_attempts": attempt,
+                            }
                         )
                         raise
                     
@@ -230,12 +240,14 @@ def async_retry_with_backoff(
                     
                     logger.warning(
                         "Retrying after exception",
-                        trace_id=trace_id,
-                        exception_type=type(e).__name__,
-                        exception_message=str(e),
-                        attempt=attempt,
-                        max_attempts=config.max_attempts,
-                        delay_seconds=delay,
+                        extra={
+                            "trace_id": trace_id,
+                            "exception_type": type(e).__name__,
+                            "exception_message": str(e),
+                            "attempt": attempt,
+                            "max_attempts": config.max_attempts,
+                            "delay_seconds": delay,
+                        }
                     )
                     
                     # 异步等待后重试

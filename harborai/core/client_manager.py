@@ -323,10 +323,12 @@ class ClientManager:
                 
                 self.logger.info(
                     "Attempting chat completion (sync)",
-                    trace_id=get_current_trace_id(),
-                    model=attempt_model,
-                    plugin=plugin.name,
-                    is_fallback=attempt_model != model
+                    extra={
+                        "trace_id": get_current_trace_id(),
+                        "model": attempt_model,
+                        "plugin": plugin.name,
+                        "is_fallback": attempt_model != model
+                    }
                 )
                 
                 # 更新模型参数
@@ -354,19 +356,23 @@ class ClientManager:
                 
                 self.logger.warning(
                     "Chat completion failed (sync), trying next model",
-                    trace_id=get_current_trace_id(),
-                    model=attempt_model,
-                    error=str(e),
-                    remaining_models=len(models_to_try) - models_to_try.index(attempt_model) - 1
+                    extra={
+                        "trace_id": get_current_trace_id(),
+                        "model": attempt_model,
+                        "error": str(e),
+                        "remaining_models": len(models_to_try) - models_to_try.index(attempt_model) - 1
+                    }
                 )
                 
                 # 如果是最后一个模型，抛出异常
                 if attempt_model == models_to_try[-1]:
                     self.logger.error(
                         "All fallback models exhausted (sync)",
-                        trace_id=get_current_trace_id(),
-                        attempted_models=models_to_try,
-                        final_error=str(e)
+                        extra={
+                            "trace_id": get_current_trace_id(),
+                            "attempted_models": models_to_try,
+                            "final_error": str(e)
+                        }
                     )
                     raise
         

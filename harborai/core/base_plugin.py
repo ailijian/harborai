@@ -253,9 +253,11 @@ class BaseLLMPlugin(ABC):
         except Exception as e:
             self.logger.warning(
                 "Failed to parse structured output",
-                trace_id=get_current_trace_id(),
-                provider=structured_provider,
-                error=str(e)
+                extra={
+                    "trace_id": get_current_trace_id(),
+                    "provider": structured_provider,
+                    "error": str(e)
+                }
             )
         
         return response
@@ -279,8 +281,10 @@ class BaseLLMPlugin(ABC):
         except ImportError as e:
             self.logger.warning(
                 "Agently library not available, falling back to native parsing",
-                trace_id=get_current_trace_id(),
-                error=str(e)
+                extra={
+                    "trace_id": get_current_trace_id(),
+                    "error": str(e)
+                }
             )
             # Agently库不可用，回退到原生解析
             return self._parse_with_native(content, response_format)
@@ -288,8 +292,10 @@ class BaseLLMPlugin(ABC):
             # API密钥错误或其他错误，不回退，直接抛出
             self.logger.error(
                 "Agently parsing failed with error",
-                trace_id=get_current_trace_id(),
-                error=str(e)
+                extra={
+                    "trace_id": get_current_trace_id(),
+                    "error": str(e)
+                }
             )
             raise
     
@@ -309,8 +315,10 @@ class BaseLLMPlugin(ABC):
         except Exception as e:
             self.logger.error(
                 "Native parsing failed",
-                trace_id=get_current_trace_id(),
-                error=str(e)
+                extra={
+                    "trace_id": get_current_trace_id(),
+                    "error": str(e)
+                }
             )
             # 最后的回退：直接JSON解析
             import json
@@ -349,12 +357,14 @@ class BaseLLMPlugin(ABC):
         """记录请求日志"""
         self.logger.info(
             "Plugin request started",
-            trace_id=get_current_trace_id(),
-            plugin=self.name,
-            model=model,
-            message_count=len(messages),
-            stream=kwargs.get('stream', False),
-            structured_output=bool(kwargs.get('response_format'))
+            extra={
+                "trace_id": get_current_trace_id(),
+                "plugin": self.name,
+                "model": model,
+                "message_count": len(messages),
+                "stream": kwargs.get('stream', False),
+                "structured_output": bool(kwargs.get('response_format'))
+            }
         )
     
     def log_response(
@@ -367,9 +377,11 @@ class BaseLLMPlugin(ABC):
         
         self.logger.info(
             "Plugin request completed",
-            trace_id=get_current_trace_id(),
-            plugin=self.name,
-            latency_ms=latency_ms,
-            reasoning_content_present=reasoning_present,
-            response_type=type(response).__name__
+            extra={
+                "trace_id": get_current_trace_id(),
+                "plugin": self.name,
+                "latency_ms": latency_ms,
+                "reasoning_content_present": reasoning_present,
+                "response_type": type(response).__name__
+            }
         )
