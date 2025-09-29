@@ -95,15 +95,20 @@ class ClientManager:
                     # 合并客户端配置和插件配置
                     merged_config = plugin_config.copy()
                     
-                    # 如果客户端提供了api_key，使用它
-                    if 'api_key' in self.client_config:
+                    # 如果客户端提供了非空的api_key，使用它
+                    if 'api_key' in self.client_config and self.client_config['api_key'] is not None:
                         merged_config['api_key'] = self.client_config['api_key']
                     
-                    # 如果客户端提供了base_url，使用它
-                    if 'base_url' in self.client_config:
+                    # 如果客户端提供了非空的base_url，使用它
+                    if 'base_url' in self.client_config and self.client_config['base_url'] is not None:
                         merged_config['base_url'] = self.client_config['base_url']
                     
-                    plugin_instance = attr(plugin_name, **merged_config)
+                    # 调试日志：显示配置内容
+                    self.logger.info(
+                        f"Plugin config debug [trace_id={get_current_trace_id()}] plugin={plugin_name} plugin_config={plugin_config} client_config={self.client_config} merged_config={merged_config}"
+                    )
+                    
+                    plugin_instance = attr(name=plugin_name, **merged_config)
                     self.register_plugin(plugin_instance)
                     
                     self.logger.info(
