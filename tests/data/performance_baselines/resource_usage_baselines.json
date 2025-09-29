@@ -48,7 +48,7 @@
             "p99": 19.8
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "memory_per_request_kb": {
             "mean": 485.2,
             "p50": 468.5,
@@ -219,7 +219,7 @@
             "p99": 15.8
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "cpu_time_ms": {
             "mean": 125.8,
             "p50": 118.5,
@@ -395,7 +395,7 @@
             "p95": 3580,
             "p99": 4250
           },
-          "deepseek-r1": {
+          "deepseek-reasoner": {
             "mean": 8500,
             "p50": 7850,
             "p95": 11250,

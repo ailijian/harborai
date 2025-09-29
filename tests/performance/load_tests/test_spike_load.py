@@ -390,7 +390,7 @@ class MockSpikeAPI:
                     'error_rate': 0.01,
                     'max_stable_rps': 50
                 },
-                'deepseek-r1': {
+                'deepseek-reasoner': {
                     'response_time': 1.2,
                     'error_rate': 0.015,
                     'max_stable_rps': 30
@@ -1185,7 +1185,7 @@ class TestSpikeLoad:
         测试系统处理快速连续突发的能力
         """
         vendor = 'deepseek'
-        model = 'deepseek-r1'
+        model = 'deepseek-reasoner'
         spike_pattern = 'rapid_spikes'
         
         # 运行快速连续突发负载测试

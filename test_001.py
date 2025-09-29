@@ -243,6 +243,7 @@ def test_streaming_chat_completion_openai():
     print(f"结束时间: {time.strftime('%H:%M:%S', time.localtime())}")
 
 
+
 if __name__ == "__main__":
     test_basic_chat_completion()
     test_streaming_chat_completion()

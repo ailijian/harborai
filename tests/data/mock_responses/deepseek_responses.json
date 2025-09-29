@@ -22,10 +22,10 @@
     "system_fingerprint": "fp_deepseek_v1"
   },
   "deepseek_r1_reasoning_completion": {
-    "id": "chatcmpl-deepseek-r1-987654321",
+    "id": "chatcmpl-deepseek-reasoner-987654321",
     "object": "reasoning.completion",
     "created": 1704067200,
-    "model": "deepseek-r1",
+    "model": "deepseek-reasoner",
     "choices": [
       {
         "index": 0,
@@ -106,10 +106,10 @@
     }
   },
   "deepseek_r1_streaming_reasoning": {
-    "id": "chatcmpl-deepseek-r1-stream-222",
+    "id": "chatcmpl-deepseek-reasoner-stream-222",
     "object": "reasoning.completion.chunk",
     "created": 1704067200,
-    "model": "deepseek-r1",
+    "model": "deepseek-reasoner",
     "choices": [
       {
         "index": 0,

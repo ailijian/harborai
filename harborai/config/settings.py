@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from .performance import PerformanceMode, get_performance_config
 
 
 class Settings(BaseSettings):
@@ -59,6 +60,32 @@ class Settings(BaseSettings):
     # 成本追踪配置
     enable_cost_tracking: bool = Field(default=True, alias="HARBORAI_COST_TRACKING")
     
+    # 性能优化配置
+    performance_mode: str = Field(default="full", alias="HARBORAI_PERFORMANCE_MODE")  # fast, balanced, full
+    enable_fast_path: bool = Field(default=True, alias="HARBORAI_FAST_PATH")
+    enable_async_decorators: bool = Field(default=True, alias="HARBORAI_ASYNC_DECORATORS")
+    enable_postgres_logging: bool = Field(default=True, alias="HARBORAI_POSTGRES_LOGGING")
+    enable_detailed_tracing: bool = Field(default=True, alias="HARBORAI_DETAILED_TRACING")
+    
+    # 快速路径配置
+    fast_path_models: List[str] = Field(default_factory=lambda: ["gpt-3.5-turbo", "gpt-4o-mini"], alias="HARBORAI_FAST_PATH_MODELS")
+    fast_path_max_tokens: int = Field(default=1000, alias="HARBORAI_FAST_PATH_MAX_TOKENS")
+    fast_path_skip_cost_tracking: bool = Field(default=False, alias="HARBORAI_FAST_PATH_SKIP_COST")
+    
+    # 缓存配置
+    enable_token_cache: bool = Field(default=True, alias="HARBORAI_TOKEN_CACHE")
+    token_cache_ttl: int = Field(default=300, alias="HARBORAI_TOKEN_CACHE_TTL")  # 5分钟
+    enable_response_cache: bool = Field(default=True, alias="HARBORAI_RESPONSE_CACHE")
+    response_cache_ttl: int = Field(default=600, alias="HARBORAI_RESPONSE_CACHE_TTL")  # 10分钟
+    cache_cleanup_interval: int = Field(default=300, alias="HARBORAI_CACHE_CLEANUP_INTERVAL")  # 5分钟
+    
+    # 性能管理器配置
+    enable_performance_manager: bool = Field(default=True, alias="HARBORAI_PERFORMANCE_MANAGER")
+    enable_background_tasks: bool = Field(default=True, alias="HARBORAI_BACKGROUND_TASKS")
+    background_task_workers: int = Field(default=2, alias="HARBORAI_BACKGROUND_WORKERS")
+    enable_plugin_preload: bool = Field(default=True, alias="HARBORAI_PLUGIN_PRELOAD")
+    plugin_cache_size: int = Field(default=100, alias="HARBORAI_PLUGIN_CACHE_SIZE")
+    
     # 模型映射配置
     model_mappings: Dict[str, str] = Field(default_factory=dict)
     
@@ -86,6 +113,74 @@ class Settings(BaseSettings):
                 config[config_key] = value
         
         return config
+    
+    def is_fast_path_enabled(self, model: str, max_tokens: Optional[int] = None) -> bool:
+        """判断是否应该使用快速路径"""
+        if not self.enable_fast_path:
+            return False
+        
+        # 检查性能模式
+        if self.performance_mode == "fast":
+            return True
+        elif self.performance_mode == "full":
+            return False
+        
+        # balanced 模式下的判断逻辑
+        if model in self.fast_path_models:
+            if max_tokens is None or max_tokens <= self.fast_path_max_tokens:
+                return True
+        
+        return False
+    
+    def get_decorator_config(self) -> Dict[str, bool]:
+        """获取装饰器启用配置"""
+        return {
+            "cost_tracking": self.enable_cost_tracking and not (self.performance_mode == "fast" and self.fast_path_skip_cost_tracking),
+            "postgres_logging": self.enable_postgres_logging and self.performance_mode != "fast",
+            "detailed_tracing": self.enable_detailed_tracing,
+            "async_decorators": self.enable_async_decorators
+        }
+    
+    def get_performance_config(self) -> Dict[str, Any]:
+        """获取性能管理器配置"""
+        return {
+            "enabled": self.enable_performance_manager,
+            "background_tasks": {
+                "enabled": self.enable_background_tasks,
+                "workers": self.background_task_workers
+            },
+            "cache": {
+                "token_cache": self.enable_token_cache,
+                "token_cache_ttl": self.token_cache_ttl,
+                "response_cache": self.enable_response_cache,
+                "response_cache_ttl": self.response_cache_ttl,
+                "cleanup_interval": self.cache_cleanup_interval
+            },
+            "plugins": {
+                "preload": self.enable_plugin_preload,
+                "cache_size": self.plugin_cache_size
+            }
+        }
+    
+    def get_current_performance_config(self):
+        """
+        获取当前性能配置实例
+        
+        Returns:
+            PerformanceConfig: 当前性能配置实例
+        """
+        return get_performance_config()
+    
+    def set_performance_mode(self, mode: str) -> None:
+        """
+        设置性能模式并重置性能配置
+        
+        Args:
+            mode: 性能模式 ('fast', 'balanced', 'full')
+        """
+        from .performance import reset_performance_config
+        self.performance_mode = mode
+        reset_performance_config(PerformanceMode(mode))
 
 
 @lru_cache()

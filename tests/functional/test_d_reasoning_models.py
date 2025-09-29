@@ -30,8 +30,8 @@ class TestReasoningModelDetection:
         """测试DeepSeek推理模型检测"""
         # 测试各种DeepSeek推理模型名称的检测
         reasoning_models = [
-            "deepseek-r1",
-            "deepseek-r1-lite",
+            "deepseek-reasoner",
+            "deepseek-reasoner-lite",
             "deepseek-reasoner"
         ]
         
@@ -122,7 +122,7 @@ class TestReasoningModelDetection:
         """测试模型能力检测"""
         # 测试不同模型的能力检测
         model_capabilities = {
-            "deepseek-r1": {
+            "deepseek-reasoner": {
                 "supports_reasoning": True,
                 "supports_streaming": False,
                 "supports_temperature": False,
@@ -185,7 +185,7 @@ class TestReasoningModelParameters:
         
         # 尝试使用推理模型不支持的参数
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=[
                 {"role": "system", "content": "你是一个AI助手"},  # 推理模型不支持system消息
                 {"role": "user", "content": "解决这个问题"}
@@ -229,7 +229,7 @@ class TestReasoningModelParameters:
         ]
 
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=original_messages
         )
 
@@ -253,7 +253,7 @@ class TestReasoningModelParameters:
         
         # 配置mock在超出限制时抛出异常
         def validate_max_tokens(*args, **kwargs):
-            if kwargs.get('max_tokens', 0) > 32768:  # deepseek-r1的限制
+            if kwargs.get('max_tokens', 0) > 32768:  # deepseek-reasoner的限制
                 raise ParameterValidationError("max_tokens exceeds model limit")
             # 返回正常响应
             mock_response = Mock()
@@ -271,11 +271,11 @@ class TestReasoningModelParameters:
         # 测试超出限制的max_tokens
         with pytest.raises((ParameterValidationError, ValueError)):
             mock_harborai_client.chat.completions.create(
-                model="deepseek-r1",
+                model="deepseek-reasoner",
                 messages=[
                     {"role": "user", "content": "测试"}
                 ],
-                max_tokens=100000  # 超出deepseek-r1的限制
+                max_tokens=100000  # 超出deepseek-reasoner的限制
             )
         
         # 测试合理的max_tokens
@@ -291,7 +291,7 @@ class TestReasoningModelParameters:
         mock_harborai_client.chat.completions.create.return_value = mock_response
         
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=[
                 {"role": "user", "content": "测试"}
             ],
@@ -330,7 +330,7 @@ class TestReasoningModelParameters:
         
         # 尝试使用推理模型不支持的参数
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=[
                 {"role": "user", "content": "测试"}
             ],
@@ -383,7 +383,7 @@ class TestReasoningModelPerformance:
         start_time = time.time()
         
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=[
                 {"role": "user", "content": "请详细分析量子计算的工作原理和应用前景"}
             ]

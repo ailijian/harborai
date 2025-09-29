@@ -148,7 +148,7 @@ class MockTokenCounter:
         self.encoding_cache = {}
         self.model_encodings = {
             "deepseek-chat": "cl100k_base",
-        "deepseek-r1": "cl100k_base",
+        "deepseek-reasoner": "cl100k_base",
         "ernie-3.5-8k": "cl100k_base",
         "ernie-4.0-turbo-8k": "ernie",
         "doubao-1-5-pro-32k-character-250715": "doubao",
@@ -222,7 +222,7 @@ class MockPricingCalculator:
         self.pricing_table = {
             "deepseek": {
                 "deepseek-chat": {"input": Decimal('0.001'), "output": Decimal('0.002')},
-                "deepseek-r1": {"input": Decimal('0.0015'), "output": Decimal('0.003')}
+                "deepseek-reasoner": {"input": Decimal('0.0015'), "output": Decimal('0.003')}
             },
             "ernie": {
                 "ernie-4.0-8k": {"input": Decimal('0.002'), "output": Decimal('0.004')},
@@ -814,7 +814,7 @@ class TestCostCalculation:
         # 比较不同提供商的成本
         models = [
             ("deepseek", "deepseek-chat"),
-            ("deepseek", "deepseek-r1"),
+            ("deepseek", "deepseek-reasoner"),
             ("ernie", "ernie-4.0-8k"),
             ("ernie", "ernie-3.5-8k"),
             ("doubao", "doubao-pro-4k")
@@ -830,7 +830,7 @@ class TestCostCalculation:
         
         # 验证成本差异
         deepseek_chat_cost = costs["deepseek/deepseek-chat"]
-        deepseek_r1_cost = costs["deepseek/deepseek-r1"]
+        deepseek_r1_cost = costs["deepseek/deepseek-reasoner"]
         doubao_cost = costs["doubao/doubao-pro-4k"]
         
         assert deepseek_r1_cost.total_cost > deepseek_chat_cost.total_cost

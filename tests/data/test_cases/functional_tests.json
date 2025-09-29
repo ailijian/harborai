@@ -31,7 +31,7 @@
         "name": "推理模型测试",
         "description": "测试推理模型的复杂推理功能",
         "vendor": "deepseek",
-        "model": "deepseek-r1",
+        "model": "deepseek-reasoner",
         "input": {
           "messages": [
             {
@@ -153,7 +153,11 @@
         "test_id": "COMPAT_001",
         "name": "统一接口测试",
         "description": "测试不同厂商使用统一接口的兼容性",
-        "vendors": ["deepseek", "ernie", "doubao"],
+        "vendors": [
+          "deepseek",
+          "ernie",
+          "doubao"
+        ],
         "input": {
           "messages": [
             {
@@ -175,7 +179,7 @@
         "name": "推理模型对比测试",
         "description": "对比不同厂商推理模型的输出格式",
         "reasoning_models": {
-          "deepseek": "deepseek-r1",
+          "deepseek": "deepseek-reasoner",
           "ernie": "ernie-x1-turbo-32k",
           "doubao": "doubao-seed-1-6-250615"
         },

@@ -368,7 +368,7 @@ class MockLoadTestAPI:
                     'max_stable_load': 80,
                     'degradation_rate': 0.02
                 },
-                'deepseek-r1': {
+                'deepseek-reasoner': {
                     'base_response_time': 1.5,
                     'load_factor': 0.015,
                     'max_stable_load': 60,
@@ -1134,7 +1134,7 @@ class TestGradualLoad:
         深入分析系统在不同负载阶段的稳定性
         """
         vendor = 'deepseek'
-        model = 'deepseek-r1'
+        model = 'deepseek-reasoner'
         scenario = 'gradual_ramp'
         
         # 运行负载测试

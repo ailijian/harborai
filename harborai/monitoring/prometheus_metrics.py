@@ -280,9 +280,18 @@ def prometheus_middleware(func: Callable) -> Callable:
     """Prometheus监控中间件装饰器
     
     自动记录函数调用的指标信息。
+    根据性能配置动态启用或禁用监控。
     """
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        # 检查性能配置是否启用Prometheus监控
+        from ..config.performance import get_performance_config
+        perf_config = get_performance_config()
+        middleware_config = perf_config.get_middleware_config()
+        
+        if not middleware_config.get('metrics_middleware', True):
+            return func(*args, **kwargs)
+        
         metrics = get_prometheus_metrics()
         if not metrics:
             return func(*args, **kwargs)
@@ -345,9 +354,20 @@ def prometheus_middleware(func: Callable) -> Callable:
 
 # 异步版本的中间件
 def prometheus_async_middleware(func: Callable) -> Callable:
-    """异步Prometheus监控中间件装饰器"""
+    """异步Prometheus监控中间件装饰器
+    
+    根据性能配置动态启用或禁用监控。
+    """
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
+        # 检查性能配置是否启用Prometheus监控
+        from ..config.performance import get_performance_config
+        perf_config = get_performance_config()
+        middleware_config = perf_config.get_middleware_config()
+        
+        if not middleware_config.get('metrics_middleware', True):
+            return await func(*args, **kwargs)
+        
         metrics = get_prometheus_metrics()
         if not metrics:
             return await func(*args, **kwargs)

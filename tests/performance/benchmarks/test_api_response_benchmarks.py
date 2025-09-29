@@ -157,7 +157,7 @@ class MockAPIClient:
         configs = {
             'deepseek': {
                 'deepseek-chat': {'base': 0.8, 'variance': 0.3},
-                'deepseek-r1': {'base': 1.5, 'variance': 0.5}
+                'deepseek-reasoner': {'base': 1.5, 'variance': 0.5}
             },
             'anthropic': {
                 'claude-3-haiku': {'base': 0.6, 'variance': 0.2},
@@ -582,7 +582,7 @@ class TestAPIResponseBenchmarks:
         对比同一厂商不同模型的API响应时间性能
         """
         vendor = 'deepseek'
-        models = ['deepseek-chat', 'deepseek-r1']
+        models = ['deepseek-chat', 'deepseek-reasoner']
         request_type = 'reasoning'
         num_requests = 20
         
@@ -717,7 +717,7 @@ class TestAPIResponseBenchmarks:
         # 测试多个厂商、模型和请求类型的组合
         test_configs = [
             ('deepseek', 'deepseek-chat', 'simple_chat'),
-            ('deepseek', 'deepseek-r1', 'reasoning'),
+            ('deepseek', 'deepseek-reasoner', 'reasoning'),
             ('anthropic', 'claude-3-haiku', 'simple_chat'),
             ('anthropic', 'claude-3-sonnet', 'reasoning'),
             ('google', 'gemini-pro', 'simple_chat')

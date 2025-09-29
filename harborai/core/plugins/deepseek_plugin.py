@@ -40,7 +40,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 supports_structured_output=True
             ),
             ModelInfo(
-                id="deepseek-r1",
+                id="deepseek-reasoner",
                 name="DeepSeek R1",
                 provider="deepseek",
                 max_tokens=32768,
@@ -68,6 +68,10 @@ class DeepSeekPlugin(BaseLLMPlugin):
         if self._client is None:
             try:
                 import httpx
+                # 调试信息：显示配置
+                masked_key = f"{self.api_key[:6]}...{self.api_key[-4:]}" if self.api_key and len(self.api_key) > 10 else "无效密钥"
+                self.logger.info(f"DeepSeek 插件配置 - Base URL: {self.base_url}, API Key: {masked_key}")
+                
                 self._client = httpx.Client(
                     base_url=self.base_url,
                     timeout=self.timeout,
@@ -285,7 +289,19 @@ class DeepSeekPlugin(BaseLLMPlugin):
             
             # 发送请求
             client = self._get_client()
+            
+            # 调试信息：显示请求详情
+            full_url = f"{self.base_url}/v1/chat/completions"
+            self.logger.info(f"发送请求到: {full_url}")
+            self.logger.info(f"请求模型: {model}")
+            
             response = client.post("/v1/chat/completions", json=request_data)
+            
+            # 调试信息：显示响应状态
+            self.logger.info(f"响应状态码: {response.status_code}")
+            if response.status_code != 200:
+                self.logger.error(f"响应内容: {response.text}")
+            
             response.raise_for_status()
             
             if stream:

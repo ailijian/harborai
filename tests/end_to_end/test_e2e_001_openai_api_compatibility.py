@@ -46,7 +46,7 @@ class TestE2E001OpenAIAPICompatibility:
             "DEEPSEEK": {
                 "api_key": os.getenv("DEEPSEEK_API_KEY"),
                 "base_url": os.getenv("DEEPSEEK_BASE_URL"),
-                "models": ["deepseek-chat", "deepseek-r1"]
+                "models": ["deepseek-chat", "deepseek-reasoner"]
             },
             "WENXIN": {
                 "api_key": os.getenv("WENXIN_API_KEY"),

@@ -111,7 +111,7 @@ def test_config() -> Dict[str, Any]:
             "deepseek": {
                 "api_key": os.getenv("DEEPSEEK_API_KEY"),
                 "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-                "models": ["deepseek-chat", "deepseek-r1"]
+                "models": ["deepseek-chat", "deepseek-reasoner"]
             },
             "ernie": {
                 "api_key": os.getenv("WENXIN_API_KEY"),
@@ -358,7 +358,7 @@ def mock_harborai_client(monkeypatch):
             return structured_response
         
         # 对于推理模型，返回包含reasoning_content的响应（推理模型不支持流式）
-        if any(model in kwargs.get('model', '') for model in ['deepseek-r1', 'deepseek-reasoner', 'o1-preview', 'o1-mini']):
+        if any(model in kwargs.get('model', '') for model in ['deepseek-reasoner', 'deepseek-reasoner', 'o1-preview', 'o1-mini']):
             # 检查是否是不支持的模型测试
             if kwargs.get('model') == "unsupported-reasoning-model":
                 from harborai.exceptions import ModelNotSupportedError
@@ -368,7 +368,7 @@ def mock_harborai_client(monkeypatch):
             reasoning_response.id = "chatcmpl-reasoning-123"
             reasoning_response.object = "chat.completion"
             reasoning_response.created = 1234567890
-            reasoning_response.model = kwargs.get('model', 'deepseek-r1')
+            reasoning_response.model = kwargs.get('model', 'deepseek-reasoner')
             
             # 根据不同的测试场景返回不同的响应
             messages = kwargs.get('messages', [])

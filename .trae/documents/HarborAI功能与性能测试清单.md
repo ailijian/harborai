@@ -119,9 +119,9 @@
 参考：<mcfile name="deepseek_plugin.py" path="e:\project\harborai\harborai\core\plugins\deepseek_plugin.py"></mcfile> <mcfile name="base_plugin.py" path="e:\project\harborai\harborai\core\base_plugin.py"></mcfile>
 
 - D-001 [关键][P0]
-  - 描述：调用 deepseek-r1 非流式返回，自动检测 reasoning_content
+  - 描述：调用 deepseek-reasoner 非流式返回，自动检测 reasoning_content
   - 前置：A-001，配置 deepseek
-  - 步骤：model="deepseek-r1"，create(...)
+  - 步骤：model="deepseek-reasoner"，create(...)
   - 预期：choices[0].message.content 存在；若模型返回思考过程，存在 reasoning_content
 
 - D-002 [关键][P0]
@@ -435,7 +435,7 @@
 - **单次调用性能**：测试 HarborAI 客户端单次 API 调用的响应时间和资源消耗
 - **封装开销测试**：测量 HarborAI 封装层相对于原生 SDK 的额外开销
 - **不同模型性能对比**：对比不同厂商模型（OpenAI、DeepSeek、Doubao、Wenxin）的调用性能
-- **推理模型 vs 非推理模型**：对比推理模型（如 DeepSeek-R1）与普通模型的性能差异
+- **推理模型 vs 非推理模型**：对比推理模型（如 deepseek-reasoner）与普通模型的性能差异
 
 #### O.1.2 并发性能测试场景
 - **高并发调用**：测试系统在高并发请求下的表现

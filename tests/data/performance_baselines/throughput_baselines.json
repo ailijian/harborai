@@ -58,7 +58,7 @@
             }
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "single_user": {
             "sustained_rps": {
               "mean": 4.2,
@@ -370,7 +370,7 @@
             "p99": 3450
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "processing_rate": {
             "mean": 1950,
             "p50": 2020,
@@ -426,7 +426,7 @@
             "p99": 62
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "generation_rate": {
             "mean": 28,
             "p50": 30,

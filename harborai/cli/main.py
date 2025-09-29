@@ -269,7 +269,7 @@ def list_models_cmd(provider: Optional[str], enabled_only: bool):
     # 模拟模型数据
     all_models = [
         {"name": "deepseek-chat", "provider": "deepseek", "enabled": True},
-        {"name": "deepseek-r1", "provider": "deepseek", "enabled": True},
+        {"name": "deepseek-reasoner", "provider": "deepseek", "enabled": True},
         {"name": "ernie-4.0-8k", "provider": "ernie", "enabled": True},
         {"name": "gpt-4", "provider": "openai", "enabled": False}
     ]

@@ -33,7 +33,7 @@
 | 厂商 | 模型 | 推理能力 | 测试重点 |
 |------|------|----------|----------|
 | DeepSeek | deepseek-chat | 非推理 | 基础对话、结构化输出 |
-| DeepSeek | deepseek-r1 | 推理 | 思考过程输出、推理链路 |
+| DeepSeek | deepseek-reasoner | 推理 | 思考过程输出、推理链路 |
 | 百度文心 | ernie-3.5-8k | 非推理 | 中文对话、API兼容性 |
 | 百度文心 | ernie-4.0-turbo-8k | 非推理 | 高级对话、性能优化 |
 | 百度文心 | ernie-x1-turbo-32k | 推理 | 长文本推理、思考模式 |
@@ -137,7 +137,7 @@ assert client3.timeout == 30.0
 ```python
 # 测试推理模型
 reasoning_models = [
-    "deepseek-r1",
+    "deepseek-reasoner",
     "ernie-x1-turbo-32k", 
     "doubao-seed-1-6-250615"
 ]
@@ -169,7 +169,7 @@ for model in reasoning_models:
 - 最终答案content正常输出
 - 思考过程与最终答案逻辑一致
 
-**适用模型：** deepseek-r1, ernie-x1-turbo-32k, doubao-seed-1-6-250615
+**适用模型：** deepseek-reasoner, ernie-x1-turbo-32k, doubao-seed-1-6-250615
 
 #### 测试用例 E2E-004：非推理模型兼容性
 
@@ -259,7 +259,7 @@ for model in all_models:
 **测试步骤：**
 ```python
 # 推理模型流式测试
-reasoning_models = ["deepseek-r1", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]
+reasoning_models = ["deepseek-reasoner", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]
 
 for model in reasoning_models:
     reasoning_parts = []
@@ -296,7 +296,7 @@ for model in reasoning_models:
 - 流式数据完整性
 - 思考过程逻辑连贯
 
-**适用模型：** deepseek-r1, ernie-x1-turbo-32k, doubao-seed-1-6-250615
+**适用模型：** deepseek-reasoner, ernie-x1-turbo-32k, doubao-seed-1-6-250615
 
 ### 2.4 结构化输出测试
 
@@ -421,7 +421,7 @@ for model in all_models:
 **测试步骤：**
 ```python
 # 推理模型结构化输出测试
-reasoning_models = ["deepseek-r1", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]
+reasoning_models = ["deepseek-reasoner", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]
 
 for model in reasoning_models:
     response = client.chat.completions.create(
@@ -468,7 +468,7 @@ for model in reasoning_models:
 - 思考过程与结构化结果逻辑一致
 - 数据完整性
 
-**适用模型：** deepseek-r1, ernie-x1-turbo-32k, doubao-seed-1-6-250615
+**适用模型：** deepseek-reasoner, ernie-x1-turbo-32k, doubao-seed-1-6-250615
 
 ### 2.5 异步调用测试
 
@@ -721,7 +721,7 @@ cost_tracker = defaultdict(list)
 # 模拟不同模型的调用
 test_calls = [
     {"model": "deepseek-chat", "calls": 100},
-    {"model": "deepseek-r1", "calls": 50},
+    {"model": "deepseek-reasoner", "calls": 50},
     {"model": "ernie-4.0-turbo-8k", "calls": 75},
     {"model": "doubao-1-5-pro-32k-character-250715", "calls": 30}
 ]
@@ -876,7 +876,7 @@ reasoning_test_cases = [
     "分析莎士比亚《哈姆雷特》的主题"
 ]
 
-for model in ["deepseek-r1", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]:
+for model in ["deepseek-reasoner", "ernie-x1-turbo-32k", "doubao-seed-1-6-250615"]:
     print(f"\n=== 模型 {model} 推理分析 ===")
     
     for i, test_case in enumerate(reasoning_test_cases):
@@ -1005,7 +1005,7 @@ from dataclasses import dataclass
 # 测试模型配置
 TEST_MODELS = [
     {'vendor': 'deepseek', 'model': 'deepseek-chat', 'is_reasoning': False},
-    {'vendor': 'deepseek', 'model': 'deepseek-r1', 'is_reasoning': True},
+    {'vendor': 'deepseek', 'model': 'deepseek-reasoner', 'is_reasoning': True},
     {'vendor': 'ernie', 'model': 'ernie-3.5-8k', 'is_reasoning': False},
     {'vendor': 'ernie', 'model': 'ernie-4.0-turbo-8k', 'is_reasoning': False},
     {'vendor': 'ernie', 'model': 'ernie-x1-turbo-32k', 'is_reasoning': True},
@@ -1286,7 +1286,7 @@ if __name__ == "__main__":
 | 模型 | 测试数 | 通过 | 失败 | 成功率 |
 |------|--------|------|------|--------|
 | deepseek-chat | {deepseek_chat_total} | {deepseek_chat_passed} | {deepseek_chat_failed} | {deepseek_chat_rate}% |
-| deepseek-r1 | {deepseek_r1_total} | {deepseek_r1_passed} | {deepseek_r1_failed} | {deepseek_r1_rate}% |
+| deepseek-reasoner | {deepseek_r1_total} | {deepseek_r1_passed} | {deepseek_r1_failed} | {deepseek_r1_rate}% |
 
 ### 百度文心模型
 
@@ -1347,7 +1347,7 @@ if __name__ == "__main__":
 | 测试ID | 测试名称 | 模型 | 状态 | 执行时间 | 备注 |
 |--------|----------|------|------|----------|------|
 | E2E-001 | OpenAI标准API调用 | deepseek-chat | PASS | 2.3s | 响应正常 |
-| E2E-001 | OpenAI标准API调用 | deepseek-r1 | PASS | 3.1s | 包含思考过程 |
+| E2E-001 | OpenAI标准API调用 | deepseek-reasoner | PASS | 3.1s | 包含思考过程 |
 | E2E-001 | OpenAI标准API调用 | ernie-3.5-8k | PASS | 1.8s | 中文响应良好 |
 | ... | ... | ... | ... | ... | ... |
 
@@ -1408,7 +1408,7 @@ if __name__ == "__main__":
 
 **问题ID：** P1-001
 **问题描述：** 部分推理模型在流式输出时思考过程可能出现截断
-**影响范围：** deepseek-r1, ernie-x1-turbo-32k
+**影响范围：** deepseek-reasoner, ernie-x1-turbo-32k
 **严重程度：** 高
 **状态：** 待修复
 **负责人：** {developer_name}
@@ -1474,7 +1474,7 @@ if __name__ == "__main__":
 | 模型 | 测试用例覆盖 | 功能点覆盖 | 场景覆盖 |
 |------|--------------|------------|----------|
 | deepseek-chat | 100% | 85% | 100% |
-| deepseek-r1 | 100% | 100% | 100% |
+| deepseek-reasoner | 100% | 100% | 100% |
 | ernie-3.5-8k | 100% | 85% | 100% |
 | ernie-4.0-turbo-8k | 100% | 85% | 100% |
 | ernie-x1-turbo-32k | 100% | 100% | 100% |

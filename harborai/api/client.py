@@ -8,6 +8,7 @@ HarborAI 主客户端
 
 import asyncio
 from typing import Dict, List, Optional, Union, Any, AsyncGenerator, Iterator
+from collections.abc import AsyncIterator
 
 from ..core.client_manager import ClientManager
 from ..core.base_plugin import ChatCompletion, ChatCompletionChunk
@@ -16,8 +17,10 @@ from ..utils.logger import get_logger, APICallLogger
 from ..utils.tracer import TraceContext, get_or_create_trace_id
 from ..utils.retry import async_retry_with_backoff, retry_with_backoff
 from ..config.settings import get_settings
+from ..config.performance import get_performance_config
 from ..storage.lifecycle import auto_initialize
-from .decorators import cost_tracking, with_async_trace, with_trace, with_postgres_logging
+from ..core.unified_decorators import smart_decorator, fast_trace, full_trace
+from ..core.performance_manager import get_performance_manager, initialize_performance_manager, cleanup_performance_manager
 
 
 class ChatCompletions:
@@ -29,9 +32,6 @@ class ChatCompletions:
         self.api_logger = APICallLogger(self.logger)
         self.settings = get_settings()
     
-    @cost_tracking
-    @with_postgres_logging
-    @with_trace
     def create(
         self,
         messages: List[Dict[str, Any]],
@@ -64,6 +64,84 @@ class ChatCompletions:
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """创建聊天完成（同步版本）"""
+        # 检查是否使用快速路径
+        perf_config = get_performance_config()
+        if perf_config.should_use_fast_path(model, max_tokens):
+            return self._create_fast_path(
+                messages=messages, model=model, frequency_penalty=frequency_penalty,
+                function_call=function_call, functions=functions, logit_bias=logit_bias,
+                logprobs=logprobs, top_logprobs=top_logprobs, max_tokens=max_tokens,
+                n=n, presence_penalty=presence_penalty, response_format=response_format,
+                seed=seed, stop=stop, stream=stream, structured_provider=structured_provider,
+                temperature=temperature, tool_choice=tool_choice, tools=tools,
+                top_p=top_p, user=user, extra_body=extra_body, timeout=timeout,
+                fallback=fallback, fallback_models=fallback_models,
+                retry_policy=retry_policy, **kwargs
+            )
+        else:
+            return self._create_full_path(
+                messages=messages, model=model, frequency_penalty=frequency_penalty,
+                function_call=function_call, functions=functions, logit_bias=logit_bias,
+                logprobs=logprobs, top_logprobs=top_logprobs, max_tokens=max_tokens,
+                n=n, presence_penalty=presence_penalty, response_format=response_format,
+                seed=seed, stop=stop, stream=stream, structured_provider=structured_provider,
+                temperature=temperature, tool_choice=tool_choice, tools=tools,
+                top_p=top_p, user=user, extra_body=extra_body, timeout=timeout,
+                fallback=fallback, fallback_models=fallback_models,
+                retry_policy=retry_policy, **kwargs
+            )
+    
+    @fast_trace
+    def _create_fast_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        **kwargs
+    ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
+        """快速路径创建聊天完成"""
+        return self._create_core(messages, model, **kwargs)
+    
+    @full_trace
+    def _create_full_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        **kwargs
+    ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
+        """完整路径创建聊天完成"""
+        return self._create_core(messages, model, **kwargs)
+    
+    def _create_core(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        frequency_penalty: Optional[float] = None,
+        function_call: Optional[Union[str, Dict[str, Any]]] = None,
+        functions: Optional[List[Dict[str, Any]]] = None,
+        logit_bias: Optional[Dict[str, float]] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+        n: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: Optional[bool] = None,
+        structured_provider: Optional[str] = None,
+        temperature: Optional[float] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        top_p: Optional[float] = None,
+        user: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        fallback: Optional[List[str]] = None,
+        fallback_models: Optional[List[str]] = None,
+        retry_policy: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
+        """核心创建逻辑"""
         # 验证消息
         self._validate_messages(messages)
         
@@ -217,9 +295,6 @@ class ChatCompletions:
                 )
                 raise e
     
-    @cost_tracking
-    @with_postgres_logging
-    @with_async_trace
     async def acreate(
         self,
         messages: List[Dict[str, Any]],
@@ -250,8 +325,86 @@ class ChatCompletions:
         fallback_models: Optional[List[str]] = None,
         retry_policy: Optional[Dict[str, Any]] = None,
         **kwargs
-    ) -> Union[ChatCompletion, AsyncGenerator[ChatCompletionChunk, None]]:
+    ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
         """创建聊天完成（异步版本）"""
+        # 检查是否使用快速路径
+        perf_config = get_performance_config()
+        if perf_config.should_use_fast_path(model, max_tokens):
+            return await self._acreate_fast_path(
+                messages=messages, model=model, frequency_penalty=frequency_penalty,
+                function_call=function_call, functions=functions, logit_bias=logit_bias,
+                logprobs=logprobs, top_logprobs=top_logprobs, max_tokens=max_tokens,
+                n=n, presence_penalty=presence_penalty, response_format=response_format,
+                seed=seed, stop=stop, stream=stream, structured_provider=structured_provider,
+                temperature=temperature, tool_choice=tool_choice, tools=tools,
+                top_p=top_p, user=user, extra_body=extra_body, timeout=timeout,
+                fallback=fallback, fallback_models=fallback_models,
+                retry_policy=retry_policy, **kwargs
+            )
+        else:
+            return await self._acreate_full_path(
+                messages=messages, model=model, frequency_penalty=frequency_penalty,
+                function_call=function_call, functions=functions, logit_bias=logit_bias,
+                logprobs=logprobs, top_logprobs=top_logprobs, max_tokens=max_tokens,
+                n=n, presence_penalty=presence_penalty, response_format=response_format,
+                seed=seed, stop=stop, stream=stream, structured_provider=structured_provider,
+                temperature=temperature, tool_choice=tool_choice, tools=tools,
+                top_p=top_p, user=user, extra_body=extra_body, timeout=timeout,
+                fallback=fallback, fallback_models=fallback_models,
+                retry_policy=retry_policy, **kwargs
+            )
+    
+    @fast_trace
+    async def _acreate_fast_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        **kwargs
+    ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
+        """快速路径异步创建聊天完成"""
+        return await self._acreate_core(messages, model, **kwargs)
+    
+    @full_trace
+    async def _acreate_full_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        **kwargs
+    ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
+        """完整路径异步创建聊天完成"""
+        return await self._acreate_core(messages, model, **kwargs)
+    
+    async def _acreate_core(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        frequency_penalty: Optional[float] = None,
+        function_call: Optional[Union[str, Dict[str, Any]]] = None,
+        functions: Optional[List[Dict[str, Any]]] = None,
+        logit_bias: Optional[Dict[str, float]] = None,
+        logprobs: Optional[bool] = None,
+        top_logprobs: Optional[int] = None,
+        max_tokens: Optional[int] = None,
+        n: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: Optional[bool] = None,
+        structured_provider: Optional[str] = None,
+        temperature: Optional[float] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        top_p: Optional[float] = None,
+        user: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        fallback: Optional[List[str]] = None,
+        fallback_models: Optional[List[str]] = None,
+        retry_policy: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
+        """异步核心创建逻辑"""
         # 验证消息
         self._validate_messages(messages)
         
@@ -486,6 +639,12 @@ class HarborAI:
         self.logger = get_logger("harborai.client")
         self.settings = get_settings()
         
+        # 初始化性能管理器（如果启用）
+        self._performance_manager = None
+        if self.settings.enable_performance_manager:
+            self._performance_manager = get_performance_manager()
+            # 异步初始化将在第一次使用时进行
+        
         # 存储客户端配置
         self.config = {
             "api_key": api_key,
@@ -547,6 +706,17 @@ class HarborAI:
     
     async def aclose(self) -> None:
         """异步关闭客户端"""
+        # 清理性能管理器
+        if self._performance_manager and self._performance_manager.is_initialized():
+            try:
+                await cleanup_performance_manager()
+            except Exception as e:
+                trace_id = get_or_create_trace_id()
+                self.logger.warning(
+                    f"Error cleaning up performance manager [trace_id={trace_id}] - "
+                    f"error: {str(e)}"
+                )
+        
         # 清理资源
         for plugin in self.client_manager.plugins.values():
             if hasattr(plugin, 'aclose'):
@@ -564,6 +734,24 @@ class HarborAI:
     
     def close(self) -> None:
         """同步关闭客户端"""
+        # 同步清理性能管理器（通过异步运行）
+        if self._performance_manager and self._performance_manager.is_initialized():
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，创建任务
+                    asyncio.create_task(cleanup_performance_manager())
+                else:
+                    # 如果事件循环未运行，直接运行
+                    loop.run_until_complete(cleanup_performance_manager())
+            except Exception as e:
+                trace_id = get_or_create_trace_id()
+                self.logger.warning(
+                    f"Error cleaning up performance manager [trace_id={trace_id}] - "
+                    f"error: {str(e)}"
+                )
+        
         # 清理资源
         for plugin in self.client_manager.plugins.values():
             if hasattr(plugin, 'close'):

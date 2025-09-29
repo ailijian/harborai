@@ -140,7 +140,7 @@ class TokenCounter:
         self.encoding_cache = {}
         self.model_encodings = {
             "deepseek-chat": "cl100k_base",
-            "deepseek-r1": "cl100k_base",
+            "deepseek-reasoner": "cl100k_base",
             "ernie-3.5-8k": "cl100k_base",
             "ernie-4.0-turbo-8k": "ernie",
             "doubao-1-5-pro-32k-character-250715": "doubao",

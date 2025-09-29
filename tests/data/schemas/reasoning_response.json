@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "推理模型响应结构",
-  "description": "用于验证推理模型（如deepseek-r1, ernie-x1-turbo-32k）复杂响应的JSON Schema",
+  "description": "用于验证推理模型（如deepseek-reasoner, ernie-x1-turbo-32k）复杂响应的JSON Schema",
   "type": "object",
   "properties": {
     "id": {
@@ -11,7 +11,10 @@
     "object": {
       "type": "string",
       "description": "对象类型",
-      "enum": ["chat.completion", "reasoning.completion"]
+      "enum": [
+        "chat.completion",
+        "reasoning.completion"
+      ]
     },
     "created": {
       "type": "integer",
@@ -38,7 +41,11 @@
             "properties": {
               "role": {
                 "type": "string",
-                "enum": ["assistant", "user", "system"]
+                "enum": [
+                  "assistant",
+                  "user",
+                  "system"
+                ]
               },
               "content": {
                 "type": "string"
@@ -53,11 +60,20 @@
                 "minimum": 0
               }
             },
-            "required": ["role", "content"]
+            "required": [
+              "role",
+              "content"
+            ]
           },
           "finish_reason": {
             "type": "string",
-            "enum": ["stop", "length", "content_filter", "tool_calls", "reasoning_complete"]
+            "enum": [
+              "stop",
+              "length",
+              "content_filter",
+              "tool_calls",
+              "reasoning_complete"
+            ]
           },
           "reasoning_metadata": {
             "type": "object",
@@ -82,7 +98,11 @@
             }
           }
         },
-        "required": ["index", "message", "finish_reason"]
+        "required": [
+          "index",
+          "message",
+          "finish_reason"
+        ]
       },
       "minItems": 1
     },
@@ -108,7 +128,11 @@
           "minimum": 0
         }
       },
-      "required": ["prompt_tokens", "completion_tokens", "total_tokens"]
+      "required": [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens"
+      ]
     },
     "reasoning_summary": {
       "type": "object",
@@ -125,10 +149,22 @@
         },
         "reasoning_complexity": {
           "type": "string",
-          "enum": ["simple", "moderate", "complex", "very_complex"]
+          "enum": [
+            "simple",
+            "moderate",
+            "complex",
+            "very_complex"
+          ]
         }
       }
     }
   },
-  "required": ["id", "object", "created", "model", "choices", "usage"]
+  "required": [
+    "id",
+    "object",
+    "created",
+    "model",
+    "choices",
+    "usage"
+  ]
 }

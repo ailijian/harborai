@@ -75,7 +75,7 @@ class TestMultiVendorIntegration:
                 name="DeepSeek",
                 api_key="sk-test-deepseek",
                 base_url="https://api.deepseek.com",
-                models=["deepseek-chat", "deepseek-r1"],
+                models=["deepseek-chat", "deepseek-reasoner"],
                 max_tokens=4096,
                 supports_streaming=True,
                 supports_function_calling=True,
@@ -585,7 +585,7 @@ class TestMultiVendorIntegration:
             
             client = mock_deepseek(api_key="sk-test-deepseek")
             response = client.chat.completions.create(
-                model="deepseek-r1",
+                model="deepseek-reasoner",
                 messages=[{"role": "user", "content": "写一个Hello World程序"}],
                 # DeepSeek 特定参数
                 code_mode=True,

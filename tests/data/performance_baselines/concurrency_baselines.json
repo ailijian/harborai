@@ -83,7 +83,7 @@
             }
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "concurrent_levels": {
             "1_user": {
               "avg_response_time_ms": 2850,

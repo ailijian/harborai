@@ -631,7 +631,7 @@ class TestRateLimitRobustness:
         for _ in range(self.client.rate_limit_max + 1):
             try:
                 self.client.chat_completion_with_errors(
-                    model="deepseek-r1",
+                    model="deepseek-reasoner",
                     messages=self.test_messages
                 )
             except Exception:
@@ -845,7 +845,7 @@ class TestDataCorruptionRobustness:
         
         original_record = {
             "id": 1,
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "tokens": 100,
             "cost": 0.002
         }

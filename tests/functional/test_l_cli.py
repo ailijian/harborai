@@ -110,7 +110,7 @@ except ImportError:
         # 模拟模型列表
         models = [
             {'name': 'deepseek-chat', 'provider': 'deepseek', 'enabled': True, 'max_tokens': 8192},
-            {'name': 'deepseek-r1', 'provider': 'deepseek', 'enabled': True, 'max_tokens': 8192},
+            {'name': 'deepseek-reasoner', 'provider': 'deepseek', 'enabled': True, 'max_tokens': 8192},
             {'name': 'ernie-4.0-8k', 'provider': 'ernie', 'enabled': True, 'max_tokens': 8192},
             {'name': 'doubao-pro-32k', 'provider': 'doubao', 'enabled': True, 'max_tokens': 32768}
         ]
@@ -268,7 +268,7 @@ except ImportError:
             },
             'models': {
                 'deepseek-chat': {'requests': 500, 'tokens': 50000, 'cost': 10.00},
-                'deepseek-r1': {'requests': 300, 'tokens': 30000, 'cost': 6.00},
+                'deepseek-reasoner': {'requests': 300, 'tokens': 30000, 'cost': 6.00},
                 'ernie-4.0-8k': {'requests': 300, 'tokens': 30000, 'cost': 6.00},
                 'doubao-pro-32k': {'requests': 150, 'tokens': 15000, 'cost': 3.50}
             }
@@ -473,7 +473,7 @@ class TestCLIBasicCommands:
         
         assert exit_code == 0
         assert "deepseek-chat" in output
-        assert "deepseek-r1" in output
+        assert "deepseek-reasoner" in output
         # ernie-4.0-8k应该被过滤掉（不是deepseek提供商）
         assert "ernie-4.0-8k" not in output
     

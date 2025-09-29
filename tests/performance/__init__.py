@@ -93,8 +93,8 @@ PERFORMANCE_CONFIG = {
 # 支持的厂商和模型配置
 SUPPORTED_VENDORS = {
     "deepseek": {
-        "models": ["deepseek-chat", "deepseek-r1"],
-        "reasoning_models": ["deepseek-r1"]
+        "models": ["deepseek-chat", "deepseek-reasoner"],
+        "reasoning_models": ["deepseek-reasoner"]
     },
     "ernie": {
         "models": ["ernie-3.5-8k", "ernie-4.0-turbo-8k", "ernie-x1-turbo-32k"],

@@ -122,7 +122,7 @@ LOAD_TEST_CONFIG = {
     
     # 支持的厂商和模型
     'supported_vendors': {
-        'deepseek': ['deepseek-chat', 'deepseek-r1'],
+        'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
         'baidu': ['ernie-3.5-8k', 'ernie-4.0-turbo-8k', 'ernie-x1-turbo-32k'],
         'bytedance': ['doubao-1-5-pro-32k-character-250715', 'doubao-seed-1-6-250615']
     },

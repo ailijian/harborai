@@ -25,7 +25,7 @@
 
 2. **灵活的调用模式**
 
-   * 支持 **推理模型（例如DeepSeek-R1）与非推理模型（例如GPT-4）**。
+   * 支持 **推理模型（例如deepseek-reasoner）与非推理模型（例如GPT-4）**。
    * 同时支持 **同步 / 异步**、**流式 / 非流式**调用。
    * **自动兼容模型内置思考模式**：SDK 会动态检测响应中是否包含思考过程（reasoning_content），无需预先定义模型类型，实现真正的自动适配。
 
@@ -312,7 +312,7 @@ try:
 
     # 5) 推理模型调用
     thinking_resp = client.chat.completions.create(
-        model="deepseek-r1",
+        model="deepseek-reasoner",
         messages=[{"role": "user", "content": "分析量子计算的优势"}]
     )
     print(thinking_resp.choices[0].message.content)  # 最终答案
@@ -321,7 +321,7 @@ try:
 
     # 6) 推理模型的流式调用
     for chunk in client.chat.completions.create(
-        model="deepseek-r1",
+        model="deepseek-reasoner",
         messages=[{"role": "user", "content": "解释相对论"}],
         stream=True
     ):

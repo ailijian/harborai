@@ -768,7 +768,7 @@ class TestEnduranceLoad:
         专门检测长时间运行中的内存泄漏问题
         """
         vendor = 'deepseek'
-        model = 'deepseek-r1'
+        model = 'deepseek-reasoner'
         
         # 使用高内存泄漏率的API进行测试
         original_api = self.endurance_runner.api

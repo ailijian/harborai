@@ -12,17 +12,38 @@
             {
               "vendor": "deepseek",
               "model": "deepseek-chat",
-              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+              "expected_response_fields": [
+                "id",
+                "object",
+                "created",
+                "model",
+                "choices",
+                "usage"
+              ]
             },
             {
               "vendor": "ernie",
               "model": "ernie-4.0-8k",
-              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+              "expected_response_fields": [
+                "id",
+                "object",
+                "created",
+                "model",
+                "choices",
+                "usage"
+              ]
             },
             {
               "vendor": "doubao",
               "model": "doubao-pro-4k",
-              "expected_response_fields": ["id", "object", "created", "model", "choices", "usage"]
+              "expected_response_fields": [
+                "id",
+                "object",
+                "created",
+                "model",
+                "choices",
+                "usage"
+              ]
             }
           ],
           "validation_rules": {
@@ -41,18 +62,30 @@
           "reasoning_models": [
             {
               "vendor": "deepseek",
-              "model": "deepseek-r1",
-              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+              "model": "deepseek-reasoner",
+              "expected_reasoning_fields": [
+                "reasoning_content",
+                "reasoning_tokens",
+                "reasoning_metadata"
+              ]
             },
             {
               "vendor": "ernie",
               "model": "ernie-x1-turbo-32k",
-              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+              "expected_reasoning_fields": [
+                "reasoning_content",
+                "reasoning_tokens",
+                "reasoning_metadata"
+              ]
             },
             {
               "vendor": "doubao",
               "model": "doubao-seed-1-6-250615",
-              "expected_reasoning_fields": ["reasoning_content", "reasoning_tokens", "reasoning_metadata"]
+              "expected_reasoning_fields": [
+                "reasoning_content",
+                "reasoning_tokens",
+                "reasoning_metadata"
+              ]
             }
           ],
           "comparison_metrics": {

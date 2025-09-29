@@ -832,7 +832,7 @@ class TestCapacityLoad:
         专门测试系统瓶颈的识别和分析
         """
         vendor = 'deepseek'
-        model = 'deepseek-r1'
+        model = 'deepseek-reasoner'
         
         # 配置有明显CPU瓶颈的API
         original_api = self.capacity_runner.api

@@ -774,7 +774,7 @@ class TestFallbackDecision:
         
         # 服务成本配置
         cost_services = [
-            ServiceEndpoint("premium", "https://api.premium.com", priority=1, model_type="deepseek-r1", cost_per_token=0.06),
+            ServiceEndpoint("premium", "https://api.premium.com", priority=1, model_type="deepseek-reasoner", cost_per_token=0.06),
             ServiceEndpoint("standard", "https://api.standard.com", priority=2, model_type="ernie-4.0-turbo-8k", cost_per_token=0.002),
             ServiceEndpoint("economy", "https://api.economy.com", priority=3, model_type="doubao-seed-1-6-250615", cost_per_token=0.0015),
             ServiceEndpoint("budget", "https://api.budget.com", priority=4, model_type="llama-2", cost_per_token=0.0005)

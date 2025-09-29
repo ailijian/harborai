@@ -12,7 +12,7 @@
 
 * **多厂商支持**：支持 DeepSeek、ERNIE、Doubao 等多厂商 API 测试
 
-* **推理模型支持**：专门测试推理模型（deepseek-r1、ernie-x1-turbo-32k、doubao-seed-1-6-250615）的特殊功能
+* **推理模型支持**：专门测试推理模型（deepseek-reasoner、ernie-x1-turbo-32k、doubao-seed-1-6-250615）的特殊功能
 
 * **环境适配**：完全适配 Windows 11 + PowerShell 环境
 
@@ -409,7 +409,7 @@ def mock_reasoning_response():
             completion_tokens=50,
             total_tokens=70
         ),
-        model="deepseek-r1",
+        model="deepseek-reasoner",
         id="chatcmpl-test-reasoning",
         object="chat.completion",
         created=1234567890
@@ -431,7 +431,7 @@ def mock_reasoning_stream_chunks():
             id="chatcmpl-test-stream",
             object="chat.completion.chunk",
             created=1234567890,
-            model="deepseek-r1"
+            model="deepseek-reasoner"
         ),
         # 答案片段
         Mock(
@@ -445,7 +445,7 @@ def mock_reasoning_stream_chunks():
             id="chatcmpl-test-stream",
             object="chat.completion.chunk",
             created=1234567890,
-            model="deepseek-r1"
+            model="deepseek-reasoner"
         ),
         # 结束片段
         Mock(
@@ -457,13 +457,13 @@ def mock_reasoning_stream_chunks():
             id="chatcmpl-test-stream",
             object="chat.completion.chunk",
             created=1234567890,
-            model="deepseek-r1"
+            model="deepseek-reasoner"
         )
     ]
 
 @pytest.fixture(params=[
     {'vendor': 'deepseek', 'model': 'deepseek-chat', 'is_reasoning': False},
-    {'vendor': 'deepseek', 'model': 'deepseek-r1', 'is_reasoning': True},
+    {'vendor': 'deepseek', 'model': 'deepseek-reasoner', 'is_reasoning': True},
     {'vendor': 'ernie', 'model': 'ernie-3.5-8k', 'is_reasoning': False},
     {'vendor': 'ernie', 'model': 'ernie-4.0-turbo-8k', 'is_reasoning': False},
     {'vendor': 'ernie', 'model': 'ernie-x1-turbo-32k', 'is_reasoning': True},
@@ -584,7 +584,7 @@ def performance_test_models():
     """性能测试模型配置"""
     return [
         {'vendor': 'deepseek', 'model': 'deepseek-chat', 'expected_latency': 1.5, 'is_reasoning': False},
-        {'vendor': 'deepseek', 'model': 'deepseek-r1', 'expected_latency': 3.0, 'is_reasoning': True},
+        {'vendor': 'deepseek', 'model': 'deepseek-reasoner', 'expected_latency': 3.0, 'is_reasoning': True},
         {'vendor': 'ernie', 'model': 'ernie-3.5-8k', 'expected_latency': 2.0, 'is_reasoning': False},
         {'vendor': 'ernie', 'model': 'ernie-4.0-turbo-8k', 'expected_latency': 1.8, 'is_reasoning': False},
         {'vendor': 'ernie', 'model': 'ernie-x1-turbo-32k', 'expected_latency': 3.5, 'is_reasoning': True},
@@ -596,7 +596,7 @@ def performance_test_models():
 def reasoning_models():
     """推理模型配置"""
     return [
-        {'vendor': 'deepseek', 'model': 'deepseek-r1', 'supports_reasoning': True},
+        {'vendor': 'deepseek', 'model': 'deepseek-reasoner', 'supports_reasoning': True},
         {'vendor': 'ernie', 'model': 'ernie-x1-turbo-32k', 'supports_reasoning': True},
         {'vendor': 'doubao', 'model': 'doubao-seed-1-6-250615', 'supports_reasoning': True}
     ]
@@ -1425,7 +1425,7 @@ class TestReasoningModels:
     """推理模型测试类"""
     
     @pytest.mark.parametrize("model_config", [
-        {"model": "deepseek-r1", "vendor": "deepseek"},
+        {"model": "deepseek-reasoner", "vendor": "deepseek"},
         {"model": "ernie-x1-turbo-32k", "vendor": "ernie"},
         {"model": "doubao-seed-1-6-250615", "vendor": "doubao"}
     ])
@@ -1468,7 +1468,7 @@ class TestReasoningModels:
         assert response.usage.completion_tokens > 0
     
     @pytest.mark.parametrize("model_config", [
-        {"model": "deepseek-r1", "vendor": "deepseek"},
+        {"model": "deepseek-reasoner", "vendor": "deepseek"},
         {"model": "ernie-x1-turbo-32k", "vendor": "ernie"},
         {"model": "doubao-seed-1-6-250615", "vendor": "doubao"}
     ])
@@ -1524,7 +1524,7 @@ class TestReasoningModels:
             print(f"推理流长度: {len(reasoning_chunks)} chunks")
     
     @pytest.mark.parametrize("model_config", [
-        {"model": "deepseek-r1", "vendor": "deepseek"},
+        {"model": "deepseek-reasoner", "vendor": "deepseek"},
         {"model": "ernie-x1-turbo-32k", "vendor": "ernie"},
         {"model": "doubao-seed-1-6-250615", "vendor": "doubao"}
     ])
@@ -3919,7 +3919,7 @@ class TestFallbackStrategy:
             
             try:
                 response = mock_harborai_client.chat.completions.create(
-                    model="deepseek-r1",
+                    model="deepseek-reasoner",
                     messages=[{"role": "user", "content": "Test"}],
                     timeout=1.0
                 )
@@ -3955,7 +3955,7 @@ class TestFallbackStrategy:
             for i in range(3):
                 try:
                     mock_harborai_client.chat.completions.create(
-                        model="deepseek-r1",
+                        model="deepseek-reasoner",
                         messages=[{"role": "user", "content": f"Test {i}"}]
                     )
                 except RateLimitError:
@@ -3963,9 +3963,9 @@ class TestFallbackStrategy:
         
         # 验证降级顺序
         assert len(fallback_sequence) == 3
-        assert fallback_sequence[0] == ("deepseek-r1", "deepseek-chat")
-        assert fallback_sequence[1] == ("deepseek-r1", "deepseek-chat")
-        assert fallback_sequence[2] == ("deepseek-r1", "deepseek-chat")
+        assert fallback_sequence[0] == ("deepseek-reasoner", "deepseek-chat")
+        assert fallback_sequence[1] == ("deepseek-reasoner", "deepseek-chat")
+        assert fallback_sequence[2] == ("deepseek-reasoner", "deepseek-chat")
     
     def test_quota_exceeded_fallback(self, mock_harborai_client):
         """测试配额不足触发降级"""
@@ -3982,7 +3982,7 @@ class TestFallbackStrategy:
             
             try:
                 response = mock_harborai_client.chat.completions.create(
-                    model="deepseek-r1",
+                    model="deepseek-reasoner",
                     messages=[{"role": "user", "content": "Test"}]
                 )
             except QuotaExceededError:
@@ -4012,7 +4012,7 @@ class TestFallbackStrategy:
             
             with pytest.raises(AuthenticationError):
                 mock_harborai_client.chat.completions.create(
-                    model="deepseek-r1",
+                    model="deepseek-reasoner",
                     messages=[{"role": "user", "content": "Test"}]
                 )
         
@@ -4037,7 +4037,7 @@ class TestFallbackStrategy:
             mock_request.side_effect = [TimeoutError("Timeout"), MagicMock()]  # 第一次超时，第二次成功
             
             response = mock_harborai_client.chat.completions.create(
-                model="deepseek-r1",
+                model="deepseek-reasoner",
                 messages=[{"role": "user", "content": "Test"}],
                 fallback_models=["deepseek-chat"]
             )
@@ -4075,7 +4075,7 @@ class TestCostTracking:
         pricing_config = {
             'deepseek': {
                 'deepseek-chat': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')},
-                'deepseek-r1': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')}
+                'deepseek-reasoner': {'input': Decimal('0.0014'), 'output': Decimal('0.0028')}
             },
             'doubao': {
                 'doubao-1-5-pro-32k-character-250715': {'input': Decimal('0.0008'), 'output': Decimal('0.002')},
@@ -4193,14 +4193,14 @@ class TestCostTracking:
         
         # 执行API调用
         response = mock_harborai_client.chat.completions.create(
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             messages=[{"role": "user", "content": "Sensitive business data: API key abc123"}]
         )
         
         # 记录成本并获取脱敏数据
         cost_tracker.track_request(
             vendor="deepseek",
-            model="deepseek-r1",
+            model="deepseek-reasoner",
             input_tokens=50,
             output_tokens=30,
             request_content="Sensitive business data: API key abc123"
@@ -4256,7 +4256,7 @@ class TestCostTracking:
         
         # 模拟不同厂商的API调用
         vendor_calls = [
-            ('deepseek', 'deepseek-r1', 100, 50),
+            ('deepseek', 'deepseek-reasoner', 100, 50),
             ('deepseek', 'deepseek-chat', 200, 100),
             ('ernie', 'ernie-3.5-8k', 300, 150),
             ('doubao', 'doubao-1-5-pro-32k-character-250715', 150, 75)

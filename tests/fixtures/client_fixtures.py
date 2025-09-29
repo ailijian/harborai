@@ -82,7 +82,7 @@ def reasoning_model_config(base_client_config) -> Dict[str, Any]:
     config = base_client_config.copy()
     config.update({
         'provider': 'deepseek',
-        'model': 'deepseek-r1',
+        'model': 'deepseek-reasoner',
         'enable_reasoning': True,
         'reasoning_effort': 'medium'
     })
@@ -139,7 +139,7 @@ def multi_vendor_client(request, base_client_config):
 
 # 推理模型夹具
 @pytest.fixture(params=[
-    "deepseek-r1",
+    "deepseek-reasoner",
     "ernie-x1-turbo-32k"
 ])
 def reasoning_models(request):
@@ -297,7 +297,7 @@ def reasoning_client(reasoning_model_config) -> Mock:
         'id': 'reasoning-completion-id',
         'object': 'chat.completion',
         'created': 1234567890,
-        'model': 'deepseek-r1',
+        'model': 'deepseek-reasoner',
         'choices': [{
             'index': 0,
             'message': {

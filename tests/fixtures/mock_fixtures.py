@@ -372,7 +372,7 @@ def mock_reasoning_response():
         "id": "chatcmpl-reasoning-123",
         "object": "chat.completion",
         "created": int(time.time()),
-        "model": "deepseek-r1",
+        "model": "deepseek-reasoner",
         "choices": [{
             "index": 0,
             "message": {
@@ -400,7 +400,7 @@ def mock_reasoning_stream_chunks():
             "id": "chatcmpl-reasoning-stream-123",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "choices": [{
                 "index": 0,
                 "delta": {
@@ -415,7 +415,7 @@ def mock_reasoning_stream_chunks():
             "id": "chatcmpl-reasoning-stream-123",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "choices": [{
                 "index": 0,
                 "delta": {
@@ -429,7 +429,7 @@ def mock_reasoning_stream_chunks():
             "id": "chatcmpl-reasoning-stream-123",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "choices": [{
                 "index": 0,
                 "delta": {
@@ -443,7 +443,7 @@ def mock_reasoning_stream_chunks():
             "id": "chatcmpl-reasoning-stream-123",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "choices": [{
                 "index": 0,
                 "delta": {
@@ -457,7 +457,7 @@ def mock_reasoning_stream_chunks():
             "id": "chatcmpl-reasoning-stream-123",
             "object": "chat.completion.chunk",
             "created": int(time.time()),
-            "model": "deepseek-r1",
+            "model": "deepseek-reasoner",
             "choices": [{
                 "index": 0,
                 "delta": {},

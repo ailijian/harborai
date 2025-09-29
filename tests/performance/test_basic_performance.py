@@ -10,7 +10,7 @@
 - 错误率统计
 
 测试覆盖：
-- DeepSeek API (deepseek-chat, deepseek-r1)
+- DeepSeek API (deepseek-chat, deepseek-reasoner)
 - ERNIE API (ernie-3.5-8k, ernie-4.0-turbo-8k, ernie-x1-turbo-32k)
 - Doubao API (doubao-1-5-pro-32k-character-250715, doubao-seed-1-6-250615)
 """
@@ -132,7 +132,7 @@ class TestBasicPerformance:
     
     @pytest.mark.parametrize("vendor,model", [
         ("deepseek", "deepseek-chat"),
-        ("deepseek", "deepseek-r1"),
+        ("deepseek", "deepseek-reasoner"),
         ("ernie", "ernie-3.5-8k"),
         ("ernie", "ernie-4.0-turbo-8k"),
         ("ernie", "ernie-x1-turbo-32k"),

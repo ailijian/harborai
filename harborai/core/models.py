@@ -108,7 +108,7 @@ class ReasoningModel:
 # 预定义的模型能力配置
 MODEL_CAPABILITIES_CONFIG = {
     # DeepSeek 推理模型
-    "deepseek-r1": ModelCapabilities(
+    "deepseek-reasoner": ModelCapabilities(
         supports_reasoning=True,
         supports_streaming=False,
         supports_temperature=False,
@@ -206,7 +206,7 @@ MODEL_CAPABILITIES_CONFIG = {
 
 # 推理模型名称模式
 REASONING_MODEL_PATTERNS = [
-    r".*-r\d+.*",        # 如：deepseek-r1,
+    r".*-r\d+.*",        # 如：deepseek-reasoner,
     r".*-reasoner.*",    # 如：deepseek-reasoner
     r".*reasoning.*",    # 如：gpt-4-reasoning
     r".*think.*",        # 如：claude-think

@@ -114,7 +114,7 @@ BENCHMARK_CONFIG = {
         'openai': ['gpt-3.5-turbo', 'gpt-4', 'gpt-4-turbo'],
         'anthropic': ['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'],
         'google': ['gemini-pro', 'gemini-pro-vision'],
-        'deepseek': ['deepseek-chat', 'deepseek-r1'],
+        'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
         'ernie': ['ernie-bot', 'ernie-bot-turbo'],
         'doubao': ['doubao-pro', 'doubao-lite'],
         'local': ['llama2-7b', 'llama2-13b']

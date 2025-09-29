@@ -46,7 +46,7 @@
             }
           }
         },
-        "deepseek-r1": {
+        "deepseek-reasoner": {
           "response_latency_ms": {
             "p50": 8500,
             "p75": 12000,

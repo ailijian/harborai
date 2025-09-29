@@ -173,6 +173,78 @@ HarborAI 支持通过环境变量进行配置。主要配置项包括：
 
 完整的配置选项请参考 [.env.example](.env.example) 文件。
 
+### 性能模式配置
+
+HarborAI 提供三种性能模式，以满足不同场景的需求：
+
+#### 🚀 FAST 模式（快速模式）
+- **特点**: 最小功能，最快速度
+- **性能提升**: 相比完整模式可提升 2000-3000ms
+- **适用场景**: 高并发、低延迟要求的生产环境
+- **功能**: 禁用成本追踪、详细日志等非关键功能
+
+#### ⚖️ BALANCED 模式（平衡模式）
+- **特点**: 平衡功能和性能
+- **适用场景**: 大多数生产环境的默认选择
+- **功能**: 保留核心监控功能，优化性能表现
+
+#### 🔧 FULL 模式（完整模式）
+- **特点**: 完整功能，包含所有监控和追踪
+- **适用场景**: 开发环境、调试场景、需要完整监控的环境
+- **功能**: 启用所有功能，包括详细日志、成本追踪、性能分析等
+
+#### 设置性能模式
+
+**方法1: 环境变量设置**
+```bash
+# 在 .env 文件中设置
+HARBORAI_PERFORMANCE_MODE=full  # 可选值: fast, balanced, full
+```
+
+**方法2: 代码中动态设置**
+```python
+from harborai import HarborAI
+from harborai.config import get_settings
+
+# 获取配置实例
+settings = get_settings()
+
+# 设置性能模式
+settings.set_performance_mode("full")
+
+# 初始化客户端
+client = HarborAI(performance_mode="full")
+```
+
+**方法3: 初始化时指定**
+```python
+from harborai import HarborAI
+
+# 直接在初始化时指定性能模式
+client = HarborAI(
+    api_key="your-api-key",
+    performance_mode="fast"  # 使用快速模式
+)
+
+# 异步客户端同样支持
+async_client = HarborAI(
+    api_key="your-api-key",
+    performance_mode="balanced"
+)
+```
+
+#### 性能模式对比
+
+| 功能 | FAST | BALANCED | FULL |
+|------|------|----------|------|
+| 成本追踪 | ❌ | ✅ | ✅ |
+| 详细日志 | ❌ | ❌ | ✅ |
+| 性能监控 | ❌ | ✅ | ✅ |
+| 分布式追踪 | ❌ | ✅ | ✅ |
+| 缓存优化 | ✅ | ✅ | ✅ |
+| 快速路径 | ✅ | ✅ | ✅ |
+| 响应速度 | 🚀🚀🚀 | 🚀🚀 | 🚀 |
+
 ### 配置文件
 
 你也可以使用 YAML 或 JSON 配置文件：
