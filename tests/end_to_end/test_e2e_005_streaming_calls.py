@@ -33,6 +33,7 @@ sys.path.insert(0, str(project_root))
 # 导入HarborAI客户端
 try:
     from harborai import HarborAI
+    from harborai.core.models import is_reasoning_model, get_model_capabilities
 except ImportError as e:
     print(f"❌ 导入HarborAI失败: {e}")
     print("请确保HarborAI包已正确安装")
@@ -192,7 +193,9 @@ class StreamingTestCase:
             "first_chunk_time": None,
             "total_time": None,
             "error": None,
-            "chunk_structure_valid": True
+            "chunk_structure_valid": True,
+            "is_reasoning_model": is_reasoning_model(model),
+            "test_type": "streaming"  # 所有模型都使用流式输出测试，包括推理模型
         }
         
         try:
@@ -206,16 +209,31 @@ class StreamingTestCase:
                 }
             ]
             
-            # 发起流式调用 - 使用同步方式
-            stream = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=True,
-                max_tokens=200,
-                temperature=0.7
-            )
+            # 所有模型都使用流式调用，包括推理模型
+            if is_reasoning_model(model):
+                print(f"🧠 检测到推理模型 {model}，使用流式调用测试推理过程和结果输出")
+                # 推理模型使用流式调用，不包含temperature参数（避免警告）
+                stream = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    max_tokens=200
+                )
+            else:
+                print(f"💬 常规模型 {model}，使用流式调用")
+                # 常规模型使用流式调用，包含temperature参数
+                stream = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    max_tokens=200,
+                    temperature=0.7
+                )
             
-            # 处理流式响应
+            # 处理流式响应（统一处理逻辑）
+            reasoning_content_chunks = []
+            content_chunks = []
+            
             for chunk in stream:
                 if test_result["first_chunk_time"] is None:
                     test_result["first_chunk_time"] = time.time() - start_time
@@ -244,6 +262,7 @@ class StreamingTestCase:
                             delta = choice["delta"]
                         
                         if delta:
+                            # 提取常规内容
                             content = None
                             if hasattr(delta, 'content'):
                                 content = delta.content
@@ -252,9 +271,35 @@ class StreamingTestCase:
                             
                             if content:
                                 test_result["total_content"] += content
+                                content_chunks.append(content)
                                 print(f"📝 接收内容片段: {content[:50]}{'...' if len(content) > 50 else ''}")
+                            
+                            # 对于推理模型，提取推理内容
+                            if is_reasoning_model(model):
+                                reasoning_content = None
+                                if hasattr(delta, 'reasoning_content'):
+                                    reasoning_content = delta.reasoning_content
+                                elif isinstance(delta, dict) and "reasoning_content" in delta:
+                                    reasoning_content = delta["reasoning_content"]
+                                
+                                if reasoning_content:
+                                    reasoning_content_chunks.append(reasoning_content)
+                                    print(f"🧠 接收推理片段: {reasoning_content[:50]}{'...' if len(reasoning_content) > 50 else ''}")
+                                    
                 except Exception as e:
                     print(f"⚠️  内容提取出错: {e}")
+            
+            # 记录推理模型的推理内容统计
+            if is_reasoning_model(model) and reasoning_content_chunks:
+                total_reasoning_content = "".join(reasoning_content_chunks)
+                test_result["total_reasoning_content"] = total_reasoning_content
+                test_result["reasoning_chunks_received"] = len(reasoning_content_chunks)
+                print(f"🧠 推理内容总长度: {len(total_reasoning_content)}字符，分{len(reasoning_content_chunks)}个chunk")
+            
+            # 记录内容统计
+            if content_chunks:
+                test_result["content_chunks_received"] = len(content_chunks)
+                print(f"📝 内容总长度: {len(test_result['total_content'])}字符，分{len(content_chunks)}个chunk")
             
             test_result["total_time"] = time.time() - start_time
             test_result["success"] = True
@@ -265,6 +310,12 @@ class StreamingTestCase:
             print(f"   - 总耗时: {test_result['total_time']:.3f}s")
             print(f"   - 内容长度: {len(test_result['total_content'])}字符")
             print(f"   - Chunk结构有效: {test_result['chunk_structure_valid']}")
+            
+            # 对于推理模型，显示推理内容统计
+            if is_reasoning_model(model) and "total_reasoning_content" in test_result:
+                print(f"   - 推理内容长度: {len(test_result['total_reasoning_content'])}字符")
+                print(f"   - 推理chunk数量: {test_result.get('reasoning_chunks_received', 0)}个")
+                print(f"   - 内容chunk数量: {test_result.get('content_chunks_received', 0)}个")
             
         except Exception as e:
             test_result["error"] = str(e)
@@ -370,6 +421,46 @@ def main():
         print(f"\n❌ 测试执行出错: {e}")
         import traceback
         traceback.print_exc()
+
+def test_streaming_calls():
+    """pytest测试函数 - 流式调用测试"""
+    # 配置日志
+    logging.basicConfig(level=logging.DEBUG)
+    
+    print("🎯 HarborAI E2E-005 流式调用测试")
+    print("测试目标: 验证流式调用功能与OpenAI兼容性")
+    
+    # 创建测试实例
+    test_case = StreamingTestCase()
+    
+    # 设置客户端
+    assert test_case.setup_client(), "客户端设置失败"
+    
+    # 运行所有测试
+    test_case.run_all_tests()
+    
+    # 生成测试报告
+    test_case.generate_test_report()
+    
+    # 保存测试结果到JSON文件
+    results_file = project_root / "tests" / "end_to_end" / "e2e_005_results.json"
+    with open(results_file, "w", encoding="utf-8") as f:
+        json.dump({
+            "test_name": "E2E-005 流式调用测试",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "results": test_case.test_results
+        }, f, ensure_ascii=False, indent=2)
+    
+    print(f"\n💾 测试结果已保存到: {results_file}")
+    
+    # 验证测试结果
+    successful_tests = [r for r in test_case.test_results if r["success"]]
+    failed_tests = [r for r in test_case.test_results if not r["success"]]
+    
+    # 确保至少有一些测试成功
+    assert len(successful_tests) > 0, f"所有测试都失败了: {[r['error'] for r in failed_tests]}"
+    
+    print(f"\n✅ 测试完成: {len(successful_tests)}/{len(test_case.test_results)} 成功")
 
 if __name__ == "__main__":
     # 运行同步测试

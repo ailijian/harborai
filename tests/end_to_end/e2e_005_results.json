@@ -1,0 +1,103 @@
+{
+  "test_name": "E2E-005 流式调用测试",
+  "timestamp": "2025-09-30 01:01:37",
+  "results": [
+    {
+      "model": "deepseek-chat",
+      "success": true,
+      "chunks_received": 88,
+      "total_content": "好的，这是一个关于人工智能发展历程的简要介绍：\n\n人工智能诞生于20世纪50年代，经历了从早期的符号推理到专家系统的初步繁荣。随后因算力限制陷入“寒冬”。90年代后，随着统计方法和机器学习兴起，AI复苏。21世纪以来，在大数据、算力提升和深度学习算法的推动下，人工智能在图像识别、自然语言处理等领域取得突破性进展，进入蓬勃发展期。",
+      "first_chunk_time": 6.1698338985443115,
+      "total_time": 6.177668571472168,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": false,
+      "test_type": "streaming",
+      "content_chunks_received": 86
+    },
+    {
+      "model": "deepseek-reasoner",
+      "success": true,
+      "chunks_received": 201,
+      "total_content": "好的，这是人工智能的简要发展历程：\n\n人工智能萌芽于1950年代。期间经历符号主义与专家系统的兴衰，也曾陷入“寒冬”。21世纪初，随着算力提升与大数据的涌现，以深度学习为代表的算法取得突破，人工智能迎来复兴。如今，生成式AI和大语言模型正推动",
+      "first_chunk_time": 9.53834056854248,
+      "total_time": 9.554010391235352,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": true,
+      "test_type": "streaming",
+      "total_reasoning_content": "嗯，用户想要一个大约100字的人工智能发展历程简介。这个需求很明确，需要简洁但覆盖关键节点。\n\n想到可以从时间线切入，选取最具代表性的几个阶段：起源符号主义、专家系统瓶颈、算力突破带来的深度学习复兴、以及当前的大模型时代。\n\n需要注意控制字数，避免技术细节，用“神经网络”“大语言模型”等大众能理解的术语。结尾可以稍微提一下未来方向，让内容更完整。\n\n可以用“萌芽于1950年代”开头，中间用“经历”“迎来”“进入”等动词串联发展脉络，最后用“持续拓展边界”收尾，这样应该能符合要求。",
+      "reasoning_chunks_received": 136,
+      "content_chunks_received": 63
+    },
+    {
+      "model": "doubao-1-5-pro-32k-character-250715",
+      "success": true,
+      "chunks_received": 63,
+      "total_content": "人工智能自20世纪50年代诞生，经历了多次起伏。早期发展迅速，后因技术瓶颈陷入低谷。随着大数据、算法和算力的提升，21世纪以来迎来爆发式增长，在语音识别、图像识别等领域取得重大突破，广泛应用于各行业。",
+      "first_chunk_time": 1.6841144561767578,
+      "total_time": 1.6899471282958984,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": false,
+      "test_type": "streaming",
+      "content_chunks_received": 62
+    },
+    {
+      "model": "doubao-seed-1-6-250615",
+      "success": true,
+      "chunks_received": 435,
+      "total_content": "人工智能起源于1956年达特茅斯会议，首次提出“人工智能”术语。早期以符号主义为主，如图灵测试、ELIZA对话程序。70-80年代因技术瓶颈经历两次“AI寒冬”。90年代后机器学习兴起，2006年深度学习（如Hinton深度置信网络）复兴。2012年AlexNet推动深度学习爆发，2016年AlphaGo标志AI突破复杂领域。如今进入大模型时代，多模态融合成主流方向。",
+      "first_chunk_time": 10.2333402633667,
+      "total_time": 10.267596960067749,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": true,
+      "test_type": "streaming",
+      "total_reasoning_content": "\n用户让我简要介绍人工智能的发展历程，大约100字。首先，我需要确定关键的时间节点和里程碑事件。\n\n首先，起源应该是1956年达特茅斯会议，这是AI的正式诞生，提出“人工智能”术语。然后早期发展可能有符号主义，比如图灵测试，还有像ELIZA这样的早期程序。\n\n接下来是70-80年代的两次AI寒冬，因为技术瓶颈和期望过高导致资金减少。然后90年代到21世纪初，机器学习兴起，比如支持向量机，2006年深度学习复兴，Hinton的深度置信网络很重要。\n\n2012年AlexNet在ImageNet大赛成功，标志深度学习爆发，之后AlphaGo击败李世石（2016年）是重要里程碑，展示AI在复杂领域的突破。现在应该是大模型时代，比如GPT系列，多模态融合等。\n\n需要精简，100字左右，所以要挑最重要的时间点和事件，按时间顺序串联，语言简洁。注意避免细节过多，抓住起源、寒冬、复兴、爆发、现状几个阶段。\n\n检查字数，确保大约100字。可能的结构：1956年达特茅斯会议诞生，早期符号主义，两次寒冬，90年代机器学习，2006深度学习复兴，2012AlexNet，2016AlphaGo，现在大模型。这样应该差不多，调整措辞让流畅。",
+      "reasoning_chunks_received": 320,
+      "content_chunks_received": 114
+    },
+    {
+      "model": "ernie-3.5-8k",
+      "success": true,
+      "chunks_received": 63,
+      "total_content": "人工智能发展历经数阶段：20世纪50年代概念诞生，60 - 70年代受挫；80年代专家系统兴起；90年代后神经网络复兴；21世纪深度学习崛起，在图像、语音等领域成果斐然，持续推动各行业变革。",
+      "first_chunk_time": 3.5569846630096436,
+      "total_time": 3.562779188156128,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": false,
+      "test_type": "streaming",
+      "content_chunks_received": 62
+    },
+    {
+      "model": "ernie-4.0-turbo-8k",
+      "success": true,
+      "chunks_received": 66,
+      "total_content": "人工智能发展历经数阶段：20世纪50年代概念提出，60 - 70年代受限于技术发展缓慢；80年代专家系统兴起带来新活力；90年代后神经网络等进步；进入21世纪，深度学习推动，AI在多领域广泛应用，持续快速发展。",
+      "first_chunk_time": 3.330850839614868,
+      "total_time": 3.3366360664367676,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": false,
+      "test_type": "streaming",
+      "content_chunks_received": 65
+    },
+    {
+      "model": "ernie-x1-turbo-32k",
+      "success": true,
+      "chunks_received": 314,
+      "total_content": "人工智能发展始于1956年达特茅斯会议，经历早期符号主义（1950s-1970s）、专家系统与第一次寒冬（1970s-1980s），1980s连接主义复兴推动神经网络研究。2006年深度学习突破后，2010年代AlphaGo、自然语言处理（NLP）技术爆发，2020年代进入大模型与多模态AI时代，逐步向通用人工智能（AGI）迈进。",
+      "first_chunk_time": 19.513774394989014,
+      "total_time": 19.541209936141968,
+      "error": null,
+      "chunk_structure_valid": true,
+      "is_reasoning_model": true,
+      "test_type": "streaming",
+      "total_reasoning_content": "用户让我简要介绍一下人工智能的发展历程，大约100字左右。首先，我需要确定时间线。人工智能的历史可以追溯到20世纪50年代，图灵测试和达特茅斯会议是关键起点。然后要提到60-70年代的专家系统和第一次寒冬，接着是80年代的复兴，比如神经网络的发展。90年代到21世纪初，机器学习的兴起，比如支持向量机。2010年后深度学习的爆发，AlphaGo和自然语言处理的突破。最后要提到当前的大模型和多模态AI。需要注意每个阶段的标志性事件和关键技术，同时保持简洁。还要检查字数，确保不超过100字。可能需要合并某些阶段，比如将早期的达特茅斯会议和图灵测试合并，然后快速过渡到专家系统和寒冬，再提到复兴和深度学习的爆发。最后总结当前的发展。确保语言流畅，信息准确。",
+      "reasoning_chunks_received": 193,
+      "content_chunks_received": 116
+    }
+  ]
+}

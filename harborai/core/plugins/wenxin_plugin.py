@@ -545,8 +545,14 @@ class WenxinPlugin(BaseLLMPlugin):
     async def _handle_async_stream_response(self, response, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
         """处理异步流式响应。"""
         async for line in response.aiter_lines():
-            if line.startswith("data: "):
-                data = line[6:].strip()
+            # 处理字节和字符串两种情况
+            if isinstance(line, bytes):
+                line_str = line.decode('utf-8')
+            else:
+                line_str = line
+            
+            if line_str.startswith("data: "):
+                data = line_str[6:].strip()
                 if data == "[DONE]":
                     break
                 

@@ -107,18 +107,18 @@ class ReasoningModel:
 
 # 预定义的模型能力配置
 MODEL_CAPABILITIES_CONFIG = {
-    # DeepSeek 推理模型
+    # DeepSeek 推理模型 - 支持推理过程和结果的流式输出
     "deepseek-reasoner": ModelCapabilities(
         supports_reasoning=True,
-        supports_streaming=False,
+        supports_streaming=True,  # 推理模型支持流式输出
         supports_temperature=False,
         supports_system_message=False,
         supports_function_calling=False,
         supports_structured_output=False,
         max_tokens_limit=32768,
         max_context_length=32768,
-        supported_parameters=["messages", "model", "max_tokens"],
-        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "stream", "functions", "function_call"]
+        supported_parameters=["messages", "model", "max_tokens", "stream"],  # 添加stream参数支持
+        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除stream
     ),
     
     # DeepSeek 常规模型
@@ -135,18 +135,18 @@ MODEL_CAPABILITIES_CONFIG = {
         unsupported_parameters=[]
     ),
 
-    # 文心一言 推理模型
+    # 文心一言 推理模型 - 支持推理过程和结果的流式输出
     "ernie-x1-turbo-32k": ModelCapabilities(
         supports_reasoning=True,
-        supports_streaming=False,
+        supports_streaming=True,  # 推理模型支持流式输出
         supports_temperature=False,
         supports_system_message=False,
         supports_function_calling=False,
         supports_structured_output=False,
         max_tokens_limit=32768,
         max_context_length=32768,
-        supported_parameters=["messages", "model", "max_tokens"],
-        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "stream", "functions", "function_call"]
+        supported_parameters=["messages", "model", "max_tokens", "stream"],  # 添加stream参数支持
+        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除stream
     ),
 
     # 文心一言 常规模型
@@ -175,18 +175,18 @@ MODEL_CAPABILITIES_CONFIG = {
         unsupported_parameters=["frequency_penalty", "presence_penalty"]
     ),
 
-    # 豆包 推理模型
+    # 豆包 推理模型 - doubao-seed-1-6-250615 支持推理过程和结果的流式输出
     "doubao-seed-1-6-250615": ModelCapabilities(
-        supports_reasoning=True,
-        supports_streaming=False,
-        supports_temperature=False,
-        supports_system_message=False,
+        supports_reasoning=True,  # 修正为推理模型
+        supports_streaming=True,  # 推理模型支持流式输出
+        supports_temperature=True,
+        supports_system_message=True,
         supports_function_calling=False,
         supports_structured_output=False,
         max_tokens_limit=32768,
         max_context_length=32768,
-        supported_parameters=["messages", "model", "max_tokens"],
-        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "stream", "functions", "function_call"]
+        supported_parameters=["messages", "model", "max_tokens", "temperature", "top_p", "stream"],
+        unsupported_parameters=["frequency_penalty", "presence_penalty", "functions", "function_call"]
     ),
     
     # 豆包 常规模型

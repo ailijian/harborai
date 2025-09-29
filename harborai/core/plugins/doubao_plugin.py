@@ -63,6 +63,13 @@ class DoubaoPlugin(BaseLLMPlugin):
         """获取支持的模型列表。"""
         return self._supported_models
     
+    def is_thinking_model(self, model: str) -> bool:
+        """判断是否为推理模型。"""
+        for model_info in self._supported_models:
+            if model_info.id == model:
+                return model_info.supports_thinking
+        return False
+    
     def _get_client(self):
         """获取同步HTTP客户端。"""
         if self._client is None:
@@ -228,10 +235,16 @@ class DoubaoPlugin(BaseLLMPlugin):
         for choice_data in chunk_data.get("choices", []):
             delta_data = choice_data.get("delta", {})
             
+            # 对于推理模型，处理reasoning_content字段
+            reasoning_content = None
+            if self.is_thinking_model(model):
+                reasoning_content = delta_data.get("reasoning_content")
+            
             delta = ChatChoiceDelta(
                 role=delta_data.get("role"),
                 content=delta_data.get("content"),
-                tool_calls=delta_data.get("tool_calls")
+                tool_calls=delta_data.get("tool_calls"),
+                reasoning_content=reasoning_content
             )
             
             choice = ChatChoice(
@@ -344,8 +357,14 @@ class DoubaoPlugin(BaseLLMPlugin):
     def _handle_stream_response(self, response, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式响应。"""
         for line in response.iter_lines():
-            if line.startswith(b"data: "):
-                data = line[6:].decode('utf-8').strip()
+            # 处理字节和字符串两种情况
+            if isinstance(line, bytes):
+                line_str = line.decode('utf-8')
+            else:
+                line_str = line
+            
+            if line_str.startswith("data: "):
+                data = line_str[6:].strip()
                 if data == "[DONE]":
                     break
                 
@@ -358,8 +377,14 @@ class DoubaoPlugin(BaseLLMPlugin):
     async def _handle_async_stream_response(self, response, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
         """处理异步流式响应。"""
         async for line in response.aiter_lines():
-            if line.startswith("data: "):
-                data = line[6:].strip()
+            # 处理字节和字符串两种情况
+            if isinstance(line, bytes):
+                line_str = line.decode('utf-8')
+            else:
+                line_str = line
+            
+            if line_str.startswith("data: "):
+                data = line_str[6:].strip()
                 if data == "[DONE]":
                     break
                 
