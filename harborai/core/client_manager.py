@@ -95,12 +95,14 @@ class ClientManager:
                     # 合并客户端配置和插件配置
                     merged_config = plugin_config.copy()
                     
-                    # 如果客户端提供了非空的api_key，使用它
-                    if 'api_key' in self.client_config and self.client_config['api_key'] is not None:
+                    # 只有当插件没有配置api_key时，才使用客户端的api_key
+                    if ('api_key' not in merged_config or merged_config['api_key'] is None) and \
+                       'api_key' in self.client_config and self.client_config['api_key'] is not None:
                         merged_config['api_key'] = self.client_config['api_key']
                     
-                    # 如果客户端提供了非空的base_url，使用它
-                    if 'base_url' in self.client_config and self.client_config['base_url'] is not None:
+                    # 只有当插件没有配置base_url时，才使用客户端的base_url
+                    if ('base_url' not in merged_config or merged_config['base_url'] is None) and \
+                       'base_url' in self.client_config and self.client_config['base_url'] is not None:
                         merged_config['base_url'] = self.client_config['base_url']
                     
                     # 调试日志：显示配置内容

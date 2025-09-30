@@ -3,7 +3,9 @@
 支持基于Agently的流式和非流式结构化输出解析。
 """
 
+from agently import Agently
 import json
+import jsonschema
 import re
 from typing import Any, Dict, Optional, Type, Union, Generator, AsyncGenerator
 
@@ -33,13 +35,12 @@ class StructuredOutputHandler:
             bool: Agently是否可用
         """
         try:
-            import agently
-            # 检查Agently版本是否支持所需功能
-            if hasattr(agently.Agently, 'create_agent'):
-                return True
-            else:
-                logger.warning("Agently version does not support required features")
-                return False
+             # 检查Agently版本是否支持所需功能
+             if hasattr(Agently, 'create_agent'):
+                 return True
+             else:
+                 logger.warning("Agently version does not support required features")
+                 return False
         except ImportError:
             logger.debug("Agently not installed")
             return False
@@ -47,51 +48,7 @@ class StructuredOutputHandler:
             logger.warning(f"Agently availability check failed: {e}")
             return False
     
-    def _configure_agently_model(self, agent, api_key: str, base_url: str, model: str):
-        """配置Agently使用HarborAI的模型设置。
-        
-        Args:
-            agent: Agently代理实例
-            api_key: API密钥
-            base_url: API基础URL
-            model: 模型名称
-            
-        Raises:
-            StructuredOutputError: 当API密钥未设置或配置失败时
-        """
-        try:
-            import agently
-            
-            if not api_key:
-                self.logger.warning("API key not provided for Agently configuration")
-                raise StructuredOutputError("API key not configured for structured output")
-            
-            # 使用传入的客户端配置
-            openai_compatible_config = {
-                "base_url": base_url,
-                "model": model,
-                "model_type": "chat",
-                "auth": {"api_key": api_key},
-                "request_options": {
-                    "temperature": 0.1,  # 结构化输出需要较低的温度
-                    "top_p": 1.0,
-                    "frequency_penalty": 0.0,
-                    "presence_penalty": 0.0,
-                }
-            }
-            
-            # 设置全局Agently配置
-            agently.Agently.set_settings("OpenAICompatible", openai_compatible_config)
-            
-            self.logger.info(f"Agently configured with model: {model} at {base_url}")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to configure Agently model: {e}")
-            if "API key" in str(e) or "api_key" in str(e):
-                raise StructuredOutputError(f"API key configuration failed: {e}")
-            else:
-                raise StructuredOutputError(f"Failed to configure Agently model: {e}")
-    
+
     def _convert_json_schema_to_agently_output(self, schema_wrapper: Dict[str, Any]) -> Dict[str, Any]:
         """将JSON Schema转换为Agently的output格式。
         
@@ -185,25 +142,26 @@ class StructuredOutputHandler:
             Agently格式的列表
         """
         items_schema = schema.get("items", {"type": "string"})
+        # 使用数组本身的描述，而不是items的描述
+        array_description = schema.get("description", "Array item")
         
         if isinstance(items_schema, dict):
             item_type = items_schema.get("type", "string")
-            description = items_schema.get("description", "Array item")
             
             if item_type == "object":
                 # 对象数组
                 return [self._convert_object_schema(items_schema)]
             elif item_type == "string":
-                return [("str", description)]
+                return [("str", array_description)]
             elif item_type == "integer" or item_type == "number":
-                return [("int", description)]
+                return [("int", array_description)]
             elif item_type == "boolean":
-                return [("bool", description)]
+                return [("bool", array_description)]
             else:
-                return [("str", description)]
+                return [("str", array_description)]
         else:
             # 如果items不是字典，默认为字符串数组
-            return [("str", "Array item")]
+            return [("str", array_description)]
     
     def _convert_primitive_schema(self, schema: Dict[str, Any]) -> tuple:
         """转换基本类型的JSON Schema到Agently格式。
@@ -228,24 +186,28 @@ class StructuredOutputHandler:
     
 
     
-    def parse_response(self, content: str, schema: Dict[str, Any], use_agently: bool = False, api_key: str = None, base_url: str = None, model: str = None) -> Dict[str, Any]:
+    def parse_response(self, content: str, schema: Dict[str, Any], use_agently: bool = False, api_key: str = None, base_url: str = None, model: str = None, user_query: str = None) -> Dict[str, Any]:
         """解析响应内容为结构化数据。
         
         Args:
-            content: 要解析的内容
+            content: 要解析的内容（模型响应或用户查询）
             schema: JSON Schema定义
             use_agently: 是否使用Agently进行解析
             api_key: API密钥
             base_url: API基础URL
             model: 模型名称
+            user_query: 用户的原始查询（使用Agently时必需）
             
         Returns:
             解析后的结构化数据
         """
         try:
+            self.logger.debug(f"parse_response调用: use_agently={use_agently}, api_key={api_key[:10] if api_key else None}..., base_url={base_url}, model={model}")
             if use_agently:
                 try:
-                    return self._parse_with_agently(content, schema, api_key, base_url, model)
+                    # 如果使用Agently但没有提供user_query，使用content作为查询
+                    query = user_query if user_query else content
+                    return self._parse_with_agently(query, schema, api_key, base_url, model, content)
                 except ImportError as e:
                     # Agently库不可用，回退到原生解析
                     self.logger.warning(f"Agently library not available, falling back to native: {e}")
@@ -265,55 +227,81 @@ class StructuredOutputHandler:
     
 
     
-    def _parse_with_agently(self, content: str, schema: Dict[str, Any], api_key: str, base_url: str, model: str) -> Any:
+    def _parse_with_agently(self, user_query: str, schema: Dict[str, Any], api_key: str, base_url: str, model: str, model_response: str = None) -> Any:
         """
         使用Agently进行结构化解析
         
-        根据Agently结构化输出语法设计理念，使用.output().start()方法进行非流式结构化输出。
+        根据Agently结构化输出语法设计理念，使用.input().output().start()方法进行非流式结构化输出。
+        注意：这里不是解析已有内容，而是让Agently根据原始问题重新生成结构化输出。
         
         Args:
-            content: 要解析的内容
+            user_query: 用户的原始查询
             schema: JSON Schema定义
             api_key: API密钥
             base_url: API基础URL
             model: 模型名称
+            model_response: 模型返回的原始内容（可选，用于fallback）
             
         Returns:
             解析后的结构化数据
         """
         try:
-            import agently
             
-            self.logger.debug(f"使用Agently解析内容: {content[:100]}...")
+            self.logger.debug(f"使用Agently生成结构化输出，输入: {user_query[:100]}...")
+            
+            # 调试：打印传入的参数
+            self.logger.debug(f"_parse_with_agently参数: api_key={api_key[:10] if api_key else None}..., base_url={base_url}, model={model}")
+            
+            # 确保model不为None，但保持原始模型名称
+            if not model:
+                raise StructuredOutputError("模型名称不能为空")
             
             # 将JSON Schema转换为Agently output格式
             agently_format = self._convert_json_schema_to_agently_output({"json_schema": {"schema": schema}})
             
             self.logger.debug(f"转换后的Agently格式: {agently_format}")
             
-            # 创建Agently agent并配置模型
-            agent = agently.Agently.create_agent()
+            # 使用测试验证的正确配置方法
+            if api_key and base_url:
+                # 根据测试结果，使用正确的 Agently.set_settings 全局配置方式
+                self.logger.debug(f"配置 Agently: base_url={base_url}, model={model}")
+                
+                # 使用 OpenAICompatible 全局配置（基于测试成功的方法）
+                Agently.set_settings(
+                    "OpenAICompatible",
+                    {
+                        "base_url": base_url,
+                        "model": model,
+                        "model_type": "chat",
+                        "auth": api_key,
+                    },
+                )
+                
+                self.logger.debug(f"Agently 全局配置完成: URL={base_url}, model={model}")
+                
+                agent = Agently.create_agent()
+            else:
+                # 默认配置
+                agent = Agently.create_agent()
+                self.logger.debug(f"使用默认Agently配置")
             
-            # 为model提供默认值，避免None导致的配置失败
-            model = model or "gpt-3.5-turbo"
+            self.logger.debug(f"Agently agent创建完成，准备进行结构化输出")
             
-            # 配置Agently使用HarborAI的模型设置（可能抛出API密钥异常）
-            self._configure_agently_model(agent, api_key, base_url, model)
-            
-            # 根据文档，使用.input().output().start()进行非流式结构化输出
-            # 这里不使用prompt方式，而是直接使用Agently的结构化输出功能
+            # 根据Agently结构化输出语法设计理念，使用.input().output().start()进行非流式结构化输出
+            # user_query是用户的原始问题，而不是模型的响应
             result = (
                 agent
-                .input(content)
+                .input(user_query)
                 .output(agently_format)
                 .start()
             )
             
-            self.logger.debug(f"Agently解析结果: {result}")
+            self.logger.debug(f"Agently生成结果: {result}")
             
             # 验证结果
             if result is None:
-                raise StructuredOutputError("Agently返回了None结果")
+                self.logger.warning("Agently返回None结果，可能是配置或输入问题")
+                raise StructuredOutputError("Agently返回None结果，请检查API配置和输入内容")
                 
             return result
             
@@ -322,7 +310,14 @@ class StructuredOutputHandler:
             raise
         except Exception as e:
             self.logger.error(f"Agently解析失败: {e}")
-            raise StructuredOutputError(f"Agently parsing failed: {e}")
+            # 如果有模型响应，尝试从中提取JSON作为fallback
+            if model_response:
+                try:
+                    json_content = self.extract_json_from_text(model_response)
+                    return json.loads(json_content)
+                except Exception as fallback_e:
+                    self.logger.debug(f"Fallback解析也失败: {fallback_e}")
+            raise StructuredOutputError(f"Agently解析失败: {e}")
     
     def _parse_with_native(self, content: str, schema: Dict[str, Any]) -> Any:
         """使用原生JSON解析结构化输出。"""
@@ -351,7 +346,6 @@ class StructuredOutputHandler:
     def _validate_against_schema(self, data: Any, schema: Dict[str, Any]) -> None:
         """验证数据是否符合schema。"""
         try:
-            import jsonschema
             jsonschema.validate(data, schema)
         except ImportError:
             logger.warning("jsonschema not available, skipping validation")
@@ -510,7 +504,6 @@ class StructuredOutputHandler:
             部分解析的结构化数据
         """
         try:
-            import agently
             
             # 将JSON Schema转换为Agently格式
             agently_format = self._convert_json_schema_to_agently_output({"json_schema": {"schema": schema}})
@@ -521,14 +514,30 @@ class StructuredOutputHandler:
                 full_content += chunk
             
             # 创建Agently代理
-            agent = agently.Agently.create_agent()
+            agent = Agently.create_agent()
             
-            # 配置Agently使用HarborAI的模型设置（可能抛出API密钥异常）
-            self._configure_agently_model(agent, api_key, base_url, model)
+            # 为model提供默认值，避免None导致的配置失败
+            model = model or "deepseek-chat"
+            
+            # 使用全局配置方法（与非流式方法保持一致）
+            if api_key and base_url:
+                # 使用 OpenAICompatible 全局配置（基于测试成功的方法）
+                Agently.set_settings(
+                    "OpenAICompatible",
+                    {
+                        "base_url": base_url,
+                        "model": model,
+                        "model_type": "chat",
+                        "auth": api_key,
+                    },
+                )
+                self.logger.debug(f"为流式agent配置全局设置: {model}, base_url: {base_url}")
+            else:
+                self.logger.warning("流式解析：API密钥或base_url为空，使用默认配置")
             
             # 根据Agently文档，使用get_instant_generator()进行流式解析
             try:
-                # 获取instant生成器进行流式解析
+                # 根据Agently结构化输出语法设计理念，使用.input().output().get_instant_generator()进行流式解析
                 instant_generator = (
                     agent
                     .input(full_content)
@@ -613,8 +622,6 @@ class StructuredOutputHandler:
             部分解析的结构化数据
         """
         try:
-            import agently
-            
             # 将JSON Schema转换为Agently格式
             agently_format = self._convert_json_schema_to_agently_output({"json_schema": {"schema": schema}})
             
@@ -624,10 +631,26 @@ class StructuredOutputHandler:
                 full_content += chunk
             
             # 创建Agently代理
-            agent = agently.Agently.create_agent()
+            agent = Agently.create_agent()
             
-            # 配置Agently使用HarborAI的模型设置
-            self._configure_agently_model(agent, api_key, base_url, model)
+            # 为model提供默认值，避免None导致的配置失败
+            model = model or "deepseek-chat"
+            
+            # 使用全局配置方法（与其他方法保持一致）
+            if api_key and base_url:
+                # 使用 OpenAICompatible 全局配置（基于测试成功的方法）
+                Agently.set_settings(
+                    "OpenAICompatible",
+                    {
+                        "base_url": base_url,
+                        "model": model,
+                        "model_type": "chat",
+                        "auth": api_key,
+                    },
+                )
+                self.logger.debug(f"为异步流式agent配置全局设置: {model}, base_url: {base_url}")
+            else:
+                self.logger.warning("异步流式解析：API密钥或base_url为空，使用默认配置")
             
             # 根据Agently文档，尝试使用异步instant generator，如果不支持则回退到同步方式
             try:

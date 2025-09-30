@@ -226,20 +226,51 @@ class BaseLLMPlugin(ABC):
         response: ChatCompletion,
         response_format: Optional[Dict[str, Any]] = None,
         structured_provider: str = "agently",
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        original_messages: Optional[List[ChatMessage]] = None
     ) -> ChatCompletion:
         """处理结构化输出"""
+        self.logger.debug(f"handle_structured_output调用: response_format={response_format}, structured_provider={structured_provider}, model={model}")
+        
         if not response_format or response_format.get("type") != "json_schema":
+            self.logger.debug("跳过结构化输出处理：response_format为空或类型不是json_schema")
             return response
         
         try:
+            self.logger.debug(f"开始结构化输出处理: structured_provider={structured_provider}")
+            
             if structured_provider == "agently":
-                # 使用 Agently 解析
-                parsed_content = self._parse_with_agently(
-                    response.choices[0].message.content,
-                    response_format,
-                    model
-                )
+                self.logger.debug("使用Agently进行结构化输出")
+                # 使用 Agently 重新生成结构化输出
+                # 需要原始用户消息来重新生成
+                if original_messages:
+                    # 提取用户的最后一条消息作为输入
+                    user_input = None
+                    for msg in reversed(original_messages):
+                        if msg.role == "user":
+                            user_input = msg.content
+                            break
+                    
+                    if user_input:
+                        self.logger.debug(f"找到用户输入: {user_input[:100]}...")
+                        parsed_content = self._parse_with_agently(
+                            user_input,
+                            response_format,
+                            model
+                        )
+                    else:
+                        self.logger.debug("未找到用户消息，回退到原生解析")
+                        # 如果没有找到用户消息，回退到原生解析
+                        parsed_content = self._parse_with_native(
+                            response.choices[0].message.content,
+                            response_format
+                        )
+                else:
+                    # 如果没有原始消息，回退到原生解析
+                    parsed_content = self._parse_with_native(
+                        response.choices[0].message.content,
+                        response_format
+                    )
             else:
                 # 使用原生解析
                 parsed_content = self._parse_with_native(
@@ -248,6 +279,7 @@ class BaseLLMPlugin(ABC):
                 )
             
             # 将parsed属性设置到message对象上，而不是response对象上
+            self.logger.debug(f"设置结构化输出结果: {parsed_content}")
             response.choices[0].message.parsed = parsed_content
             
         except Exception as e:
@@ -262,20 +294,28 @@ class BaseLLMPlugin(ABC):
         
         return response
     
-    def _parse_with_agently(self, content: str, response_format: Dict[str, Any], model: Optional[str] = None) -> Any:
-        """使用 Agently 解析结构化输出"""
+    def _parse_with_agently(self, user_input: str, response_format: Dict[str, Any], model: Optional[str] = None) -> Any:
+        """使用 Agently 重新生成结构化输出
+        
+        Args:
+            user_input: 用户的原始问题或指令
+            response_format: 响应格式定义
+            model: 模型名称
+        """
         try:
             from ..api.structured import default_handler
             
             # 使用StructuredOutputHandler进行解析
-            schema = response_format.get('json_schema', {})
-            return default_handler.parse_response(
-                content, 
+            # 正确提取schema：response_format -> json_schema -> schema
+            json_schema = response_format.get('json_schema', {})
+            schema = json_schema.get('schema', {})
+            return default_handler._parse_with_agently(
+                user_input, 
                 schema, 
-                use_agently=True, 
                 api_key=getattr(self, 'api_key', None), 
                 base_url=getattr(self, 'base_url', None),
-                model=model or getattr(self, 'model', None)
+                model=model or getattr(self, 'model', None),
+                model_response=None  # 使用Agently重新生成，不需要原始响应
             )
             
         except ImportError as e:
@@ -287,7 +327,8 @@ class BaseLLMPlugin(ABC):
                 }
             )
             # Agently库不可用，回退到原生解析
-            return self._parse_with_native(content, response_format)
+            # 注意：这里需要模型响应内容，但我们只有用户输入，所以抛出错误
+            raise Exception("Agently library not available and cannot fallback to native parsing with user input")
         except Exception as e:
             # API密钥错误或其他错误，不回退，直接抛出
             self.logger.error(
@@ -305,11 +346,12 @@ class BaseLLMPlugin(ABC):
             from ..api.structured import default_handler
             
             # 使用StructuredOutputHandler进行原生解析
-            schema = response_format.get('json_schema', {})
-            return default_handler.parse_response(
+            # 正确提取schema：response_format -> json_schema -> schema
+            json_schema = response_format.get('json_schema', {})
+            schema = json_schema.get('schema', {})
+            return default_handler._parse_with_native(
                 content, 
-                schema, 
-                use_agently=False
+                schema
             )
             
         except Exception as e:

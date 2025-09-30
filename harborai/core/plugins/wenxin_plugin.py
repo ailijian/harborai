@@ -47,7 +47,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 provider="wenxin",
                 max_tokens=2048,
                 supports_streaming=True,
-                supports_structured_output=False,
+                supports_structured_output=True,
                 supports_thinking=False
             ),
             ModelInfo(
@@ -56,7 +56,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 provider="wenxin",
                 max_tokens=2048,
                 supports_streaming=True,
-                supports_structured_output=False,
+                supports_structured_output=True,
                 supports_thinking=False
             ),
             # 保持向后兼容性
@@ -414,7 +414,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -488,7 +488,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000

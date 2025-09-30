@@ -44,7 +44,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                 provider="doubao",
                 max_tokens=32768,
                 supports_streaming=True,
-                supports_structured_output=False,
+                supports_structured_output=True,  # 豆包支持结构化输出
                 supports_thinking=False
             ),
             ModelInfo(
@@ -53,7 +53,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                 provider="doubao",
                 max_tokens=32768,
                 supports_streaming=True,
-                supports_structured_output=False,
+                supports_structured_output=True,  # 豆包支持结构化输出
                 supports_thinking=True  # 1.6版本支持思考
             )
         ]
@@ -294,7 +294,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -340,7 +340,7 @@ class DoubaoPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
                 
                 # 记录响应日志
                 latency_ms = (time.time() - start_time) * 1000

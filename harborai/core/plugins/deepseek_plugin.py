@@ -312,9 +312,11 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 
                 # 处理结构化输出
                 response_format = kwargs.get('response_format')
+                self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
                 
                 # 计算延迟并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -363,7 +365,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
                 
                 # 计算延迟并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000

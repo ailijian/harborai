@@ -27,17 +27,21 @@ class OpenAIPlugin(BaseLLMPlugin):
     def __init__(self, name: str = "openai", **config):
         super().__init__(name, **config)
         
+        # 保存配置属性，用于结构化输出
+        self.api_key = config.get("api_key")
+        self.base_url = config.get("base_url")
+        
         # 初始化 OpenAI 客户端
         self.client = OpenAI(
-            api_key=config.get("api_key"),
-            base_url=config.get("base_url"),
+            api_key=self.api_key,
+            base_url=self.base_url,
             timeout=config.get("timeout", 30),
             max_retries=config.get("max_retries", 3)
         )
         
         self.async_client = AsyncOpenAI(
-            api_key=config.get("api_key"),
-            base_url=config.get("base_url"),
+            api_key=self.api_key,
+            base_url=self.base_url,
             timeout=config.get("timeout", 30),
             max_retries=config.get("max_retries", 3)
         )
@@ -277,7 +281,7 @@ class OpenAIPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages)
                 
                 # 计算耗时并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -327,7 +331,7 @@ class OpenAIPlugin(BaseLLMPlugin):
                 response_format = kwargs.get('response_format')
                 if response_format:
                     structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider)
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages)
                 
                 # 计算耗时并记录响应日志
                 latency_ms = (time.time() - start_time) * 1000
@@ -389,10 +393,10 @@ class OpenAIPlugin(BaseLLMPlugin):
             parsed_stream = default_handler.parse_streaming_response(
                 content_stream(), 
                 schema, 
-                use_agently, 
-                self.api_key, 
-                self.base_url, 
-                self.model
+                provider='agently' if use_agently else 'native',
+                api_key=self.api_key, 
+                base_url=self.base_url, 
+                model=self.model
             )
             
             # 将解析结果转换为ChatCompletionChunk格式
@@ -438,10 +442,10 @@ class OpenAIPlugin(BaseLLMPlugin):
             parsed_stream = default_handler.parse_streaming_response(
                 async_content_stream(), 
                 schema, 
-                use_agently, 
-                self.api_key, 
-                self.base_url, 
-                self.model
+                provider='agently' if use_agently else 'native',
+                api_key=self.api_key, 
+                base_url=self.base_url, 
+                model=self.model
             )
             
             # 将解析结果转换为ChatCompletionChunk格式
