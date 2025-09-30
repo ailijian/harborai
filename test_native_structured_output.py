@@ -204,7 +204,7 @@ def test_native_provider():
         messages=[
             {
                 "role": "user",
-                "content": "请分析这段文本的情感：'今天天气很好，心情不错'"
+                "content": "请分析这段文本的情感：'今天天气很好，心情不错'。请严格按照JSON格式返回结果，包含sentiment和confidence字段。"
             }
         ],
         response_format=response_format,
@@ -214,6 +214,19 @@ def test_native_provider():
     )
     
     end_time = time.time()
+    
+    # 添加调试信息
+    print(f"🔍 Native模式调试信息:")
+    print(f"   响应对象: {response}")
+    print(f"   响应类型: {type(response)}")
+    if hasattr(response, 'choices') and response.choices:
+        print(f"   choices[0]: {response.choices[0]}")
+        print(f"   message: {response.choices[0].message}")
+        print(f"   content: {response.choices[0].message.content}")
+        if hasattr(response.choices[0].message, 'parsed'):
+            print(f"   parsed: {response.choices[0].message.parsed}")
+        else:
+            print("   ❌ 没有parsed字段")
     
     # 验证响应
     assert response is not None, "native调用响应为空"

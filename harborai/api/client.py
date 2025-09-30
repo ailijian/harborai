@@ -7,6 +7,8 @@ HarborAI 主客户端
 """
 
 import asyncio
+import time
+import uuid
 from typing import Dict, List, Optional, Union, Any, AsyncGenerator, Iterator
 from collections.abc import AsyncIterator
 
@@ -22,6 +24,11 @@ from ..storage.lifecycle import auto_initialize
 from ..core.unified_decorators import smart_decorator, fast_trace, full_trace
 from ..core.performance_manager import get_performance_manager, initialize_performance_manager, cleanup_performance_manager
 
+# 导入优化组件
+from ..core.agently_client_pool import get_agently_client_pool, create_agently_client_config
+from ..core.parameter_cache import get_parameter_cache_manager
+from ..core.fast_structured_output import FastStructuredOutputProcessor, get_fast_structured_output_processor
+
 
 class ChatCompletions:
     """聊天完成接口"""
@@ -31,6 +38,16 @@ class ChatCompletions:
         self.logger = get_logger("harborai.chat_completions")
         self.api_logger = APICallLogger(self.logger)
         self.settings = get_settings()
+        
+        # 初始化快速结构化输出处理器
+        self._fast_processor = None
+    
+    def _get_fast_processor(self) -> FastStructuredOutputProcessor:
+        """获取快速结构化输出处理器实例（延迟初始化）"""
+        if self._fast_processor is None:
+            from ..core.fast_structured_output import create_fast_structured_output_processor
+            self._fast_processor = create_fast_structured_output_processor(client_manager=self.client_manager)
+        return self._fast_processor
     
     def create(
         self,
@@ -64,8 +81,54 @@ class ChatCompletions:
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """创建聊天完成（同步版本）"""
-        # 检查是否使用快速路径
+        # 获取性能配置
         perf_config = get_performance_config()
+        
+        # 检查是否启用FAST模式且有结构化输出
+        print(f"🔍 检查快速结构化输出条件:")
+        print(f"   - perf_config.mode.value: {perf_config.mode.value}")
+        print(f"   - response_format: {response_format}")
+        print(f"   - structured_provider: {structured_provider}")
+        print(f"   - stream: {stream}")
+        
+        should_use_fast_structured = (perf_config.mode.value == "fast" and 
+            response_format and 
+            response_format.get("type") == "json_schema" and
+            structured_provider == "agently" and
+            not stream)
+        
+        print(f"   - 应该使用快速结构化输出: {should_use_fast_structured}")
+        
+        if should_use_fast_structured:  # 流式输出暂不支持快速路径
+            print("✅ 使用快速结构化输出路径")
+            return self._create_fast_structured_path(
+                messages, model, response_format, structured_provider,
+                frequency_penalty=frequency_penalty,
+                function_call=function_call,
+                functions=functions,
+                logit_bias=logit_bias,
+                logprobs=logprobs,
+                top_logprobs=top_logprobs,
+                max_tokens=max_tokens,
+                n=n,
+                presence_penalty=presence_penalty,
+                seed=seed,
+                stop=stop,
+                stream=stream,
+                temperature=temperature,
+                tool_choice=tool_choice,
+                tools=tools,
+                top_p=top_p,
+                user=user,
+                extra_body=extra_body,
+                timeout=timeout,
+                fallback=fallback,
+                fallback_models=fallback_models,
+                retry_policy=retry_policy,
+                **kwargs
+            )
+        
+        # 检查是否使用快速路径
         if perf_config.should_use_fast_path(model, max_tokens):
             return self._create_fast_path(
                 messages=messages, model=model, frequency_penalty=frequency_penalty,
@@ -90,6 +153,89 @@ class ChatCompletions:
                 fallback=fallback, fallback_models=fallback_models,
                 retry_policy=retry_policy, **kwargs
             )
+    
+    @fast_trace
+    def _create_fast_structured_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        response_format: Dict[str, Any],
+        structured_provider: str,
+        **kwargs
+    ) -> ChatCompletion:
+        """快速结构化输出路径 - 使用优化组件"""
+        print("🚀 进入快速结构化输出路径")
+        
+        # 提取用户输入
+        user_input = None
+        for msg in reversed(messages):
+            if msg["role"] == "user":
+                user_input = msg["content"]
+                break
+        
+        print(f"📝 提取的用户输入: {user_input}")
+        
+        if not user_input:
+            # 如果没有用户输入，回退到常规路径
+            print("❌ 没有用户输入，回退到常规路径")
+            return self._create_core(messages, model, response_format=response_format, 
+                                   structured_provider=structured_provider, **kwargs)
+        
+        try:
+            # 使用快速结构化输出处理器
+            print("🔧 获取快速处理器")
+            fast_processor = self._get_fast_processor()
+            
+            # 提取schema
+            json_schema = response_format.get('json_schema', {})
+            schema = json_schema.get('schema', {})
+            print(f"📋 提取的Schema: {schema}")
+            
+            # 调用快速处理器
+            print("⚡ 调用快速处理器")
+            parsed_result = fast_processor.process_structured_output(
+                user_query=user_input,
+                schema=schema,
+                api_key=self.client_manager.client_config.get('api_key'),
+                base_url=self.client_manager.client_config.get('base_url'),
+                model=model,
+                temperature=kwargs.get('temperature', 0.1),
+                max_tokens=kwargs.get('max_tokens', 1000)
+            )
+            print(f"✅ 快速处理器返回结果: {parsed_result}")
+            
+            # 构造兼容的响应对象
+            from ..core.base_plugin import ChatMessage, ChatChoice
+            
+            response = ChatCompletion(
+                id=f"fast-structured-{int(time.time())}",
+                object="chat.completion",
+                created=int(time.time()),
+                model=model,
+                choices=[
+                    ChatChoice(
+                        index=0,
+                        message=ChatMessage(
+                            role="assistant",
+                            content=str(parsed_result)  # 将结构化结果转为字符串
+                        ),
+                        finish_reason="stop"
+                    )
+                ]
+            )
+            
+            # 设置parsed属性
+            response.choices[0].message.parsed = parsed_result
+            
+            return response
+            
+        except Exception as e:
+            print(
+                f"⚠️ 快速结构化输出处理失败，回退到常规路径: {str(e)}"
+            )
+            # 回退到常规路径
+            return self._create_core(messages, model, response_format=response_format, 
+                                   structured_provider=structured_provider, **kwargs)
     
     @fast_trace
     def _create_fast_path(
@@ -327,8 +473,44 @@ class ChatCompletions:
         **kwargs
     ) -> Union[ChatCompletion, AsyncIterator[ChatCompletionChunk]]:
         """创建聊天完成（异步版本）"""
-        # 检查是否使用快速路径
+        # 获取性能配置
         perf_config = get_performance_config()
+        
+        # 检查是否启用FAST模式且有结构化输出
+        if (perf_config.mode.value == "fast" and 
+            response_format and 
+            response_format.get("type") == "json_schema" and
+            structured_provider == "agently" and
+            not stream):  # 流式输出暂不支持快速路径
+            
+            return await self._acreate_fast_structured_path(
+                messages, model, response_format, structured_provider,
+                frequency_penalty=frequency_penalty,
+                function_call=function_call,
+                functions=functions,
+                logit_bias=logit_bias,
+                logprobs=logprobs,
+                top_logprobs=top_logprobs,
+                max_tokens=max_tokens,
+                n=n,
+                presence_penalty=presence_penalty,
+                seed=seed,
+                stop=stop,
+                stream=stream,
+                temperature=temperature,
+                tool_choice=tool_choice,
+                tools=tools,
+                top_p=top_p,
+                user=user,
+                extra_body=extra_body,
+                timeout=timeout,
+                fallback=fallback,
+                fallback_models=fallback_models,
+                retry_policy=retry_policy,
+                **kwargs
+            )
+        
+        # 检查是否使用快速路径
         if perf_config.should_use_fast_path(model, max_tokens):
             return await self._acreate_fast_path(
                 messages=messages, model=model, frequency_penalty=frequency_penalty,
@@ -354,6 +536,70 @@ class ChatCompletions:
                 retry_policy=retry_policy, **kwargs
             )
     
+    @fast_trace
+    async def _acreate_fast_structured_path(
+        self,
+        messages: List[Dict[str, Any]],
+        model: str,
+        response_format: Dict[str, Any],
+        structured_provider: str,
+        **kwargs
+    ) -> ChatCompletion:
+        """快速结构化输出路径（异步版本）"""
+        try:
+            # 提取用户输入
+            user_input = None
+            for msg in reversed(messages):
+                if msg.get("role") == "user" and msg.get("content"):
+                    user_input = msg["content"]
+                    break
+            
+            if not user_input:
+                # 没有用户输入，回退到常规路径
+                return await self._acreate_core(messages, model, **kwargs)
+            
+            # 获取快速处理器
+            fast_processor = self._get_fast_processor()
+            
+            # 使用快速处理器处理结构化输出
+            result = await fast_processor.aprocess_structured_output(
+                user_input=user_input,
+                schema=response_format.get("json_schema", {}),
+                model=model
+            )
+            
+            # 构造ChatCompletion响应
+            from ..types.chat_completion import ChatCompletion, Choice, Message
+            from ..types.completion_usage import CompletionUsage
+            
+            response = ChatCompletion(
+                id=f"chatcmpl-{uuid.uuid4().hex[:29]}",
+                object="chat.completion",
+                created=int(time.time()),
+                model=model,
+                choices=[
+                    Choice(
+                        index=0,
+                        message=Message(
+                            role="assistant",
+                            content=result
+                        ),
+                        finish_reason="stop"
+                    )
+                ],
+                usage=CompletionUsage(
+                    prompt_tokens=len(user_input.split()),  # 简单估算
+                    completion_tokens=len(result.split()) if isinstance(result, str) else 50,
+                    total_tokens=len(user_input.split()) + (len(result.split()) if isinstance(result, str) else 50)
+                )
+            )
+            
+            return response
+            
+        except Exception as e:
+            # 快速路径失败，回退到常规路径
+            return await self._acreate_core(messages, model, **kwargs)
+
     @fast_trace
     async def _acreate_fast_path(
         self,

@@ -1,0 +1,64 @@
+{
+  "report": {
+    "test_summary": {
+      "test_time": "2025-09-30T18:23:48.549800",
+      "total_rounds": 5,
+      "harborai_success_rate": 100.0,
+      "agently_success_rate": 100.0
+    },
+    "harborai_performance": {
+      "total_time": 82.67932810005732,
+      "avg_time": 16.535865620011464,
+      "min_time": 15.313842100091279,
+      "max_time": 18.271978500066325,
+      "std_time": 1.0776562740581566,
+      "step_analysis": {}
+    },
+    "agently_performance": {
+      "total_time": 35.71965819969773,
+      "avg_time": 7.143931639939547,
+      "min_time": 6.429517599986866,
+      "max_time": 7.8483759998343885,
+      "std_time": 0.5018226732973248,
+      "step_analysis": {}
+    },
+    "performance_comparison": {
+      "harborai_avg_time": 16.535865620011464,
+      "agently_avg_time": 7.143931639939547,
+      "time_difference": 9.391933980071917,
+      "harborai_slower_by_factor": 2.3146729914889543,
+      "harborai_slower_by_percentage": 131.46729914889545
+    }
+  },
+  "bottlenecks": [],
+  "recommendations": [
+    {
+      "priority": "高",
+      "category": "架构优化",
+      "title": "考虑重构HarborAI的Agently集成",
+      "description": "HarborAI比直接Agently慢2.3倍，建议重构",
+      "specific_actions": [
+        "减少中间层调用开销",
+        "优化参数传递流程",
+        "缓存重复配置操作",
+        "考虑直接使用Agently API"
+      ]
+    },
+    {
+      "priority": "中",
+      "category": "监控优化",
+      "title": "添加生产环境性能监控",
+      "description": "建立持续的性能监控体系",
+      "specific_actions": [
+        "添加关键步骤的耗时监控",
+        "设置性能告警阈值",
+        "定期进行性能基准测试",
+        "建立性能回归检测"
+      ]
+    }
+  ],
+  "raw_metrics": {
+    "harborai": [],
+    "agently": []
+  }
+}

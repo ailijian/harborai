@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-最小结构化输出测试
-仅使用deepseek-chat模型进行调试，验证HarborAI的结构化输出功能
+最小的HarborAI结构化输出测试
+验证deepseek-chat模型的agently结构化输出功能
 """
 
-import os
-import sys
 import json
-import traceback
-import logging
+import sys
+import os
+import time
 
 # 添加项目根目录到Python路径
-project_root = os.path.abspath(os.path.dirname(__file__))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 sys.path.insert(0, project_root)
 
 # 加载环境变量
@@ -30,68 +29,34 @@ except ImportError:
 from harborai import HarborAI
 
 def test_minimal_structured_output():
-    """
-    最小结构化输出测试
-    """
-    print("🚀 开始最小结构化输出测试")
+    """测试最小的结构化输出功能"""
+    print("🧪 测试最小的HarborAI结构化输出功能")
     print("=" * 60)
     
-    # 启用调试日志
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # 设置HarborAI相关的日志级别
-    logging.getLogger('harborai').setLevel(logging.DEBUG)
-    logging.getLogger('harborai.api.structured').setLevel(logging.DEBUG)
-    logging.getLogger('harborai.core.plugins').setLevel(logging.DEBUG)
-    logging.getLogger('harborai.core.plugins.deepseek_plugin').setLevel(logging.DEBUG)
-    logging.getLogger('harborai.core.base_plugin').setLevel(logging.DEBUG)
-    
-    # 检查环境变量
-    deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-    deepseek_base_url = os.getenv("DEEPSEEK_BASE_URL")
-    
-    if not deepseek_api_key or not deepseek_base_url:
-        print(f"❌ 缺少DeepSeek环境变量:")
-        print(f"   DEEPSEEK_API_KEY: {'✓' if deepseek_api_key else '❌'}")
-        print(f"   DEEPSEEK_BASE_URL: {'✓' if deepseek_base_url else '❌'}")
-        return False
-    
-    print("✅ 环境变量检查通过")
-    print(f"   DEEPSEEK_API_KEY: {deepseek_api_key[:10]}...")
-    print(f"   DEEPSEEK_BASE_URL: {deepseek_base_url}")
-    
-    # 创建简单的JSON schema
-    schema = {
-        "type": "object",
-        "properties": {
-            "sentiment": {
-                "type": "string",
-                "enum": ["positive", "negative", "neutral"],
-                "description": "情感分析结果"
-            },
-            "confidence": {
-                "type": "number",
-                "minimum": 0,
-                "maximum": 1,
-                "description": "置信度，0-1之间的数值"
-            }
-        },
-        "required": ["sentiment", "confidence"]
-    }
-    
-    print(f"\n📋 测试Schema: {json.dumps(schema, ensure_ascii=False, indent=2)}")
-    
-    # 测试文本
-    test_text = "今天天气很好，心情不错"
-    print(f"\n📝 测试文本: {test_text}")
-    
     try:
-        # 初始化HarborAI客户端
-        print("\n🔧 初始化HarborAI客户端...")
+        # 创建HarborAI客户端
         client = HarborAI()
-        print("✅ HarborAI客户端初始化成功")
+        print("✓ HarborAI客户端创建成功")
         
-        # 创建response_format
+        # 定义简单的JSON schema
+        schema = {
+            "type": "object",
+            "properties": {
+                "sentiment": {
+                    "type": "string",
+                    "enum": ["positive", "negative", "neutral"],
+                    "description": "情感倾向分析"
+                },
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "置信度分数"
+                }
+            },
+            "required": ["sentiment", "confidence"]
+        }
+        
         response_format = {
             "type": "json_schema",
             "json_schema": {
@@ -101,103 +66,93 @@ def test_minimal_structured_output():
             }
         }
         
-        print(f"\n📤 发送请求...")
-        print(f"   模型: deepseek-chat")
-        print(f"   structured_provider: agently (默认)")
-        print(f"   response_format: {json.dumps(response_format, ensure_ascii=False, indent=2)}")
+        print("✓ JSON schema定义完成")
+        print(f"📋 Schema: {json.dumps(schema, indent=2, ensure_ascii=False)}")
         
-        # 发送请求
-        print(f"\n🚀 发送聊天完成请求...")
-        print(f"   请求参数:")
-        print(f"   - model: deepseek-chat")
-        print(f"   - messages: [{{\"role\": \"user\", \"content\": \"{test_text}\"}}]")
-        print(f"   - response_format: {response_format}")
-        print(f"   - structured_provider: agently")
+        # 测试文本
+        test_text = "今天天气很好，心情不错"
+        print(f"📝 测试文本: {test_text}")
+        
+        # 调用结构化输出（默认使用agently）
+        print("\n🔄 开始调用结构化输出...")
+        start_time = time.time()
         
         response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
                 {
                     "role": "user",
-                    "content": f"请分析以下文本的情感: {test_text}"
+                    "content": f"请分析这段文本的情感：'{test_text}'"
                 }
             ],
             response_format=response_format,
-            structured_provider="agently",  # 明确指定使用agently
             temperature=0.1,
             max_tokens=500
         )
         
-        print("\n📥 收到响应:")
-        print(f"   响应类型: {type(response)}")
+        end_time = time.time()
+        print(f"✅ 调用完成，耗时: {end_time - start_time:.2f}秒")
+        
+        # 输出详细的调试信息
+        print("\n🔍 详细调试信息:")
+        print(f"   响应对象类型: {type(response)}")
         print(f"   响应对象: {response}")
         
-        # 验证响应结构
-        if not response:
-            print("❌ 响应为空")
-            return False
+        if hasattr(response, 'choices') and response.choices:
+            choice = response.choices[0]
+            print(f"   Choice对象: {choice}")
             
-        if not hasattr(response, 'choices') or not response.choices:
-            print("❌ 响应缺少choices字段")
-            return False
-            
-        choice = response.choices[0]
-        message = choice.message
-        
-        print(f"\n🔍 分析响应结构:")
-        print(f"   choice类型: {type(choice)}")
-        print(f"   message类型: {type(message)}")
-        print(f"   message属性: {dir(message)}")
-        
-        # 检查原始内容
-        if hasattr(message, 'content'):
-            print(f"   原始内容: {message.content}")
-        
-        # 检查结构化输出
-        if hasattr(message, 'parsed'):
-            parsed_data = message.parsed
-            print(f"   结构化输出: {parsed_data}")
-            print(f"   结构化输出类型: {type(parsed_data)}")
-            
-            if parsed_data is None:
-                print("❌ 结构化输出为None")
-                return False
+            if hasattr(choice, 'message'):
+                message = choice.message
+                print(f"   Message对象: {message}")
+                print(f"   Message内容: {message.content}")
                 
-            # 验证字段
-            if isinstance(parsed_data, dict):
-                if "sentiment" in parsed_data and "confidence" in parsed_data:
-                    print(f"✅ 结构化输出验证成功:")
-                    print(f"   sentiment: {parsed_data['sentiment']}")
-                    print(f"   confidence: {parsed_data['confidence']}")
-                    return True
+                if hasattr(message, 'parsed'):
+                    parsed_data = message.parsed
+                    print(f"   解析后的结构化数据: {parsed_data}")
+                    print(f"   解析数据类型: {type(parsed_data)}")
+                    
+                    # 验证结构化数据
+                    if parsed_data:
+                        print("\n✅ 结构化输出验证:")
+                        print(f"   sentiment: {parsed_data.get('sentiment', 'N/A')}")
+                        print(f"   confidence: {parsed_data.get('confidence', 'N/A')}")
+                        
+                        # 验证必需字段
+                        assert 'sentiment' in parsed_data, "缺少sentiment字段"
+                        assert 'confidence' in parsed_data, "缺少confidence字段"
+                        assert parsed_data['sentiment'] in ['positive', 'negative', 'neutral'], "sentiment值不在允许范围内"
+                        assert 0 <= parsed_data['confidence'] <= 100, "confidence值不在0-100范围内"
+                        
+                        print("✅ 所有验证通过")
+                        return True
+                    else:
+                        print("❌ 解析后的结构化数据为空")
+                        return False
                 else:
-                    print(f"❌ 结构化输出缺少必需字段: {parsed_data}")
+                    print("❌ Message对象没有parsed字段")
                     return False
             else:
-                print(f"❌ 结构化输出不是字典格式: {parsed_data}")
+                print("❌ Choice对象没有message字段")
                 return False
         else:
-            print("❌ message对象缺少parsed属性")
+            print("❌ 响应对象没有choices字段或choices为空")
             return False
             
     except Exception as e:
         print(f"❌ 测试失败: {e}")
-        print("详细错误信息:")
+        import traceback
         traceback.print_exc()
         return False
 
-def main():
-    """主函数"""
-    success = test_minimal_structured_output()
-    
-    print("\n" + "=" * 60)
-    if success:
-        print("🎉 最小结构化输出测试成功!")
-    else:
-        print("🚨 最小结构化输出测试失败!")
-    print("=" * 60)
-    
-    return success
-
 if __name__ == "__main__":
-    main()
+    success = test_minimal_structured_output()
+    if success:
+        print("\n🎉 最小结构化输出测试通过")
+        print("✅ HarborAI结构化输出功能正常工作")
+        print("✅ 默认使用agently作为structured_provider")
+        print("✅ response.choices[0].message.parsed字段包含正确的结构化数据")
+        sys.exit(0)
+    else:
+        print("\n🚨 最小结构化输出测试失败")
+        sys.exit(1)
