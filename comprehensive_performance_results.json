@@ -1,0 +1,110 @@
+{
+  "timestamp": "2025-09-30 20:24:41",
+  "test_config": {
+    "iterations": 5,
+    "warmup_iterations": 2,
+    "test_query": "请生成一个软件工程师的个人信息，包括姓名、年龄、邮箱和技能列表",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "用户姓名"
+        },
+        "age": {
+          "type": "integer",
+          "description": "用户年龄"
+        },
+        "email": {
+          "type": "string",
+          "description": "用户邮箱"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "技能列表"
+        }
+      },
+      "required": [
+        "name",
+        "age",
+        "email"
+      ]
+    }
+  },
+  "results": {
+    "agently_baseline": {
+      "test_name": "Agently基准",
+      "avg_duration": 4.37282428741455,
+      "min_duration": 4.118788003921509,
+      "max_duration": 4.592914342880249,
+      "std_deviation": 0.18170328852139508,
+      "success_rate": 1.0,
+      "memory_usage": 213.9522469896789,
+      "cpu_usage": 8.077981651376147,
+      "iterations": 5,
+      "cache_hit_rate": null,
+      "client_pool_hit_rate": null,
+      "fast_path_usage": null,
+      "error_count": 0
+    },
+    "harborai_fast": {
+      "test_name": "HarborAI FAST模式",
+      "avg_duration": 3.8654603481292726,
+      "min_duration": 3.573817729949951,
+      "max_duration": 4.187694549560547,
+      "std_deviation": 0.265821598335101,
+      "success_rate": 1.0,
+      "memory_usage": 230.67100469559585,
+      "cpu_usage": 10.289637305699483,
+      "iterations": 5,
+      "cache_hit_rate": null,
+      "client_pool_hit_rate": null,
+      "fast_path_usage": null,
+      "error_count": 0
+    },
+    "harborai_balanced": {
+      "test_name": "HarborAI BALANCED模式",
+      "avg_duration": 4.467075300216675,
+      "min_duration": 3.56516432762146,
+      "max_duration": 5.513280153274536,
+      "std_deviation": 0.7523031867395193,
+      "success_rate": 1.0,
+      "memory_usage": 233.22323430493273,
+      "cpu_usage": 8.370403587443947,
+      "iterations": 5,
+      "cache_hit_rate": null,
+      "client_pool_hit_rate": null,
+      "fast_path_usage": null,
+      "error_count": 0
+    },
+    "harborai_full": {
+      "test_name": "HarborAI FULL模式",
+      "avg_duration": 3.9190042495727537,
+      "min_duration": 3.61434006690979,
+      "max_duration": 4.628151178359985,
+      "std_deviation": 0.4217668440647937,
+      "success_rate": 1.0,
+      "memory_usage": 233.2831330128205,
+      "cpu_usage": 10.590769230769231,
+      "iterations": 5,
+      "cache_hit_rate": null,
+      "client_pool_hit_rate": null,
+      "fast_path_usage": null,
+      "error_count": 0
+    }
+  },
+  "performance_ratios": {
+    "harborai_fast": 0.8839733988979331,
+    "harborai_balanced": 1.0215538074725272,
+    "harborai_full": 0.8962180942993894
+  },
+  "target_verification": {
+    "fast_mode_target": true,
+    "balanced_mode_target": true,
+    "full_mode_target": true,
+    "overall_passed": true
+  }
+}
