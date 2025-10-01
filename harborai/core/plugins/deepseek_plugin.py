@@ -178,6 +178,32 @@ class DeepSeekPlugin(BaseLLMPlugin):
             if param in kwargs and kwargs[param] is not None:
                 request_data[param] = kwargs[param]
         
+        # 处理结构化输出参数（response_format）
+        response_format = kwargs.get("response_format")
+        if response_format:
+            # 根据DeepSeek官方API格式处理response_format
+            if isinstance(response_format, dict):
+                if response_format.get("type") == "json_schema":
+                    # OpenAI格式的json_schema转换为DeepSeek格式
+                    request_data["response_format"] = {
+                        "type": "json_object"  # DeepSeek使用json_object而不是json_schema
+                    }
+                elif response_format.get("type") in ["json_object", "text"]:
+                    # 直接使用DeepSeek支持的格式
+                    request_data["response_format"] = {
+                        "type": response_format["type"]
+                    }
+                else:
+                    # 默认使用json_object格式
+                    request_data["response_format"] = {
+                        "type": "json_object"
+                    }
+            else:
+                # 如果response_format不是字典，默认使用json_object
+                request_data["response_format"] = {
+                    "type": "json_object"
+                }
+        
         # 处理流式参数
         if kwargs.get("stream", False):
             request_data["stream"] = True

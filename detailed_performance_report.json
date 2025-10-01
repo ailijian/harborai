@@ -1,49 +1,37 @@
 {
   "report": {
     "test_summary": {
-      "test_time": "2025-09-30T18:23:48.549800",
+      "test_time": "2025-09-30T22:38:33.039434",
       "total_rounds": 5,
       "harborai_success_rate": 100.0,
       "agently_success_rate": 100.0
     },
     "harborai_performance": {
-      "total_time": 82.67932810005732,
-      "avg_time": 16.535865620011464,
-      "min_time": 15.313842100091279,
-      "max_time": 18.271978500066325,
-      "std_time": 1.0776562740581566,
+      "total_time": 38.749592900276184,
+      "avg_time": 7.749918580055237,
+      "min_time": 7.161284300033003,
+      "max_time": 8.969674800056964,
+      "std_time": 0.7103546996660055,
       "step_analysis": {}
     },
     "agently_performance": {
-      "total_time": 35.71965819969773,
-      "avg_time": 7.143931639939547,
-      "min_time": 6.429517599986866,
-      "max_time": 7.8483759998343885,
-      "std_time": 0.5018226732973248,
+      "total_time": 36.30858949990943,
+      "avg_time": 7.261717899981886,
+      "min_time": 6.193040800048038,
+      "max_time": 8.563224399928004,
+      "std_time": 0.8454998165116505,
       "step_analysis": {}
     },
     "performance_comparison": {
-      "harborai_avg_time": 16.535865620011464,
-      "agently_avg_time": 7.143931639939547,
-      "time_difference": 9.391933980071917,
-      "harborai_slower_by_factor": 2.3146729914889543,
-      "harborai_slower_by_percentage": 131.46729914889545
+      "harborai_avg_time": 7.749918580055237,
+      "agently_avg_time": 7.261717899981886,
+      "time_difference": 0.4882006800733505,
+      "harborai_slower_by_factor": 1.0672293645660027,
+      "harborai_slower_by_percentage": 6.72293645660028
     }
   },
   "bottlenecks": [],
   "recommendations": [
-    {
-      "priority": "高",
-      "category": "架构优化",
-      "title": "考虑重构HarborAI的Agently集成",
-      "description": "HarborAI比直接Agently慢2.3倍，建议重构",
-      "specific_actions": [
-        "减少中间层调用开销",
-        "优化参数传递流程",
-        "缓存重复配置操作",
-        "考虑直接使用Agently API"
-      ]
-    },
     {
       "priority": "中",
       "category": "监控优化",

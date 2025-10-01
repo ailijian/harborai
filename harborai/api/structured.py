@@ -112,12 +112,21 @@ class StructuredOutputHandler:
         for prop_name, prop_schema in properties.items():
             prop_type = prop_schema.get("type", "string")
             description = prop_schema.get("description", f"{prop_name} field")
+            enum_values = prop_schema.get("enum")
             
             # 根据Agently语法，使用元组表达式
             if prop_type == "string":
-                result[prop_name] = ("str", description)
-            elif prop_type == "integer" or prop_type == "number":
+                # 如果有enum约束，在描述中包含可选值
+                if enum_values:
+                    enum_str = "/".join(enum_values)
+                    enhanced_description = f"{description}，可选值: {enum_str}"
+                    result[prop_name] = ("str", enhanced_description)
+                else:
+                    result[prop_name] = ("str", description)
+            elif prop_type == "integer":
                 result[prop_name] = ("int", description)
+            elif prop_type == "number":
+                result[prop_name] = ("float", description)
             elif prop_type == "boolean":
                 result[prop_name] = ("bool", description)
             elif prop_type == "object":

@@ -249,25 +249,30 @@ class WenxinPlugin(BaseLLMPlugin):
             # 根据文心大模型官方API格式处理response_format
             if isinstance(response_format, dict):
                 if response_format.get("type") == "json_schema":
-                    # OpenAI格式的json_schema转换为文心格式
+                    # 文心一言支持完整的json_schema格式，保持原始格式
                     request_data["response_format"] = {
-                        "type": "json_object"  # 文心大模型使用json_object而不是json_schema
+                        "type": "json_schema",
+                        "json_schema": response_format.get("json_schema", {})
                     }
+                    logger.info(f"文心一言使用JSON Schema结构化输出")
                 elif response_format.get("type") in ["json_object", "text"]:
                     # 直接使用文心支持的格式
                     request_data["response_format"] = {
                         "type": response_format["type"]
                     }
+                    logger.info(f"文心一言使用{response_format['type']}格式输出")
                 else:
                     # 默认使用json_object格式
                     request_data["response_format"] = {
                         "type": "json_object"
                     }
+                    logger.info(f"文心一言使用默认json_object格式输出")
             else:
                 # 如果response_format不是字典，默认使用json_object
                 request_data["response_format"] = {
                     "type": "json_object"
                 }
+                logger.info(f"文心一言使用默认json_object格式输出")
         
         return request_data
     
