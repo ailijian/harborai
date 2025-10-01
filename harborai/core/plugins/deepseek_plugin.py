@@ -180,38 +180,28 @@ class DeepSeekPlugin(BaseLLMPlugin):
         
         # 处理结构化输出参数（response_format）
         response_format = kwargs.get("response_format")
-        structured_provider = kwargs.get('structured_provider', 'agently')
-        use_native_structured = kwargs.get('use_native_structured', False)
         
         if response_format:
-            # 根据DeepSeek官方API格式处理response_format
+            # DeepSeek仅使用官方原生json_object能力，不使用Agently后处理
             if isinstance(response_format, dict):
                 if response_format.get("type") == "json_schema":
-                    # 检查是否使用原生结构化输出
-                    if structured_provider == 'native' or use_native_structured:
-                        # 对于原生结构化输出，使用json_object格式
-                        request_data["response_format"] = {
-                            "type": "json_object"
-                        }
-                        
-                        # 确保prompt中包含"json"关键词（DeepSeek API要求）
-                        self._ensure_json_keyword_in_prompt(deepseek_messages)
-                        logger.info(f"DeepSeek使用原生json_object结构化输出")
-                    else:
-                        # 传统方式：使用json_object格式，后续通过Agently处理
-                        request_data["response_format"] = {
-                            "type": "json_object"
-                        }
-                        logger.info(f"DeepSeek使用json_object格式输出（需要Agently后处理）")
+                    # 对于json_schema请求，使用DeepSeek原生json_object格式
+                    request_data["response_format"] = {
+                        "type": "json_object"
+                    }
+                    
+                    # 确保prompt中包含"json"关键词（DeepSeek API要求）
+                    self._ensure_json_keyword_in_prompt(deepseek_messages)
+                    logger.info(f"DeepSeek使用原生json_object结构化输出")
+                    
                 elif response_format.get("type") in ["json_object", "text"]:
                     # 直接使用DeepSeek支持的格式
                     request_data["response_format"] = {
                         "type": response_format["type"]
                     }
                     
-                    # 如果是json_object且使用原生结构化输出，确保prompt包含"json"
-                    if (response_format["type"] == "json_object" and 
-                        (structured_provider == 'native' or use_native_structured)):
+                    # 如果是json_object，确保prompt包含"json"
+                    if response_format["type"] == "json_object":
                         self._ensure_json_keyword_in_prompt(deepseek_messages)
                     
                     logger.info(f"DeepSeek使用{response_format['type']}格式输出")
@@ -221,10 +211,8 @@ class DeepSeekPlugin(BaseLLMPlugin):
                         "type": "json_object"
                     }
                     
-                    # 如果使用原生结构化输出，确保prompt包含"json"
-                    if structured_provider == 'native' or use_native_structured:
-                        self._ensure_json_keyword_in_prompt(deepseek_messages)
-                    
+                    # 确保prompt包含"json"
+                    self._ensure_json_keyword_in_prompt(deepseek_messages)
                     logger.info(f"DeepSeek使用默认json_object格式输出")
             else:
                 # 如果response_format不是字典，默认使用json_object
@@ -232,10 +220,8 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     "type": "json_object"
                 }
                 
-                # 如果使用原生结构化输出，确保prompt包含"json"
-                if structured_provider == 'native' or use_native_structured:
-                    self._ensure_json_keyword_in_prompt(deepseek_messages)
-                
+                # 确保prompt包含"json"
+                self._ensure_json_keyword_in_prompt(deepseek_messages)
                 logger.info(f"DeepSeek使用默认json_object格式输出")
         
         # 处理流式参数

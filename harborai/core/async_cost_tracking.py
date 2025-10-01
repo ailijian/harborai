@@ -188,6 +188,48 @@ class AsyncCostTracker:
             if self._pending_calls:
                 await self._process_batch()
                 
+    def track_sync(self, trace_id: str, function_name: str, **cost_info):
+        """同步版本的成本追踪方法
+        
+        Args:
+            trace_id: 追踪ID
+            function_name: 函数名称
+            **cost_info: 成本信息（包含model、input_tokens、output_tokens等）
+        """
+        try:
+            # 将同步调用转换为异步调用
+            call_info = {
+                'trace_id': trace_id,
+                'function_name': function_name,
+                'timestamp': time.time(),
+                **cost_info
+            }
+            
+            # 直接添加到待处理队列
+            self._pending_calls.append(call_info)
+            
+            # 如果队列满了，触发批处理
+            if len(self._pending_calls) >= self._batch_size:
+                # 在同步环境中，我们使用线程池来处理异步操作
+                import threading
+                import asyncio
+                
+                def run_async_batch():
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(self._process_batch())
+                        loop.close()
+                    except Exception as e:
+                        logger.warning(f"同步成本追踪批处理失败: {e}")
+                
+                # 在后台线程中运行异步批处理
+                thread = threading.Thread(target=run_async_batch, daemon=True)
+                thread.start()
+                
+        except Exception as e:
+            logger.warning(f"同步成本追踪失败: {e}")
+
     async def close(self) -> None:
         """关闭异步成本追踪器"""
         # 处理所有待处理的调用
