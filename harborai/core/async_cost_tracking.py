@@ -134,34 +134,37 @@ class AsyncCostTracker:
         for call_data in calls:
             try:
                 # 创建TokenUsage对象
+                input_tokens = call_data.get('input_tokens', 0)
+                output_tokens = call_data.get('output_tokens', 0)
                 token_usage = TokenUsage(
-                    input_tokens=call_data['input_tokens'],
-                    output_tokens=call_data['output_tokens'],
-                    total_tokens=call_data['input_tokens'] + call_data['output_tokens']
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=input_tokens + output_tokens
                 )
                 
                 # 创建CostBreakdown对象
+                cost = call_data.get('cost', 0.0)  # 如果没有cost字段，默认为0.0
                 cost_breakdown = CostBreakdown(
-                    input_cost=Decimal(str(call_data['cost'] * 0.6)),  # 假设60%为输入成本
-                    output_cost=Decimal(str(call_data['cost'] * 0.4)),  # 假设40%为输出成本
+                    input_cost=Decimal(str(cost * 0.6)),  # 假设60%为输入成本
+                    output_cost=Decimal(str(cost * 0.4)),  # 假设40%为输出成本
                     currency="USD"
                 )
                 
                 # 创建ApiCall对象
                 api_call = ApiCall(
                     id=str(uuid.uuid4()),
-                    timestamp=call_data['timestamp'],
-                    provider=call_data['provider'],
-                    model=call_data['model'],
+                    timestamp=call_data.get('timestamp', datetime.now()),
+                    provider=call_data.get('provider', 'unknown'),
+                    model=call_data.get('model', 'unknown'),
                     endpoint="/chat/completions",  # 默认端点
                     token_usage=token_usage,
                     cost_breakdown=cost_breakdown,
                     request_size=1024,  # 默认请求大小
                     response_size=512,  # 默认响应大小
-                    duration=call_data['duration'],
-                    status="success" if call_data['success'] else "error",
-                    user_id=call_data['user_id'],
-                    tags=call_data['metadata'] if call_data['metadata'] else {}
+                    duration=call_data.get('duration', 0.0),
+                    status="success" if call_data.get('success', True) else "error",
+                    user_id=call_data.get('user_id', 'unknown'),
+                    tags=call_data.get('metadata', {})
                 )
                 
                 # 使用同步追踪器记录

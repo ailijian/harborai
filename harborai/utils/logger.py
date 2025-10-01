@@ -161,180 +161,129 @@ class APICallLogger:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
         self._lock = threading.Lock()
+        # 不在初始化时获取fallback_logger，而是在使用时动态获取
+        
+    def _get_fallback_logger(self):
+        """动态获取fallback_logger"""
+        try:
+            from ..storage.fallback_logger import get_fallback_logger
+            return get_fallback_logger()
+        except ImportError:
+            return None
     
-    def log_request(self, method: str, url: str, headers: Dict[str, str] = None,
-                   body: Any = None, context: LogContext = None):
-        """记录API请求
+    def log_request(self, context: LogContext, request_data: dict) -> None:
+        """记录API请求"""
+        import sys
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_request called\n")
+        sys.stderr.flush()
         
-        Args:
-            method: HTTP方法
-            url: 请求URL
-            headers: 请求头
-            body: 请求体
-            context: 日志上下文
-        """
-        log_data = {
-            'event': 'api_request',
-            'method': method,
-            'url': url,
-            'timestamp': datetime.now().isoformat()
-        }
+        fallback_logger = self._get_fallback_logger()
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_request: fallback_logger = {fallback_logger}\n")
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_request: fallback_logger type = {type(fallback_logger)}\n")
+        sys.stderr.flush()
         
-        if headers:
-            log_data['headers'] = sanitize_log_data(headers)
-        
-        if body:
-            log_data['body'] = sanitize_log_data(body)
-        
-        if context:
-            log_data.update(context.to_dict())
-        
-        with self._lock:
-            self.logger.info("API Request", extra={'structured_data': log_data})
-    
-    def log_response(self, status_code: int, headers: Dict[str, str] = None,
-                    body: Any = None, duration: float = None,
-                    context: LogContext = None):
-        """记录API响应
-        
-        Args:
-            status_code: HTTP状态码
-            headers: 响应头
-            body: 响应体
-            duration: 请求持续时间（秒）
-            context: 日志上下文
-        """
-        log_data = {
-            'event': 'api_response',
-            'status_code': status_code,
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        if headers:
-            log_data['headers'] = sanitize_log_data(headers)
-        
-        if body:
-            log_data['body'] = sanitize_log_data(body)
-        
-        if duration is not None:
-            log_data['duration'] = duration
-        
-        if context:
-            log_data.update(context.to_dict())
-        
-        with self._lock:
-            if status_code >= 400:
-                self.logger.error("API Response Error", extra={'structured_data': log_data})
-            else:
-                self.logger.info("API Response", extra={'structured_data': log_data})
-    
-    def log_error(self, error: Exception, context: LogContext = None):
-        """记录API错误
-        
-        Args:
-            error: 异常对象
-            context: 日志上下文
-        """
-        log_data = {
-            'event': 'api_error',
-            'error_type': type(error).__name__,
-            'error_message': str(error),
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        if context:
-            log_data.update(context.to_dict())
-        
-        with self._lock:
-            self.logger.error("API Error", exc_info=error, extra={'structured_data': log_data})
-    
-    async def alog_request(self, method: str, url: str, params: dict = None, headers: Dict[str, str] = None,
-                          body: Any = None, context: LogContext = None, trace_id: str = None):
-        """异步记录API请求
-        
-        Args:
-            method: HTTP方法
-            url: 请求URL
-            params: 请求参数
-            headers: 请求头
-            body: 请求体
-            context: 日志上下文
-            trace_id: 追踪ID
-        """
-        self.log_request(method, url, headers, body, context)
-    
-    async def alog_response(self, response: Any = None, status_code: int = None,
-                           headers: Dict[str, str] = None, body: Any = None,
-                           duration: float = None, context: LogContext = None,
-                           trace_id: str = None):
-        """异步记录API响应
-        
-        Args:
-            response: 响应对象
-            status_code: HTTP状态码
-            headers: 响应头
-            body: 响应体
-            duration: 请求持续时间（秒）
-            context: 日志上下文
-            trace_id: 追踪ID
-        """
-        # 如果传入了response对象，尝试从中提取信息
-        if response and hasattr(response, '__dict__'):
-            # 对于OpenAI风格的响应对象，记录基本信息
-            log_data = {
-                'event': 'api_response',
-                'response_type': type(response).__name__,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            if trace_id:
-                log_data['trace_id'] = trace_id
-            
-            if context:
-                log_data.update(context.to_dict())
-            
-            with self._lock:
-                self.logger.info("API Response", extra={'structured_data': log_data})
+        if fallback_logger:
+            sys.stderr.write(f"[DEBUG] 使用 fallback_logger 记录请求\n")
+            sys.stderr.flush()
+            try:
+                # 从request_data中提取参数以适配FallbackLogger接口
+                model = request_data.get('model', 'unknown')
+                messages = request_data.get('messages', [])
+                
+                # 创建kwargs包含其他参数
+                kwargs = {k: v for k, v in request_data.items() if k not in ['model', 'messages']}
+                
+                fallback_logger.log_request(
+                    trace_id=context.trace_id,
+                    model=model,
+                    messages=messages,
+                    **kwargs
+                )
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_request 成功\n")
+                sys.stderr.flush()
+            except Exception as e:
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_request 失败: {e}\n")
+                sys.stderr.flush()
         else:
-            # 使用传统方式记录响应
-            self.log_response(status_code or 200, headers, body, duration, context)
+            sys.stderr.write(f"[DEBUG] 没有 fallback_logger，使用标准logger\n")
+            sys.stderr.flush()
+            self.logger.info(f"API Request [trace_id={context.trace_id}] {request_data}")
+
+    def log_response(self, context: LogContext, response_data: dict) -> None:
+        """记录API响应"""
+        import sys
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_response called\n")
+        sys.stderr.flush()
+        
+        fallback_logger = self._get_fallback_logger()
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_response: fallback_logger = {fallback_logger}\n")
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_response: fallback_logger type = {type(fallback_logger)}\n")
+        sys.stderr.flush()
+        
+        if fallback_logger:
+            sys.stderr.write(f"[DEBUG] 使用 fallback_logger 记录响应\n")
+            sys.stderr.flush()
+            try:
+                # 从response_data中提取参数以适配FallbackLogger接口
+                status_code = response_data.get('status_code', 200)
+                response = response_data.get('response')
+                duration = response_data.get('duration', 0.0)
+                
+                # 判断是否成功
+                success = status_code < 400
+                error = f"HTTP {status_code}" if not success else None
+                
+                fallback_logger.log_response(
+                    trace_id=context.trace_id,
+                    response=response,
+                    latency=duration,
+                    success=success,
+                    error=error
+                )
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_response 成功\n")
+                sys.stderr.flush()
+            except Exception as e:
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_response 失败: {e}\n")
+                sys.stderr.flush()
+        else:
+            sys.stderr.write(f"[DEBUG] 没有 fallback_logger，使用标准logger\n")
+            sys.stderr.flush()
+            self.logger.info(f"API Response [trace_id={context.trace_id}] {response_data}")
+
+    def log_error(self, context: LogContext, error_data: dict) -> None:
+        """记录API错误"""
+        import sys
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_error called\n")
+        sys.stderr.flush()
+        
+        fallback_logger = self._get_fallback_logger()
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_error: fallback_logger = {fallback_logger}\n")
+        sys.stderr.write(f"[DEBUG] APICallLogger.log_error: fallback_logger type = {type(fallback_logger)}\n")
+        sys.stderr.flush()
+        
+        if fallback_logger:
+            sys.stderr.write(f"[DEBUG] 使用 fallback_logger 记录错误\n")
+            sys.stderr.flush()
+            try:
+                fallback_logger.log_error(context, error_data)
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_error 成功\n")
+                sys.stderr.flush()
+            except Exception as e:
+                sys.stderr.write(f"[DEBUG] fallback_logger.log_error 失败: {e}\n")
+                sys.stderr.flush()
+        else:
+            sys.stderr.write(f"[DEBUG] 没有 fallback_logger，使用标准logger\n")
+            sys.stderr.flush()
+            self.logger.error(f"API Error [trace_id={context.trace_id}] {error_data}")
+
+    async def alog_request(self, context: LogContext, request_data: dict) -> None:
+        """异步记录API请求"""
+        self.log_request(context, request_data)
     
-    async def alog_error(self, error: Exception = None, model: str = None,
-                        plugin_name: str = None, latency_ms: float = None,
-                        context: LogContext = None, trace_id: str = None):
-        """异步记录API错误
-        
-        Args:
-            error: 异常对象
-            model: 模型名称
-            plugin_name: 插件名称
-            latency_ms: 延迟毫秒数
-            context: 日志上下文
-            trace_id: 追踪ID
-        """
-        log_data = {
-            'event': 'api_error',
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        if error:
-            log_data['error_type'] = type(error).__name__
-            log_data['error_message'] = str(error)
-        
-        if model:
-            log_data['model'] = model
-        
-        if plugin_name:
-            log_data['plugin_name'] = plugin_name
-        
-        if latency_ms is not None:
-            log_data['latency_ms'] = latency_ms
-        
-        if trace_id:
-            log_data['trace_id'] = trace_id
-        
-        if context:
-            log_data.update(context.to_dict())
-        
-        with self._lock:
-            self.logger.error("API Error", exc_info=error, extra={'structured_data': log_data})
+    async def alog_response(self, context: LogContext, response_data: dict) -> None:
+        """异步记录API响应"""
+        self.log_response(context, response_data)
+    
+    async def alog_error(self, context: LogContext, error_data: dict) -> None:
+        """异步记录API错误"""
+        self.log_error(context, error_data)

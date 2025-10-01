@@ -81,6 +81,13 @@ class ChatCompletions:
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """创建聊天完成（同步版本）"""
+        import sys
+        sys.stderr.write("=" * 50 + "\n")
+        sys.stderr.write("DEBUG: ChatCompletions.create method called\n")
+        sys.stderr.write(f"DEBUG: model={model}, messages={messages}\n")
+        sys.stderr.write("=" * 50 + "\n")
+        sys.stderr.flush()
+        
         # 获取性能配置
         perf_config = get_performance_config()
         
@@ -166,6 +173,10 @@ class ChatCompletions:
         """快速结构化输出路径 - 使用优化组件"""
         print("🚀 进入快速结构化输出路径")
         
+        # 获取trace_id
+        from ..utils.tracer import get_or_create_trace_id
+        trace_id = get_or_create_trace_id()
+        
         # 提取用户输入
         user_input = None
         for msg in reversed(messages):
@@ -182,6 +193,21 @@ class ChatCompletions:
                                    structured_provider=structured_provider, **kwargs)
         
         try:
+            # 记录请求日志
+            from ..utils.logger import LogContext
+            log_context = LogContext(trace_id=trace_id)
+            request_params = {
+                "model": model,
+                "messages": messages,
+                "response_format": response_format,
+                "structured_provider": structured_provider,
+                **kwargs
+            }
+            self.api_logger.log_request(
+                context=log_context,
+                request_data=request_params
+            )
+            
             # 使用快速结构化输出处理器
             print("🔧 获取快速处理器")
             fast_processor = self._get_fast_processor()
@@ -193,6 +219,7 @@ class ChatCompletions:
             
             # 调用快速处理器
             print("⚡ 调用快速处理器")
+            start_time = time.time()
             parsed_result = fast_processor.process_structured_output(
                 user_query=user_input,
                 schema=schema,
@@ -202,6 +229,7 @@ class ChatCompletions:
                 temperature=kwargs.get('temperature', 0.1),
                 max_tokens=kwargs.get('max_tokens', 1000)
             )
+            duration = time.time() - start_time
             print(f"✅ 快速处理器返回结果: {parsed_result}")
             
             # 构造兼容的响应对象
@@ -227,11 +255,31 @@ class ChatCompletions:
             # 设置parsed属性
             response.choices[0].message.parsed = parsed_result
             
+            # 记录响应日志
+            response_data = {
+                'status_code': 200,
+                'response': response,
+                'duration': duration
+            }
+            self.api_logger.log_response(
+                context=log_context,
+                response_data=response_data
+            )
+            
             return response
             
         except Exception as e:
             print(
                 f"⚠️ 快速结构化输出处理失败，回退到常规路径: {str(e)}"
+            )
+            # 记录错误日志
+            error_data = {
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+            self.api_logger.log_error(
+                context=log_context,
+                error_data=error_data
             )
             # 回退到常规路径
             return self._create_core(messages, model, response_format=response_format, 
@@ -288,6 +336,10 @@ class ChatCompletions:
         **kwargs
     ) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
         """核心创建逻辑"""
+        import sys
+        sys.stderr.write("DEBUG: _create_core method called\n")
+        sys.stderr.flush()
+        
         # 验证消息
         self._validate_messages(messages)
         
@@ -376,14 +428,23 @@ class ChatCompletions:
             
             try:
                 # 记录请求日志
+                import sys
+                sys.stderr.write(f"[DEBUG] 准备调用 api_logger.log_request\n")
+                sys.stderr.flush()
+                
                 from ..utils.logger import LogContext
                 log_context = LogContext(trace_id=trace_id)
+                
+                sys.stderr.write(f"[DEBUG] 调用 api_logger.log_request: {self.api_logger}\n")
+                sys.stderr.flush()
+                
                 self.api_logger.log_request(
-                    method="POST",
-                    url="/chat/completions",
-                    body=request_params,
-                    context=log_context
+                    context=log_context,
+                    request_data=request_params
                 )
+                
+                sys.stderr.write(f"[DEBUG] api_logger.log_request 调用完成\n")
+                sys.stderr.flush()
                 
                 # 使用重试装饰器
                 # 转换字典消息为ChatMessage对象
@@ -424,10 +485,13 @@ class ChatCompletions:
                 response = _create_with_retry()
                 
                 # 记录响应日志
+                response_data = {
+                    'status_code': 200,
+                    'response': response
+                }
                 self.api_logger.log_response(
-                    status_code=200,
-                    body=response,
-                    context=log_context
+                    context=log_context,
+                    response_data=response_data
                 )
                 
                 return response
@@ -435,9 +499,13 @@ class ChatCompletions:
             except Exception as e:
                 # 记录错误日志
                 error_context = LogContext(trace_id=trace_id)
+                error_data = {
+                    'error_type': type(e).__name__,
+                    'error_message': str(e)
+                }
                 self.api_logger.log_error(
-                    error=e,
-                    context=error_context
+                    context=error_context,
+                    error_data=error_data
                 )
                 raise e
     
