@@ -138,18 +138,9 @@ class UnifiedDecorator:
         """包装同步函数"""
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs) -> Any:
-            return asyncio.run(self._execute_async(
-                self._make_async(func), args, kwargs
-            ))
+            return self._execute_sync(func, args, kwargs)
         
         return sync_wrapper
-    
-    def _make_async(self, func: Callable[..., Any]) -> Callable[..., Awaitable[Any]]:
-        """将同步函数转换为异步函数"""
-        async def async_func(*args, **kwargs):
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
-        return async_func
     
     async def _execute_async(self, func: Callable[..., Awaitable[Any]], args: tuple, kwargs: dict) -> Any:
         """执行异步函数"""
@@ -207,6 +198,59 @@ class UnifiedDecorator:
             
             # 结束追踪 - 异常情况下自动处理
             pass
+            
+            raise
+    
+    def _execute_sync(self, func: Callable[..., Any], args: tuple, kwargs: dict) -> Any:
+        """执行同步函数"""
+        start_time = time.time()
+        trace_id = str(uuid.uuid4())
+        function_name = func.__name__
+        
+        # 更新统计
+        self._stats['total_calls'] += 1
+        
+        try:
+            # 检查缓存（同步版本）
+            if self.config.enable_caching and self._cache_manager:
+                cache_key = self._generate_cache_key(func, args, kwargs)
+                cached_result = self._get_cached_result_sync(cache_key)
+                if cached_result is not None:
+                    self._stats['cache_hits'] += 1
+                    return cached_result
+                else:
+                    self._stats['cache_misses'] += 1
+            
+            # 开始追踪
+            trace_context = None
+            if self._enable_tracing:
+                trace_context = TraceContext(trace_id)
+            
+            # 执行函数
+            result = func(*args, **kwargs)
+            
+            # 记录执行时间
+            execution_time = time.time() - start_time
+            self._update_execution_stats(execution_time)
+            
+            # 同步处理后续任务
+            self._handle_post_execution_sync(
+                trace_id, function_name, args, kwargs, result, 
+                execution_time, trace_context
+            )
+            
+            # 缓存结果（同步版本）
+            if self.config.enable_caching and self._cache_manager:
+                self._cache_result_sync(cache_key, result)
+            
+            return result
+            
+        except Exception as e:
+            self._stats['error_count'] += 1
+            
+            # 记录错误（同步版本）
+            if self.config.background_logging:
+                self._log_error_sync(trace_id, function_name, str(e))
             
             raise
     
@@ -285,6 +329,37 @@ class UnifiedDecorator:
         # 并发执行所有任务
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+    
+    def _handle_post_execution_sync(
+        self,
+        trace_id: str,
+        function_name: str,
+        args: tuple,
+        kwargs: dict,
+        result: Any,
+        execution_time: float,
+        trace_context: Any
+    ) -> None:
+        """处理执行后任务（同步版本）"""
+        # 成本追踪（同步版本）
+        if self.config.enable_cost_tracking and self._cost_tracker:
+            self._track_cost_sync(trace_id, function_name, args, kwargs, result)
+        
+        # PostgreSQL 日志记录（同步版本）
+        if self.config.enable_postgres_logging and self._postgres_logger:
+            self._log_to_postgres_sync(trace_id, function_name, execution_time, result)
+        
+        # 结束追踪（同步版本）
+        if trace_context and self.config.enable_tracing:
+            self._end_trace_sync(trace_context)
+    
+    def _end_trace_sync(self, trace_context: Any) -> None:
+        """结束追踪（同步版本）"""
+        try:
+            if hasattr(trace_context, 'end'):
+                trace_context.end()
+        except Exception as e:
+            logger.warning(f"结束追踪失败: {e}")
     
     async def _end_trace(self, trace_context: Any) -> None:
         """结束追踪"""
@@ -366,6 +441,75 @@ class UnifiedDecorator:
         try:
             if self._postgres_logger:
                 await self._postgres_logger.log_async({
+                    'trace_id': trace_id,
+                    'function_name': function_name,
+                    'error': error,
+                    'timestamp': time.time(),
+                    'level': 'ERROR'
+                })
+        except Exception as e:
+            logger.warning(f"错误日志记录失败: {e}")
+    
+    def _get_cached_result_sync(self, cache_key: str) -> Any:
+        """获取缓存结果（同步版本）"""
+        if not self._cache_manager:
+            return None
+        
+        try:
+            return self._cache_manager.get(cache_key)
+        except Exception as e:
+            logger.warning(f"获取缓存失败: {e}")
+            return None
+    
+    def _cache_result_sync(self, cache_key: str, result: Any) -> None:
+        """缓存结果（同步版本）"""
+        if not self._cache_manager:
+            return
+        
+        try:
+            self._cache_manager.set(cache_key, result, ttl=self.config.cache_ttl)
+        except Exception as e:
+            logger.warning(f"缓存结果失败: {e}")
+    
+    def _track_cost_sync(self, trace_id: str, function_name: str, args: tuple, kwargs: dict, result: Any) -> None:
+        """追踪成本（同步版本）"""
+        if not self._cost_tracker:
+            return
+        
+        try:
+            cost_info = self._extract_cost_info(args, kwargs, result)
+            if cost_info:
+                # 同步版本的成本追踪
+                self._cost_tracker.track_sync(
+                    trace_id=trace_id,
+                    function_name=function_name,
+                    **cost_info
+                )
+        except Exception as e:
+            logger.warning(f"成本追踪失败: {e}")
+    
+    def _log_to_postgres_sync(self, trace_id: str, function_name: str, execution_time: float, result: Any) -> None:
+        """记录到PostgreSQL（同步版本）"""
+        if not self._postgres_logger:
+            return
+        
+        try:
+            # 同步版本的PostgreSQL日志记录
+            self._postgres_logger.log_sync({
+                'trace_id': trace_id,
+                'function_name': function_name,
+                'execution_time': execution_time,
+                'timestamp': time.time(),
+                'result_type': type(result).__name__
+            })
+        except Exception as e:
+            logger.warning(f"PostgreSQL日志记录失败: {e}")
+    
+    def _log_error_sync(self, trace_id: str, function_name: str, error: str) -> None:
+        """记录错误（同步版本）"""
+        try:
+            if self._postgres_logger:
+                self._postgres_logger.log_sync({
                     'trace_id': trace_id,
                     'function_name': function_name,
                     'error': error,
