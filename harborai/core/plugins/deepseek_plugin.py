@@ -180,35 +180,81 @@ class DeepSeekPlugin(BaseLLMPlugin):
         
         # 处理结构化输出参数（response_format）
         response_format = kwargs.get("response_format")
+        structured_provider = kwargs.get('structured_provider', 'agently')
+        use_native_structured = kwargs.get('use_native_structured', False)
+        
         if response_format:
             # 根据DeepSeek官方API格式处理response_format
             if isinstance(response_format, dict):
                 if response_format.get("type") == "json_schema":
-                    # OpenAI格式的json_schema转换为DeepSeek格式
-                    request_data["response_format"] = {
-                        "type": "json_object"  # DeepSeek使用json_object而不是json_schema
-                    }
+                    # 检查是否使用原生结构化输出
+                    if structured_provider == 'native' or use_native_structured:
+                        # 对于原生结构化输出，使用json_object格式
+                        request_data["response_format"] = {
+                            "type": "json_object"
+                        }
+                        
+                        # 确保prompt中包含"json"关键词（DeepSeek API要求）
+                        self._ensure_json_keyword_in_prompt(deepseek_messages)
+                        logger.info(f"DeepSeek使用原生json_object结构化输出")
+                    else:
+                        # 传统方式：使用json_object格式，后续通过Agently处理
+                        request_data["response_format"] = {
+                            "type": "json_object"
+                        }
+                        logger.info(f"DeepSeek使用json_object格式输出（需要Agently后处理）")
                 elif response_format.get("type") in ["json_object", "text"]:
                     # 直接使用DeepSeek支持的格式
                     request_data["response_format"] = {
                         "type": response_format["type"]
                     }
+                    
+                    # 如果是json_object且使用原生结构化输出，确保prompt包含"json"
+                    if (response_format["type"] == "json_object" and 
+                        (structured_provider == 'native' or use_native_structured)):
+                        self._ensure_json_keyword_in_prompt(deepseek_messages)
+                    
+                    logger.info(f"DeepSeek使用{response_format['type']}格式输出")
                 else:
                     # 默认使用json_object格式
                     request_data["response_format"] = {
                         "type": "json_object"
                     }
+                    
+                    # 如果使用原生结构化输出，确保prompt包含"json"
+                    if structured_provider == 'native' or use_native_structured:
+                        self._ensure_json_keyword_in_prompt(deepseek_messages)
+                    
+                    logger.info(f"DeepSeek使用默认json_object格式输出")
             else:
                 # 如果response_format不是字典，默认使用json_object
                 request_data["response_format"] = {
                     "type": "json_object"
                 }
+                
+                # 如果使用原生结构化输出，确保prompt包含"json"
+                if structured_provider == 'native' or use_native_structured:
+                    self._ensure_json_keyword_in_prompt(deepseek_messages)
+                
+                logger.info(f"DeepSeek使用默认json_object格式输出")
         
         # 处理流式参数
         if kwargs.get("stream", False):
             request_data["stream"] = True
         
         return request_data
+    
+    def _ensure_json_keyword_in_prompt(self, deepseek_messages: List[Dict[str, Any]]):
+        """确保prompt中包含'json'关键词，这是DeepSeek API使用json_object格式的要求。"""
+        # 检查最后一条用户消息是否包含"json"关键词
+        for msg in reversed(deepseek_messages):
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                if isinstance(content, str) and "json" not in content.lower():
+                    # 在用户消息末尾添加json格式要求
+                    msg["content"] = content + "\n\nPlease respond in JSON format."
+                    logger.info("已在prompt中添加JSON格式要求")
+                break
     
     def _convert_to_harbor_response(self, response_data: Dict[str, Any], model: str) -> ChatCompletion:
         """将DeepSeek响应转换为Harbor格式。"""
@@ -294,6 +340,69 @@ class DeepSeekPlugin(BaseLLMPlugin):
             choices=choices
         )
     
+    def _handle_native_structured_output(self, model: str, messages: List[ChatMessage], stream: bool = False, **kwargs):
+        """处理DeepSeek原生结构化输出。
+        
+        直接使用DeepSeek的json_object能力，无需Agently后处理。
+        """
+        response_format = kwargs.get('response_format')
+        
+        logger.info(f"使用DeepSeek原生json_object处理模型 {model} 的结构化输出")
+        
+        try:
+            # 设置使用原生结构化输出标志
+            kwargs['use_native_structured'] = True
+            
+            # 准备包含response_format的请求
+            request_data = self._prepare_deepseek_request(model, messages, stream=stream, **kwargs)
+            
+            # 发送请求到标准端点
+            client = self._get_client()
+            response = client.post("/v1/chat/completions", json=request_data)
+            response.raise_for_status()
+            
+            if stream:
+                return self._handle_stream_response(response, model)
+            else:
+                import time
+                start_time = time.time()
+                response_data = response.json()
+                harbor_response = self._convert_to_harbor_response(response_data, model)
+                
+                # 检查是否成功返回结构化输出
+                if (harbor_response.choices and 
+                    harbor_response.choices[0].message and 
+                    harbor_response.choices[0].message.content):
+                    
+                    content = harbor_response.choices[0].message.content
+                    
+                    # 验证返回的内容是否为有效JSON
+                    try:
+                        parsed_json = json.loads(content)
+                        logger.info(f"DeepSeek模型 {model} 原生结构化输出成功，返回有效JSON")
+                        
+                        # 设置parsed字段到message对象上
+                        harbor_response.choices[0].message.parsed = parsed_json
+                        
+                        # 计算延迟并记录响应日志
+                        latency_ms = (time.time() - start_time) * 1000
+                        self.log_response(harbor_response, latency_ms)
+                        
+                        return harbor_response
+                    except json.JSONDecodeError as e:
+                        logger.error(f"DeepSeek模型 {model} 返回的内容不是有效JSON: {e}")
+                        logger.error(f"返回内容: {content}")
+                        raise PluginError("deepseek", f"DeepSeek返回的内容不是有效JSON: {content}")
+                else:
+                    logger.error(f"DeepSeek模型 {model} 返回了无效的响应内容")
+                    raise PluginError("deepseek", "DeepSeek返回了无效的响应内容")
+                    
+        except Exception as e:
+            logger.error(f"DeepSeek原生结构化输出处理失败: {e}")
+            if isinstance(e, PluginError):
+                raise
+            raise PluginError("deepseek", f"DeepSeek原生结构化输出处理失败: {str(e)}")
+
     def chat_completion(self, 
                        model: str, 
                        messages: List[ChatMessage], 
@@ -310,45 +419,53 @@ class DeepSeekPlugin(BaseLLMPlugin):
         self.log_request(model, messages, **kwargs)
         
         try:
-            # 准备请求
-            request_data = self._prepare_deepseek_request(model, messages, stream=stream, **kwargs)
+            # 检查是否使用原生结构化输出
+            response_format = kwargs.get('response_format')
+            structured_provider = kwargs.get('structured_provider', 'agently')
+            use_native_structured = response_format and structured_provider == 'native'
             
-            # 发送请求
-            client = self._get_client()
-            
-            # 调试信息：显示请求详情
-            full_url = f"{self.base_url}/v1/chat/completions"
-            self.logger.info(f"发送请求到: {full_url}")
-            self.logger.info(f"请求模型: {model}")
-            
-            response = client.post("/v1/chat/completions", json=request_data)
-            
-            # 调试信息：显示响应状态
-            self.logger.info(f"响应状态码: {response.status_code}")
-            if response.status_code != 200:
-                self.logger.error(f"响应内容: {response.text}")
-            
-            response.raise_for_status()
-            
-            if stream:
-                return self._handle_stream_response(response, model)
+            if use_native_structured:
+                # DeepSeek原生结构化输出：直接使用json_object，无需Agently后处理
+                logger.info(f"使用DeepSeek原生结构化输出处理模型 {model}")
+                return self._handle_native_structured_output(model, messages, stream, **kwargs)
             else:
-                response_data = response.json()
-                harbor_response = self._convert_to_harbor_response(response_data, model)
+                # 标准请求处理（使用Agently后处理）
+                request_data = self._prepare_deepseek_request(model, messages, stream=stream, **kwargs)
                 
-                # 处理结构化输出
-                response_format = kwargs.get('response_format')
-                self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
-                if response_format:
-                    structured_provider = kwargs.get('structured_provider', 'agently')
-                    self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
+                # 发送请求
+                client = self._get_client()
                 
-                # 计算延迟并记录响应日志
-                latency_ms = (time.time() - start_time) * 1000
-                self.log_response(harbor_response, latency_ms)
+                # 调试信息：显示请求详情
+                full_url = f"{self.base_url}/v1/chat/completions"
+                self.logger.info(f"发送请求到: {full_url}")
+                self.logger.info(f"请求模型: {model}")
                 
-                return harbor_response
+                response = client.post("/v1/chat/completions", json=request_data)
+                
+                # 调试信息：显示响应状态
+                self.logger.info(f"响应状态码: {response.status_code}")
+                if response.status_code != 200:
+                    self.logger.error(f"响应内容: {response.text}")
+                
+                response.raise_for_status()
+                
+                if stream:
+                    return self._handle_stream_response(response, model)
+                else:
+                    response_data = response.json()
+                    harbor_response = self._convert_to_harbor_response(response_data, model)
+                    
+                    # 处理结构化输出（使用Agently后处理）
+                    self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
+                    if response_format:
+                        self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
+                        harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
+                    
+                    # 计算延迟并记录响应日志
+                    latency_ms = (time.time() - start_time) * 1000
+                    self.log_response(harbor_response, latency_ms)
+                    
+                    return harbor_response
                 
         except Exception as e:
             self.logger.error(f"DeepSeek API error: {e}")
