@@ -1,31 +1,5 @@
 # HarborAI 技术设计文档 (TD)
 
-## 🎉 重要更新：性能优化重大突破
-
-**最新成果**（2025-09-30）：
-
-* ✅ **性能超越**：HarborAI FAST模式比Agently基准快 **18%**（0.82x性能比率）
-
-* ✅ **TDD验证**：所有性能目标100%达成（3/3通过）
-
-* ✅ **响应时间**：平均1.32秒（目标2.0秒）
-
-* ✅ **客户端池命中率**：94.4%（超越90%目标）
-
-**关键技术突破**：
-
-* 快速结构化输出路径：专门为FAST模式优化的处理路径
-
-* 客户端池优化：94.4%命中率，显著减少连接开销
-
-* Schema缓存系统：8.2%性能提升，LRU淘汰机制
-
-* 配置缓存机制：减少重复计算，提升处理效率
-
-详细信息请参考：[性能优化完整报告](./结构化输出性能优化建议.md) 和 [优化成果总结](./HarborAI_性能优化成果总结.md)
-
-***
-
 ## 一、项目总览
 
 **项目名称**：HarborAI
@@ -92,9 +66,9 @@
 
    * 开发者可一键设置：
 
-     * 模型降级（gpt-4 → gpt-3.5）。
+     * 模型降级（ernie-4.0-turbo-8k → ernie-3.5-8k）。
 
-     * 厂商降级（DeepSeek API → OpenAI API）。
+     * 厂商降级（DeepSeek API → 豆包 API）。
 
 ***
 
@@ -148,8 +122,8 @@ import os
 from harborai import HarborAI
 
 client = HarborAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_BASE_URL")
+    api_key=os.getenv(DEEPSEEK_API_KEY"),
+    base_url=os.getenv("DEEPSEEK_BASE_URL")
 )
 
 messages = [
@@ -158,14 +132,14 @@ messages = [
 
 # 1. 极简的原生调用
 resp = client.chat.completions.create(
-    model="gpt-4",
+    model="deepseek-chat",
     messages=messages
 )
 print(resp.choices[0].message.content)
 
 # 2. 结构化输出调用（默认使用 Agently）
 json_resp = client.chat.completions.create(
-    model="gpt-4",
+    model="deepseek-chat",
     messages=messages,
     response_format={
         "type": "json_schema",
@@ -186,7 +160,7 @@ json_resp = client.chat.completions.create(
 
 # 3. 结构化输出调用（指定使用厂商原生 schema）
 native_resp = client.chat.completions.create(
-    model="gpt-4",
+    model="deepseek-chat",
     messages=messages,
     response_format={
         "type": "json_schema",
@@ -208,7 +182,7 @@ native_resp = client.chat.completions.create(
 
 # 4. 流式调用
 for chunk in client.chat.completions.create(
-    model="gpt-4",
+    model="deepseek-chat",
     messages=messages,
     stream=True
 ):
@@ -373,9 +347,9 @@ class BaseLLMPlugin(ABC):
 
 * **降级策略**：
 
-  * fallback=\["gpt-4", "gpt-3.5"]
+  * fallback=\["deepseek-chat", "-3.5"]
 
-  * 当 `gpt-4` 超时或配额不足时自动切换。
+  * 当 `deepseek-chat` 超时或配额不足时自动切换。
 
 ***
 
@@ -397,7 +371,7 @@ class BaseLLMPlugin(ABC):
   指原生支持生成"思考过程"与"最终答案"的模型。
   例如：
 
-  * **deepseek-reasoner**（先输出 reasoning\_content，再输出最终结果）。
+  * **deepseek-reasoner**（先输出 reasoning_content，再输出最终结果）。
 
   * OpenAI 官方 SDK 已支持这类模型调用。
 
@@ -405,7 +379,7 @@ class BaseLLMPlugin(ABC):
 
 * **非推理模型 (Standard Model)**
   普通大模型，不会单独输出思考过程。
-  例如：GPT-4、GPT-3.5、文心一言等。
+  例如：deepseek-chat、ernie-3.5等。
 
 * **自动兼容模式**
   当模型内置自动切换推理/非推理模式时，HarborAI 会：
