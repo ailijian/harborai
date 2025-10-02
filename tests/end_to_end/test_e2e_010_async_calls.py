@@ -81,6 +81,40 @@ class TestAsyncCalls:
         
         print(f"\n=== 异步调用测试初始化完成，共{len(cls.all_models)}个模型 ===")
 
+    @classmethod
+    def teardown_class(cls):
+        """测试类清理"""
+        print("\n=== 开始清理异步调用测试资源 ===")
+        
+        # 同步关闭所有客户端
+        try:
+            cls.deepseek_client.close()
+            cls.wenxin_client.close()
+            cls.doubao_client.close()
+            print("✓ 所有客户端已关闭")
+        except Exception as e:
+            print(f"⚠ 客户端关闭时出现警告：{e}")
+        
+        # 清理任何剩余的异步任务
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop and not loop.is_closed():
+                pending = asyncio.all_tasks(loop)
+                if pending:
+                    print(f"⚠ 发现 {len(pending)} 个待处理的异步任务，正在取消...")
+                    for task in pending:
+                        task.cancel()
+                    # 等待任务取消完成
+                    try:
+                        asyncio.run(asyncio.gather(*pending, return_exceptions=True))
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"⚠ 清理异步任务时出现警告：{e}")
+        
+        print("=== 异步调用测试资源清理完成 ===")
+
     @pytest.mark.asyncio
     async def test_async_basic_calls(self):
         """测试基础异步调用功能"""

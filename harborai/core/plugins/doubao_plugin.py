@@ -398,6 +398,88 @@ class DoubaoPlugin(BaseLLMPlugin):
             logger.error(error_msg)
             raise PluginError("doubao", error_msg)
     
+    async def _handle_native_structured_output_async(self, model: str, messages: List[ChatMessage], stream: bool = False, **kwargs):
+        """处理豆包异步原生结构化输出。
+        
+        使用OpenAI兼容的结构化输出方式，如果失败则直接抛出错误。
+        """
+        response_format = kwargs.get('response_format')
+        
+        # 使用OpenAI兼容的结构化输出方式
+        logger.info(f"使用OpenAI兼容方式处理豆包模型 {model} 的异步结构化输出")
+        
+        try:
+            # 准备包含response_format的请求
+            request_data = self._prepare_doubao_request(model, messages, stream=stream, **kwargs)
+            
+            # 发送请求到标准端点
+            client = self._get_async_client()
+            response = await client.post("/chat/completions", json=request_data)
+            response.raise_for_status()
+            
+            if stream:
+                return self._handle_async_stream_response(response, model)
+            else:
+                start_time = time.time()
+                response_data = response.json()
+                harbor_response = self._convert_to_harbor_response(response_data, model)
+                
+                # 检查是否成功返回结构化输出
+                if (harbor_response.choices and 
+                    harbor_response.choices[0].message and 
+                    harbor_response.choices[0].message.content):
+                    
+                    content = harbor_response.choices[0].message.content
+                    
+                    # 尝试解析为JSON
+                    try:
+                        import json
+                        parsed_json = json.loads(content)
+                        
+                        # 验证是否符合schema要求
+                        if response_format and 'json_schema' in response_format:
+                            schema = response_format['json_schema'].get('schema', {})
+                            required_fields = schema.get('required', [])
+                            
+                            # 检查必需字段是否存在
+                            if all(field in parsed_json for field in required_fields):
+                                logger.info(f"✅ OpenAI兼容方式成功：豆包返回了符合schema的异步结构化输出")
+                                harbor_response.parsed = parsed_json
+                                # 同时设置message.parsed
+                                if harbor_response.choices and harbor_response.choices[0].message:
+                                    harbor_response.choices[0].message.parsed = parsed_json
+                                self.log_response(harbor_response, time.time() - start_time)
+                                return harbor_response
+                            else:
+                                error_msg = f"豆包返回的JSON缺少必需字段: {required_fields}"
+                                logger.error(error_msg)
+                                raise PluginError("doubao", error_msg)
+                        else:
+                            # 没有schema验证，直接返回解析结果
+                            logger.info(f"✅ OpenAI兼容方式成功：豆包返回了有效的异步JSON输出")
+                            harbor_response.parsed = parsed_json
+                            # 同时设置message.parsed
+                            if harbor_response.choices and harbor_response.choices[0].message:
+                                harbor_response.choices[0].message.parsed = parsed_json
+                            self.log_response(harbor_response, time.time() - start_time)
+                            return harbor_response
+                            
+                    except json.JSONDecodeError as e:
+                        error_msg = f"豆包返回的内容不是有效JSON: {e}"
+                        logger.error(error_msg)
+                        raise PluginError("doubao", error_msg)
+                else:
+                    error_msg = "豆包未返回有效的响应内容"
+                    logger.error(error_msg)
+                    raise PluginError("doubao", error_msg)
+                
+        except Exception as e:
+            if isinstance(e, PluginError):
+                raise
+            error_msg = f"豆包异步原生结构化输出失败: {e}"
+            logger.error(error_msg)
+            raise PluginError("doubao", error_msg)
+    
     async def chat_completion_async(self, 
                                    model: str, 
                                    messages: List[ChatMessage], 
@@ -411,32 +493,39 @@ class DoubaoPlugin(BaseLLMPlugin):
         self.log_request(model, messages, **kwargs)
         
         try:
-            # 准备请求
-            request_data = self._prepare_doubao_request(model, messages, stream=stream, **kwargs)
+            # 检查是否使用原生结构化输出
+            response_format = kwargs.get('response_format')
+            structured_provider = kwargs.get('structured_provider', 'agently')
+            use_native_structured = response_format and structured_provider == 'native'
             
-            # 发送请求
-            client = self._get_async_client()
-            response = await client.post("/chat/completions", json=request_data)
-            response.raise_for_status()
-            
-            if stream:
-                return self._handle_async_stream_response(response, model)
+            if use_native_structured:
+                # 豆包原生结构化输出需要特殊处理
+                return await self._handle_native_structured_output_async(model, messages, stream, **kwargs)
             else:
-                start_time = time.time()
-                response_data = response.json()
-                harbor_response = self._convert_to_harbor_response(response_data, model)
+                # 标准请求处理
+                request_data = self._prepare_doubao_request(model, messages, stream=stream, **kwargs)
                 
-                # 处理结构化输出
-                response_format = kwargs.get('response_format')
-                if response_format:
-                    structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
+                # 发送请求
+                client = self._get_async_client()
+                response = await client.post("/chat/completions", json=request_data)
+                response.raise_for_status()
                 
-                # 记录响应日志
-                latency_ms = (time.time() - start_time) * 1000
-                self.log_response(harbor_response, latency_ms)
-                
-                return harbor_response
+                if stream:
+                    return self._handle_async_stream_response(response, model)
+                else:
+                    start_time = time.time()
+                    response_data = response.json()
+                    harbor_response = self._convert_to_harbor_response(response_data, model)
+                    
+                    # 处理结构化输出
+                    if response_format:
+                        harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
+                    
+                    # 记录响应日志
+                    latency_ms = (time.time() - start_time) * 1000
+                    self.log_response(harbor_response, latency_ms)
+                    
+                    return harbor_response
                 
         except Exception as e:
             logger.error(f"Doubao API error: {e}")

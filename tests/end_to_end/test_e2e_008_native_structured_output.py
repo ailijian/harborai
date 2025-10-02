@@ -89,8 +89,7 @@ def get_test_models() -> List[Dict[str, str]]:
         {"model": "ernie-4.0-turbo-8k", "provider": "ernie", "name": "文心一言 4.0 Turbo", "is_reasoning": False},
         {"model": "ernie-x1-turbo-32k", "provider": "ernie", "name": "文心一言 X1 Turbo", "is_reasoning": True},
         
-        # 豆包模型
-        {"model": "doubao-1-5-pro-32k-character-250715", "provider": "doubao", "name": "豆包 1.5 Pro 32K", "is_reasoning": False},
+        # 豆包模型 - 仅测试支持原生结构化输出的1.6版本
         {"model": "doubao-seed-1-6-250615", "provider": "doubao", "name": "豆包 Seed 1.6", "is_reasoning": True}
     ]
 

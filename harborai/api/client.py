@@ -807,12 +807,16 @@ class ChatCompletions:
             
             try:
                 # 记录请求日志
-                await self.api_logger.alog_request(
-                    method="POST",
-                    url="/chat/completions",
-                    params=request_params,
-                    trace_id=trace_id
-                )
+                from ..utils.logger import LogContext
+                log_context = LogContext(trace_id=trace_id)
+                request_data = {
+                    "method": "POST",
+                    "url": "/chat/completions",
+                    "model": model,
+                    "messages": messages,
+                    **request_params
+                }
+                await self.api_logger.alog_request(log_context, request_data)
                 
                 # 转换字典消息为ChatMessage对象
                 from ..core.base_plugin import ChatMessage
@@ -853,22 +857,23 @@ class ChatCompletions:
                 response = await _acreate_with_retry()
                 
                 # 记录响应日志
-                await self.api_logger.alog_response(
-                    response=response,
-                    trace_id=trace_id
-                )
+                response_data = {
+                    "response": response,
+                    "model": model
+                }
+                await self.api_logger.alog_response(log_context, response_data)
                 
                 return response
                 
             except Exception as e:
                 # 记录错误日志
-                await self.api_logger.alog_error(
-                    error=e,
-                    model=model,
-                    plugin_name="unknown",
-                    latency_ms=0,
-                    trace_id=trace_id
-                )
+                error_data = {
+                    "error": str(e),
+                    "model": model,
+                    "plugin_name": "unknown",
+                    "latency_ms": 0
+                }
+                await self.api_logger.alog_error(log_context, error_data)
                 raise e
     
     def _validate_messages(self, messages: List[Dict[str, Any]]) -> None:

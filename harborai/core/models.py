@@ -111,14 +111,14 @@ MODEL_CAPABILITIES_CONFIG = {
     "deepseek-reasoner": ModelCapabilities(
         supports_reasoning=True,
         supports_streaming=True,  # 推理模型支持流式输出
-        supports_temperature=False,
+        supports_temperature=True,  # 推理模型支持temperature参数
         supports_system_message=False,
         supports_function_calling=False,
         supports_structured_output=False,
         max_tokens_limit=32768,
         max_context_length=32768,
-        supported_parameters=["messages", "model", "max_tokens", "stream"],  # 添加stream参数支持
-        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除stream
+        supported_parameters=["messages", "model", "max_tokens", "temperature", "top_p", "stream"],  # 添加temperature和top_p支持
+        unsupported_parameters=["frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除temperature和top_p
     ),
     
     # DeepSeek 常规模型
@@ -135,18 +135,18 @@ MODEL_CAPABILITIES_CONFIG = {
         unsupported_parameters=[]
     ),
 
-    # 文心一言 推理模型 - 支持推理过程和结果的流式输出
+    # 文心一言 X1 Turbo 32K - 推理模型
     "ernie-x1-turbo-32k": ModelCapabilities(
         supports_reasoning=True,
-        supports_streaming=True,  # 推理模型支持流式输出
-        supports_temperature=False,
-        supports_system_message=False,
+        supports_streaming=True,
+        supports_temperature=True,  # 推理模型支持temperature参数
+        supports_system_message=True,
         supports_function_calling=False,
         supports_structured_output=False,
         max_tokens_limit=32768,
         max_context_length=32768,
-        supported_parameters=["messages", "model", "max_tokens", "stream"],  # 添加stream参数支持
-        unsupported_parameters=["temperature", "top_p", "frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除stream
+        supported_parameters=["messages", "model", "max_tokens", "temperature", "top_p", "stream"],  # 添加temperature和top_p支持
+        unsupported_parameters=["frequency_penalty", "presence_penalty", "functions", "function_call"]  # 移除temperature和top_p
     ),
 
     # 文心一言 常规模型

@@ -134,6 +134,33 @@ class TestAsyncLogging:
         if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
     
+    @classmethod
+    def teardown_class(cls):
+        """测试类清理"""
+        print("\n=== 开始清理异步日志记录测试资源 ===")
+        
+        try:
+            # 确保降级日志管理器关闭
+            shutdown_fallback_logger()
+            print("✓ 降级日志管理器已关闭")
+        except Exception as e:
+            print(f"⚠ 降级日志管理器关闭时出现警告：{e}")
+        
+        # 清理任何剩余的异步任务
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop and not loop.is_closed():
+                pending = asyncio.all_tasks(loop)
+                if pending:
+                    print(f"⚠ 发现 {len(pending)} 个待处理的异步任务，正在取消...")
+                    for task in pending:
+                        task.cancel()
+        except Exception as e:
+            print(f"⚠ 清理异步任务时出现警告：{e}")
+        
+        print("=== 异步日志记录测试资源清理完成 ===")
+    
     def test_basic_async_logging(self):
         """测试基本异步日志记录功能"""
         # 选择第一个可用的配置
