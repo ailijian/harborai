@@ -168,12 +168,20 @@ class DoubaoPlugin(BaseLLMPlugin):
             "messages": doubao_messages
         }
         
+        # 检查结构化输出模式
+        structured_provider = kwargs.get('structured_provider', 'agently')
+        response_format = kwargs.get('response_format')
+        use_native_structured = response_format and structured_provider == 'native'
+        
         # 添加可选参数
         optional_params = [
             "temperature", "top_p", "max_tokens", "stop", 
-            "frequency_penalty", "presence_penalty", "tools", "tool_choice",
-            "response_format"
+            "frequency_penalty", "presence_penalty", "tools", "tool_choice"
         ]
+        
+        # 只有在使用原生结构化输出时才添加response_format参数
+        if use_native_structured:
+            optional_params.append("response_format")
         
         for param in optional_params:
             if param in kwargs and kwargs[param] is not None:
