@@ -238,7 +238,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 content = msg.get("content", "")
                 if isinstance(content, str) and "json" not in content.lower():
                     # 在用户消息末尾添加json格式要求
-                    msg["content"] = content + "\n\nPlease respond in JSON format."
+                    msg["content"] = content + "\n\nReturn only raw JSON with no extra text, markdown, or explanation."
                     logger.info("已在prompt中添加JSON格式要求")
                 break
     
