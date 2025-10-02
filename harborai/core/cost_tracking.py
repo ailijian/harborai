@@ -436,15 +436,43 @@ class CostTracker:
             total_cost = self.current_costs["total"]
             total_calls = len(self.api_calls)
             total_tokens = sum(call.token_usage.total_tokens for call in self.api_calls)
+            calls_data = self.api_calls
         else:
             # 根据时间段过滤
             filtered_calls = self._filter_calls_by_period(period)
             total_cost = sum(call.cost_breakdown.total_cost for call in filtered_calls)
             total_calls = len(filtered_calls)
             total_tokens = sum(call.token_usage.total_tokens for call in filtered_calls)
+            calls_data = filtered_calls
         
         avg_cost_per_call = total_cost / total_calls if total_calls > 0 else Decimal('0')
         avg_cost_per_token = total_cost / total_tokens if total_tokens > 0 else Decimal('0')
+        
+        # 将API调用转换为字典格式，便于序列化和测试
+        calls_list = []
+        for call in calls_data:
+            # 处理timestamp字段，可能是datetime对象或float时间戳
+            if isinstance(call.timestamp, datetime):
+                timestamp_str = call.timestamp.isoformat()
+            elif isinstance(call.timestamp, (int, float)):
+                timestamp_str = datetime.fromtimestamp(call.timestamp).isoformat()
+            else:
+                timestamp_str = str(call.timestamp)
+                
+            calls_list.append({
+                "id": call.id,
+                "timestamp": timestamp_str,
+                "provider": call.provider,
+                "model": call.model,
+                "endpoint": call.endpoint,
+                "total_tokens": call.token_usage.total_tokens,
+                "prompt_tokens": call.token_usage.input_tokens,
+                "completion_tokens": call.token_usage.output_tokens,
+                "total_cost": float(call.cost_breakdown.total_cost),
+                "duration": call.duration,
+                "status": call.status,
+                "user_id": call.user_id
+            })
         
         return {
             "total_cost": total_cost,
@@ -452,7 +480,8 @@ class CostTracker:
             "total_tokens": total_tokens,
             "average_cost_per_call": avg_cost_per_call,
             "average_cost_per_token": avg_cost_per_token,
-            "currency": "USD"
+            "currency": "USD",
+            "calls": calls_list
         }
     
     def _filter_calls_by_period(self, period: str) -> List[ApiCall]:

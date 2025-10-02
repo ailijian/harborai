@@ -376,9 +376,35 @@ class DeepSeekPlugin(BaseLLMPlugin):
                         
                         return harbor_response
                     except json.JSONDecodeError as e:
-                        logger.error(f"DeepSeek模型 {model} 返回的内容不是有效JSON: {e}")
-                        logger.error(f"返回内容: {content}")
-                        raise PluginError("deepseek", f"DeepSeek返回的内容不是有效JSON: {content}")
+                        logger.warning(f"DeepSeek模型 {model} 返回的内容JSON解析失败: {e}")
+                        logger.warning(f"返回内容长度: {len(content)}")
+                        logger.warning(f"返回内容前500字符: {content[:500]}")
+                        logger.warning(f"返回内容后100字符: {content[-100:]}")
+                        
+                        # 尝试修复常见的JSON问题
+                        try:
+                            # 尝试去除可能的前后空白字符
+                            cleaned_content = content.strip()
+                            parsed_json = json.loads(cleaned_content)
+                            logger.info(f"DeepSeek模型 {model} JSON清理后解析成功")
+                            
+                            # 设置parsed字段到message对象上
+                            harbor_response.choices[0].message.parsed = parsed_json
+                            
+                            # 计算延迟并记录响应日志
+                            latency_ms = (time.time() - start_time) * 1000
+                            self.log_response(harbor_response, latency_ms)
+                            
+                            return harbor_response
+                        except json.JSONDecodeError:
+                            # 如果仍然失败，返回原始响应而不是抛出错误
+                            logger.warning(f"DeepSeek模型 {model} JSON解析最终失败，返回原始响应")
+                            
+                            # 计算延迟并记录响应日志
+                            latency_ms = (time.time() - start_time) * 1000
+                            self.log_response(harbor_response, latency_ms)
+                            
+                            return harbor_response
                 else:
                     logger.error(f"DeepSeek模型 {model} 返回了无效的响应内容")
                     raise PluginError("deepseek", "DeepSeek返回了无效的响应内容")

@@ -387,7 +387,12 @@ class BaseLLMPlugin(ABC):
                     ),
                     finish_reason="error"
                 )
-            ]
+            ],
+            usage=Usage(
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0
+            )
         )
     
     def log_request(

@@ -3,9 +3,10 @@
 import json
 import os
 import time
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from queue import Queue
 from threading import Thread, Lock
 import gzip
@@ -15,6 +16,34 @@ from ..utils.logger import get_logger
 from ..utils.exceptions import StorageError
 
 logger = get_logger(__name__)
+
+# 敏感信息模式定义
+# 敏感信息检测模式
+SENSITIVE_PATTERNS = {
+    'phone': [
+        r'1[3-9]\d{9}',  # 中国手机号
+    ],
+    'id_card': [
+        r'\d{6}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]',  # 中国身份证号（更精确的格式）
+    ],
+    'email': [
+        r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',  # 邮箱地址
+    ],
+    'credit_card': [
+        r'(?<!\d)\d{16}(?!\d)',  # 16位银行卡号（避免匹配身份证号）
+        r'(?<!\d)\d{19}(?!\d)',  # 19位银行卡号
+    ],
+    'ip_address': [
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',  # IP地址
+    ],
+    'api_key': [
+        r'sk-[a-zA-Z0-9]{48,}',  # OpenAI API key
+        r'ak-[a-zA-Z0-9]{32,}',  # 其他API key
+    ],
+    'generic_key': [
+        r'[a-zA-Z0-9]{32,}',  # 通用长密钥
+    ]
+}
 
 
 class FileSystemLogger:
@@ -184,22 +213,122 @@ class FileSystemLogger:
         """脱敏处理消息内容。"""
         sanitized = []
         for msg in messages:
+            content = str(msg.get("content", ""))
+            
+            # 对消息内容进行敏感信息脱敏
+            sanitized_content, detections = self._sanitize_text(content)
+            
             sanitized_msg = {
                 "role": msg.get("role"),
-                "content_length": len(str(msg.get("content", ""))),
-                "has_content": bool(msg.get("content"))
+                "content": sanitized_content,
+                "content_length": len(content),
+                "has_content": bool(content),
+                "sensitive_data_detected": len(detections) > 0,
+                "sensitive_data_types": [d['type'] for d in detections] if detections else []
             }
-            # 可选：保留内容的前100个字符用于调试
-            content = str(msg.get("content", ""))
-            if len(content) <= 100:
-                sanitized_msg["content_preview"] = content
-            else:
-                sanitized_msg["content_preview"] = content[:100] + "..."
             
             sanitized.append(sanitized_msg)
         
         return sanitized
-    
+
+    def _sanitize_text(self, text: str) -> Tuple[str, List[Dict[str, Any]]]:
+        """脱敏文本中的敏感信息。
+        
+        Args:
+            text: 原始文本
+            
+        Returns:
+            Tuple[str, List[Dict]]: (脱敏后的文本, 检测到的敏感信息列表)
+        """
+        if not text:
+            return text, []
+        
+        detections = []
+        sanitized_text = text
+        
+        # 检测所有敏感信息
+        for pattern_type, patterns in SENSITIVE_PATTERNS.items():
+            for pattern in patterns:
+                matches = list(re.finditer(pattern, text, re.IGNORECASE))
+                for match in matches:
+                    detections.append({
+                        'match': match.group(),
+                        'pattern': pattern,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'type': pattern_type
+                    })
+        
+        # 按位置倒序处理，避免位置偏移
+        for detection in sorted(detections, key=lambda x: x['start'], reverse=True):
+            start, end = detection['start'], detection['end']
+            original = detection['match']
+            masked = self._mask_sensitive_data(original, detection['type'])
+            sanitized_text = sanitized_text[:start] + masked + sanitized_text[end:]
+        
+        return sanitized_text, detections
+
+    def _mask_sensitive_data(self, data: str, data_type: str) -> str:
+        """脱敏敏感数据。
+        
+        Args:
+            data: 原始敏感数据
+            data_type: 数据类型
+            
+        Returns:
+            str: 脱敏后的数据
+        """
+        mask_char = '*'
+        
+        if data_type == 'email':
+            # 邮箱脱敏：保留首尾字符和@域名
+            parts = data.split('@')
+            if len(parts) == 2:
+                username, domain = parts
+                if len(username) > 2:
+                    masked_username = username[0] + mask_char * (len(username) - 2) + username[-1]
+                else:
+                    masked_username = mask_char * len(username)
+                return f"{masked_username}@{domain}"
+        
+        elif data_type == 'credit_card':
+            # 银行卡脱敏：只显示后4位
+            if len(data) >= 4:
+                return mask_char * (len(data) - 4) + data[-4:]
+        
+        elif data_type in ['api_key', 'generic_key']:
+            # API密钥脱敏：保留前缀和后4位
+            if len(data) > 8:
+                if data.startswith(('sk-', 'ak-')):
+                    prefix = data[:3]
+                    suffix = data[-4:]
+                    middle_length = len(data) - 7
+                    return prefix + mask_char * middle_length + suffix
+                else:
+                    return data[:2] + mask_char * (len(data) - 6) + data[-4:]
+        
+        elif data_type == 'phone':
+            # 手机号脱敏：保留前3位和后4位
+            if len(data) == 11:
+                return data[:3] + mask_char * 4 + data[-4:]
+        
+        elif data_type == 'id_card':
+            # 身份证脱敏：保留前6位和后4位
+            if len(data) == 18:
+                return data[:6] + mask_char * 8 + data[-4:]
+        
+        elif data_type == 'ip_address':
+            # IP地址脱敏：保留第一段
+            parts = data.split('.')
+            if len(parts) == 4:
+                return parts[0] + '.' + mask_char * 3 + '.' + mask_char * 3 + '.' + mask_char * 3
+        
+        # 默认脱敏：保留首尾，中间用*替换
+        if len(data) > 4:
+            return data[0] + mask_char * (len(data) - 2) + data[-1]
+        else:
+            return mask_char * len(data)
+
     def _sanitize_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """脱敏处理参数。"""
         sanitized = {}
@@ -221,9 +350,17 @@ class FileSystemLogger:
             choice = response.choices[0]
             if hasattr(choice, 'message'):
                 message = choice.message
-                summary["content_length"] = len(str(message.content or ""))
+                content = str(message.content or "")
+                
+                # 对响应内容进行脱敏
+                sanitized_content, detections = self._sanitize_text(content)
+                
+                summary["content"] = sanitized_content
+                summary["content_length"] = len(content)
                 summary["has_reasoning"] = hasattr(message, 'reasoning_content') and bool(message.reasoning_content)
                 summary["has_tool_calls"] = hasattr(message, 'tool_calls') and bool(message.tool_calls)
+                summary["sensitive_data_detected"] = len(detections) > 0
+                summary["sensitive_data_types"] = [d['type'] for d in detections] if detections else []
         
         if hasattr(response, 'model'):
             summary["model"] = response.model
