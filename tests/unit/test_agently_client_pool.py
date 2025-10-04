@@ -159,10 +159,10 @@ class TestAgentlyClientPool:
     
     def test_client_creation_and_caching(self):
         """测试客户端创建和缓存"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
+        with patch('agently.Agently') as mock_agently_class:
             # 模拟Agently
             mock_agent = Mock()
-            mock_agently_module.create_agent.return_value = mock_agent
+            mock_agently_class.create_agent.return_value = mock_agent
             
             config = AgentlyClientConfig(
                 provider="OpenAICompatible",
@@ -188,10 +188,10 @@ class TestAgentlyClientPool:
     
     def test_different_configs_create_different_clients(self):
         """测试不同配置创建不同客户端"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
+        with patch('agently.Agently') as mock_agently_class:
             mock_agent1 = Mock()
             mock_agent2 = Mock()
-            mock_agently_module.create_agent.side_effect = [mock_agent1, mock_agent2]
+            mock_agently_class.create_agent.side_effect = [mock_agent1, mock_agent2]
             
             config1 = AgentlyClientConfig(
                 provider="OpenAICompatible",
@@ -216,9 +216,9 @@ class TestAgentlyClientPool:
     
     def test_client_expiration(self):
         """测试客户端过期"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
+        with patch('agently.Agently') as mock_agently_class:
             mock_agent = Mock()
-            mock_agently_module.create_agent.return_value = mock_agent
+            mock_agently_class.create_agent.return_value = mock_agent
             
             # 设置很短的TTL用于测试
             self.pool.set_pool_config(ttl=0.1)
@@ -243,8 +243,8 @@ class TestAgentlyClientPool:
     
     def test_pool_size_limit(self):
         """测试池大小限制"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
-            mock_agently_module.create_agent.return_value = Mock()
+        with patch('agently.Agently') as mock_agently_class:
+            mock_agently_class.create_agent.return_value = Mock()
             
             # 设置小的池大小
             self.pool.set_pool_config(max_size=2)
@@ -266,8 +266,8 @@ class TestAgentlyClientPool:
     
     def test_thread_safety(self):
         """测试线程安全"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
-            mock_agently_module.create_agent.return_value = Mock()
+        with patch('agently.Agently') as mock_agently_class:
+            mock_agently_class.create_agent.return_value = Mock()
             
             config = AgentlyClientConfig(
                 provider="OpenAICompatible",
@@ -318,9 +318,9 @@ class TestAgentlyClientPool:
     
     def test_client_context_manager(self):
         """测试客户端上下文管理器"""
-        with patch('Agently.agently.Agently') as mock_agently_module:
+        with patch('agently.Agently') as mock_agently_class:
             mock_agent = Mock()
-            mock_agently_module.create_agent.return_value = mock_agent
+            mock_agently_class.create_agent.return_value = mock_agent
             
             config = AgentlyClientConfig(
                 provider="OpenAICompatible",

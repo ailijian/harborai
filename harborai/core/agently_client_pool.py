@@ -204,7 +204,7 @@ class AgentlyClientPool:
             Agently Agent实例
         """
         try:
-            from Agently.agently import Agently
+            from agently import Agently
             
             # 设置Agently配置
             settings = {

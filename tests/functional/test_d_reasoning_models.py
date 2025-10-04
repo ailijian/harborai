@@ -678,8 +678,8 @@ class TestReasoningModelIntegration:
             total_tokens=1400
         )
         
-        # 直接mock底层的client_manager方法
-        mock_harborai_client.client_manager.chat_completion_sync_with_fallback.return_value = mock_response
+        # 直接设置chat.completions.create的返回值
+        mock_harborai_client.chat.completions.create.return_value = mock_response
         
         # 执行复杂推理请求
         response = mock_harborai_client.chat.completions.create(

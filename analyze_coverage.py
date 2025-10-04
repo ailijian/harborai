@@ -26,15 +26,17 @@ def analyze_module_coverage(module_path: str, test_files: List[str]) -> Dict:
     classes = []
     functions = []
     
-    for node in ast.walk(module_tree):
+    # 首先收集所有顶级节点
+    for node in module_tree.body:
         if isinstance(node, ast.ClassDef):
             classes.append(node.name)
             # 提取类中的方法
             for item in node.body:
                 if isinstance(item, ast.FunctionDef):
                     functions.append(f"{node.name}.{item.name}")
-        elif isinstance(node, ast.FunctionDef) and not any(isinstance(parent, ast.ClassDef) for parent in ast.walk(module_tree) if hasattr(parent, 'body') and node in getattr(parent, 'body', [])):
-            functions.append(item.name)
+        elif isinstance(node, ast.FunctionDef):
+            # 这是顶级函数（不在类内部）
+            functions.append(node.name)
     
     # 分析测试文件中的覆盖情况
     tested_items = set()

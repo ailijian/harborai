@@ -432,9 +432,8 @@ class FastStructuredOutputProcessor:
             elif prop_type == "object":
                 result[prop_name] = self._convert_object_schema_fast(prop_schema)
             elif prop_type == "array":
-                # 对于数组类型，使用统一的元组格式
-                array_result = self._convert_array_schema_fast(prop_schema)
-                result[prop_name] = ("list", description, array_result)
+                # 对于数组类型，直接返回数组格式
+                result[prop_name] = self._convert_array_schema_fast(prop_schema)
             else:
                 result[prop_name] = ("str", description)
         
@@ -542,7 +541,7 @@ class FastStructuredOutputProcessor:
             结构化输出结果
         """
         try:
-            from Agently.agently import Agently
+            from agently import Agently
             
             # 配置Agently
             Agently.set_settings(

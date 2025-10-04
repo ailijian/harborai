@@ -180,6 +180,22 @@ class TestDocumentationConsistency:
         
         methods['HarborAI'] = harborai_methods
         
+        # 检查FastHarborAI类
+        try:
+            from harborai.api.fast_client import FastHarborAI
+            fast_harborai_methods = []
+            for name, method in inspect.getmembers(FastHarborAI, predicate=inspect.ismethod):
+                if not name.startswith('_'):
+                    fast_harborai_methods.append(name)
+            
+            for name, method in inspect.getmembers(FastHarborAI, predicate=inspect.isfunction):
+                if not name.startswith('_'):
+                    fast_harborai_methods.append(name)
+            
+            methods['FastHarborAI'] = fast_harborai_methods
+        except ImportError:
+            pass
+        
         # 检查ChatCompletions类
         chat_methods = []
         for name, method in inspect.getmembers(ChatCompletions, predicate=inspect.ismethod):
@@ -244,12 +260,20 @@ class TestDocumentationConsistency:
                     if method_name in actual_methods.get('HarborAI', []):
                         method_found = True
                     
+                    # 检查FastHarborAI类方法
+                    if method_name in actual_methods.get('FastHarborAI', []):
+                        method_found = True
+                    
                     # 检查chat.completions方法
                     if method_name in actual_methods.get('ChatCompletions', []):
                         method_found = True
                     
                     # 检查特殊的链式调用（如 client.chat.completions.create）
                     if method_name == 'create' and 'chat' in str(call).lower():
+                        method_found = True
+                    
+                    # 检查hasattr调用（用于条件性方法调用）
+                    if method_name == 'hasattr':
                         method_found = True
                     
                     if not method_found:

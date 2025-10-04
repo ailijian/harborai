@@ -5,6 +5,8 @@
 
 负责插件注册、模型路由、降级策略等核心功能。
 动态扫描插件目录，管理多个 LLM 厂商的插件。
+
+支持延迟加载模式以提升初始化性能。
 """
 
 import importlib
@@ -13,6 +15,7 @@ from typing import Dict, List, Optional, Type, Union, Any
 from pathlib import Path
 
 from .base_plugin import BaseLLMPlugin, ModelInfo, ChatCompletion, ChatCompletionChunk, ChatMessage
+from .lazy_plugin_manager import LazyPluginManager
 from ..utils.exceptions import ModelNotFoundError, PluginError
 from ..utils.logger import get_logger
 from ..utils.tracer import get_current_trace_id
@@ -20,17 +23,43 @@ from ..config.settings import get_settings
 
 
 class ClientManager:
-    """客户端管理器"""
+    """客户端管理器
     
-    def __init__(self, client_config: Optional[Dict[str, Any]] = None):
+    支持两种模式：
+    1. 传统模式：立即加载所有插件（向后兼容）
+    2. 延迟模式：按需加载插件（性能优化）
+    """
+    
+    def __init__(
+        self, 
+        client_config: Optional[Dict[str, Any]] = None,
+        lazy_loading: bool = False
+    ):
+        """初始化客户端管理器
+        
+        Args:
+            client_config: 客户端配置
+            lazy_loading: 是否启用延迟加载模式
+        """
         self.plugins: Dict[str, BaseLLMPlugin] = {}
         self.model_to_plugin: Dict[str, str] = {}
         self.logger = get_logger("harborai.client_manager")
         self.settings = get_settings()
         self.client_config = client_config or {}
+        self.lazy_loading = lazy_loading
         
-        # 自动加载插件
-        self._load_plugins()
+        # 延迟加载管理器
+        self._lazy_manager: Optional[LazyPluginManager] = None
+        
+        if lazy_loading:
+            # 延迟加载模式：仅初始化LazyPluginManager
+            self._lazy_manager = LazyPluginManager(config=self.client_config)
+            self.logger.info(
+                f"ClientManager initialized in lazy mode [trace_id={get_current_trace_id()}]"
+            )
+        else:
+            # 传统模式：立即加载所有插件
+            self._load_plugins()
     
     def _load_plugins(self) -> None:
         """自动加载插件"""
@@ -164,7 +193,19 @@ class ClientManager:
         )
     
     def get_plugin_for_model(self, model_name: str) -> BaseLLMPlugin:
-        """获取模型对应的插件"""
+        """获取模型对应的插件
+        
+        在延迟加载模式下，会按需加载插件。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            # 延迟加载模式：通过LazyPluginManager获取插件
+            try:
+                return self._lazy_manager.get_plugin_for_model(model_name)
+            except ModelNotFoundError:
+                # 如果LazyPluginManager找不到，尝试传统方式
+                pass
+        
+        # 传统模式或延迟模式的回退逻辑
         # 检查模型映射
         if model_name in self.model_to_plugin:
             plugin_name = self.model_to_plugin[model_name]
@@ -185,14 +226,30 @@ class ClientManager:
         )
     
     def get_available_models(self) -> List[ModelInfo]:
-        """获取所有可用模型"""
+        """获取所有可用模型
+        
+        在延迟加载模式下，返回所有支持的模型信息（无需加载插件）。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            # 延迟加载模式：从LazyPluginManager获取模型信息
+            return self._lazy_manager.get_available_models()
+        
+        # 传统模式：从已加载的插件获取
         models = []
         for plugin in self.plugins.values():
             models.extend(plugin.supported_models)
         return models
     
     def get_plugin_info(self) -> Dict[str, Dict[str, Any]]:
-        """获取插件信息"""
+        """获取插件信息
+        
+        在延迟加载模式下，返回插件的基本信息（无需加载插件）。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            # 延迟加载模式：从LazyPluginManager获取插件信息
+            return self._lazy_manager.get_plugin_info()
+        
+        # 传统模式：从已加载的插件获取
         info = {}
         for plugin_name, plugin in self.plugins.items():
             info[plugin_name] = {
@@ -202,6 +259,52 @@ class ClientManager:
                 "model_count": len(plugin.supported_models)
             }
         return info
+    
+    def preload_plugin(self, plugin_name: str) -> None:
+        """预加载指定插件
+        
+        在延迟加载模式下，可以主动预加载某个插件以提升后续调用性能。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            self._lazy_manager.preload_plugin(plugin_name)
+            self.logger.info(
+                f"Plugin preloaded [trace_id={get_current_trace_id()}] plugin={plugin_name}"
+            )
+        else:
+            self.logger.warning(
+                f"Preload ignored in non-lazy mode [trace_id={get_current_trace_id()}] plugin={plugin_name}"
+            )
+    
+    def preload_model(self, model_name: str) -> None:
+        """预加载支持指定模型的插件
+        
+        在延迟加载模式下，可以主动预加载支持某个模型的插件。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            self._lazy_manager.preload_model(model_name)
+            self.logger.info(
+                f"Model plugin preloaded [trace_id={get_current_trace_id()}] model={model_name}"
+            )
+        else:
+            self.logger.warning(
+                f"Model preload ignored in non-lazy mode [trace_id={get_current_trace_id()}] model={model_name}"
+            )
+    
+    def get_loading_statistics(self) -> Dict[str, Any]:
+        """获取加载统计信息
+        
+        返回插件加载的统计信息，包括已加载插件数量、加载时间等。
+        """
+        if self.lazy_loading and self._lazy_manager:
+            return self._lazy_manager.get_statistics()
+        else:
+            # 传统模式的统计信息
+            return {
+                "mode": "traditional",
+                "loaded_plugins": len(self.plugins),
+                "total_models": len(self.model_to_plugin),
+                "plugin_names": list(self.plugins.keys())
+            }
     
     async def chat_completion_with_fallback(
         self,

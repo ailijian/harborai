@@ -531,7 +531,7 @@ class TestComplexSchemas:
         
         expected = {
             "title": ("str", "标题"),
-            "count": ("int", "数量"),
+            "count": ("int", "数量"),  # number类型映射为int
             "tags": [("str", "标签列表")],
             "metadata": {
                 "created": ("str", "创建时间"),

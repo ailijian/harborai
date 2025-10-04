@@ -228,7 +228,7 @@ class TestFastModeStructuredOutputPerformance:
         if not api_key:
             pytest.skip("需要设置DEEPSEEK_API_KEY环境变量")
         
-        from Agently.agently import Agently
+        from agently import Agently
         Agently.set_settings(
             "OpenAICompatible",
             {
@@ -241,7 +241,7 @@ class TestFastModeStructuredOutputPerformance:
     
     def _create_agently_agent(self):
         """创建Agently代理"""
-        from Agently.agently import Agently
+        from agently import Agently
         return Agently.create_agent()
     
     def _convert_schema_to_agently(self, schema: Dict[str, Any]) -> Dict[str, Any]:
