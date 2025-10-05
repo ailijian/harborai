@@ -59,7 +59,7 @@ class TestDocumentationConsistency:
             cls.readme_content = ""
             
         # 读取技术设计文档
-        cls.tech_design_path = cls.docs_path / "HarborAI测试项目技术设计方案.md"
+        cls.tech_design_path = cls.docs_path / "HarborAI_TD.md"
         if cls.tech_design_path.exists():
             with open(cls.tech_design_path, 'r', encoding='utf-8') as f:
                 cls.tech_design_content = f.read()

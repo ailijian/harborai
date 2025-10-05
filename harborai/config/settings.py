@@ -35,9 +35,9 @@ class Settings(BaseSettings):
     # API 配置
     api_key: Optional[str] = Field(default=None)
     base_url: Optional[str] = Field(default=None)
-    default_timeout: int = Field(default=60, alias="HARBORAI_TIMEOUT")
-    max_retries: int = Field(default=3)
-    retry_delay: float = Field(default=1.0)
+    default_timeout: int = Field(default=60, alias="HARBORAI_TIMEOUT", gt=0)
+    max_retries: int = Field(default=3, ge=0)
+    retry_delay: float = Field(default=1.0, ge=0)
     
     # 结构化输出配置
     default_structured_provider: str = Field(default="agently", alias="HARBORAI_STRUCTURED_PROVIDER")

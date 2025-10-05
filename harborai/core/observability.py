@@ -340,8 +340,18 @@ class TracingManager:
         self.active_spans: Dict[str, Span] = {}
         self._lock = threading.Lock()
     
+    def start_trace(self, operation_name: str, trace_id: Optional[str] = None) -> str:
+        """开始一个新的追踪"""
+        if not trace_id:
+            trace_id = generate_trace_id()
+            set_current_trace_id(trace_id)
+        
+        # 创建根跨度
+        span_id = self.start_span(operation_name, trace_id=trace_id)
+        return trace_id
+    
     def start_span(self, operation_name: str, trace_id: Optional[str] = None, 
-                  parent_span_id: Optional[str] = None, **tags) -> Span:
+                  parent_span_id: Optional[str] = None, **tags) -> str:
         """开始一个新的跨度"""
         if not trace_id:
             trace_id = get_current_trace_id() or generate_trace_id()
@@ -364,28 +374,73 @@ class TracingManager:
             self.active_spans[span_id] = span
             self.spans[trace_id].append(span)
         
-        return span
+        return span_id
     
-    def finish_span(self, span: Span, status: str = "ok"):
+    def get_active_span_id(self) -> Optional[str]:
+        """获取当前活跃的跨度ID"""
+        with self._lock:
+            if self.active_spans:
+                # 返回最新的活跃跨度ID
+                return list(self.active_spans.keys())[-1]
+            return None
+    
+    def finish_span(self, span_or_id, status: str = "ok"):
         """结束跨度"""
+        if isinstance(span_or_id, str):
+            # 如果传入的是span_id
+            span_id = span_or_id
+            with self._lock:
+                if span_id in self.active_spans:
+                    span = self.active_spans[span_id]
+                else:
+                    return  # 跨度不存在
+        else:
+            # 如果传入的是Span对象
+            span = span_or_id
+            span_id = span.span_id
+        
         span.end_time = datetime.now()
         span.duration = (span.end_time - span.start_time).total_seconds() * 1000
         span.status = status
         
         with self._lock:
-            if span.span_id in self.active_spans:
-                del self.active_spans[span.span_id]
+            if span_id in self.active_spans:
+                del self.active_spans[span_id]
     
-    def add_span_log(self, span: Span, **log_data):
+    def add_span_log(self, span_or_id, **log_data):
         """添加跨度日志"""
+        if isinstance(span_or_id, str):
+            # 如果传入的是span_id
+            span_id = span_or_id
+            with self._lock:
+                if span_id in self.active_spans:
+                    span = self.active_spans[span_id]
+                else:
+                    return  # 跨度不存在
+        else:
+            # 如果传入的是Span对象
+            span = span_or_id
+        
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             **log_data
         }
         span.logs.append(log_entry)
     
-    def set_span_tag(self, span: Span, key: str, value: Any):
+    def set_span_tag(self, span_or_id, key: str, value: Any):
         """设置跨度标签"""
+        if isinstance(span_or_id, str):
+            # 如果传入的是span_id
+            span_id = span_or_id
+            with self._lock:
+                if span_id in self.active_spans:
+                    span = self.active_spans[span_id]
+                else:
+                    return  # 跨度不存在
+        else:
+            # 如果传入的是Span对象
+            span = span_or_id
+        
         span.tags[key] = value
     
     def get_spans(self, trace_id: Optional[str] = None) -> Dict[str, List[Span]]:

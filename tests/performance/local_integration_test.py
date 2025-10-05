@@ -7,9 +7,73 @@
 import asyncio
 import time
 import math
-from execution_efficiency_tests import ExecutionEfficiencyTester
-from memory_leak_detector import MemoryLeakDetector
-from resource_utilization_monitor import ResourceUtilizationMonitor
+try:
+    from .memory_leak_detector import MemoryLeakDetector
+    from .resource_utilization_monitor import ResourceUtilizationMonitor
+except ImportError:
+    from memory_leak_detector import MemoryLeakDetector
+    from resource_utilization_monitor import ResourceUtilizationMonitor
+
+# 创建一个简单的执行效率测试器类
+class ExecutionEfficiencyTester:
+    """简单的执行效率测试器"""
+    
+    def __init__(self):
+        self.test_results = []
+        
+    async def test_async_performance(self, func, iterations=100):
+        """测试异步函数性能"""
+        start_time = time.time()
+        for _ in range(iterations):
+            await func()
+        end_time = time.time()
+        
+        duration = end_time - start_time
+        avg_time = duration / iterations
+        
+        result = {
+            'function': func.__name__,
+            'iterations': iterations,
+            'total_time': duration,
+            'avg_time': avg_time,
+            'throughput': iterations / duration
+        }
+        
+        self.test_results.append(result)
+        return result
+        
+    def test_sync_performance(self, func, iterations=100):
+        """测试同步函数性能"""
+        start_time = time.time()
+        for _ in range(iterations):
+            func()
+        end_time = time.time()
+        
+        duration = end_time - start_time
+        avg_time = duration / iterations
+        
+        result = {
+            'function': func.__name__,
+            'iterations': iterations,
+            'total_time': duration,
+            'avg_time': avg_time,
+            'throughput': iterations / duration
+        }
+        
+        self.test_results.append(result)
+        return result
+        
+    def get_summary(self):
+        """获取测试摘要"""
+        if not self.test_results:
+            return {'total_tests': 0}
+            
+        return {
+            'total_tests': len(self.test_results),
+            'avg_throughput': sum(r['throughput'] for r in self.test_results) / len(self.test_results),
+            'total_time': sum(r['total_time'] for r in self.test_results),
+            'results': self.test_results
+        }
 
 async def run_local_integration_tests():
     """运行本地集成测试"""

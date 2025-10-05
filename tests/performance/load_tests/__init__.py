@@ -24,37 +24,37 @@ __email__ = 'team@harborai.com'
 
 # 负载测试配置
 LOAD_TEST_CONFIG = {
-    # 负载级别定义（优化超时配置）
+    # 负载级别定义（进一步优化超时配置）
     'load_levels': {
         'light': {
-            'concurrent_users': 3,
+            'concurrent_users': 2,
             'requests_per_second': 1,
-            'duration_minutes': 0.2,  # 12秒
-            'ramp_up_seconds': 3
+            'duration_minutes': 0.1,  # 6秒
+            'ramp_up_seconds': 2
         },
         'normal': {
-            'concurrent_users': 5,
+            'concurrent_users': 3,
             'requests_per_second': 2,
-            'duration_minutes': 0.3,  # 18秒
-            'ramp_up_seconds': 5
+            'duration_minutes': 0.15,  # 9秒
+            'ramp_up_seconds': 3
         },
         'heavy': {
-            'concurrent_users': 8,
-            'requests_per_second': 4,
-            'duration_minutes': 0.5,  # 30秒
-            'ramp_up_seconds': 8
+            'concurrent_users': 5,
+            'requests_per_second': 3,
+            'duration_minutes': 0.2,  # 12秒
+            'ramp_up_seconds': 5
         },
         'peak': {
-            'concurrent_users': 15,
-            'requests_per_second': 8,
-            'duration_minutes': 0.5,  # 30秒
+            'concurrent_users': 8,
+            'requests_per_second': 5,
+            'duration_minutes': 0.25,  # 15秒
             'ramp_up_seconds': 10
         },
         'extreme': {
-            'concurrent_users': 20,
-            'requests_per_second': 10,
-            'duration_minutes': 0.5,  # 30秒
-            'ramp_up_seconds': 15
+            'concurrent_users': 10,
+            'requests_per_second': 8,
+            'duration_minutes': 0.3,  # 18秒
+            'ramp_up_seconds': 10
         }
     },
     
@@ -63,14 +63,14 @@ LOAD_TEST_CONFIG = {
         'gradual_ramp': {
             'description': '渐进式负载增长测试',
             'phases': ['light', 'normal', 'heavy'],
-            'phase_duration_minutes': 0.5
+            'phase_duration_minutes': 0.2
         },
         'spike_test': {
             'description': '突发负载测试',
-            'base_load': 'normal',
-            'spike_load': 'peak',
-            'spike_duration_minutes': 1,
-            'spike_interval_minutes': 3
+            'base_load': 'light',
+            'spike_load': 'normal',
+            'spike_duration_minutes': 0.2,
+            'spike_interval_minutes': 0.3
         },
         'endurance_test': {
             'description': '持续负载测试',

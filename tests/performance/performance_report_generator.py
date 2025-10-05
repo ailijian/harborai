@@ -14,9 +14,10 @@ HarborAI SDK 性能报告生成器
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
 import logging
 
 # 导入统一报告管理器
@@ -38,6 +39,82 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# 检查matplotlib可用性
+MATPLOTLIB_AVAILABLE = VISUALIZATION_AVAILABLE
+
+
+@dataclass
+class ReportMetadata:
+    """报告元数据"""
+    title: str
+    description: str
+    generated_at: datetime
+    test_duration: timedelta
+    test_environment: Dict[str, Any]
+    version: str
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'title': self.title,
+            'description': self.description,
+            'generated_at': self.generated_at.isoformat(),
+            'test_duration': str(self.test_duration),
+            'test_environment': self.test_environment,
+            'version': self.version
+        }
+
+
+@dataclass
+class PerformanceSummary:
+    """性能测试摘要"""
+    total_tests: int
+    passed_tests: int
+    failed_tests: int
+    success_rate: float
+    average_response_time: float
+    peak_memory_usage: int
+    peak_cpu_usage: float
+    total_requests: int
+    requests_per_second: float
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'total_tests': self.total_tests,
+            'passed_tests': self.passed_tests,
+            'failed_tests': self.failed_tests,
+            'success_rate': self.success_rate,
+            'average_response_time': self.average_response_time,
+            'peak_memory_usage': self.peak_memory_usage,
+            'peak_cpu_usage': self.peak_cpu_usage,
+            'total_requests': self.total_requests,
+            'requests_per_second': self.requests_per_second
+        }
+
+
+@dataclass
+class ChartData:
+    """图表数据"""
+    chart_type: str
+    title: str
+    data: Dict[str, Any]
+    options: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        """初始化后处理"""
+        if self.options is None:
+            self.options = {}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            'chart_type': self.chart_type,
+            'title': self.title,
+            'data': self.data,
+            'options': self.options
+        }
+
 
 class PerformanceReportGenerator:
     """性能报告生成器
@@ -45,17 +122,32 @@ class PerformanceReportGenerator:
     基于性能测试结果生成综合性能评估报告
     """
     
-    def __init__(self, results_file: str):
+    def __init__(self, output_dir: str = "reports", results_file: str = None):
         """初始化报告生成器
         
         Args:
-            results_file: 性能测试结果文件路径
+            output_dir: 输出目录路径
+            results_file: 性能测试结果文件路径（可选）
         """
-        self.results_file = Path(results_file)
-        self.results = {}
-        # 使用统一报告管理器获取性能报告目录
-        self.report_dir = get_performance_report_path("metrics").parent
-        self.report_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
+        
+        if results_file:
+            self.results_file = Path(results_file)
+            self.results = {}
+            # 使用统一报告管理器获取性能报告目录
+            self.report_dir = get_performance_report_path("metrics").parent
+            self.report_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self.results_file = None
+            self.results = {}
+            self.report_dir = self.output_dir
+            
+        self.charts = []
+        self.metadata = None
+        self.summary = None
+        self.detailed_data = {}
+        self.html_template = self._get_default_html_template()
         
         # 设计目标（来自PRD/TD）
         self.design_targets = {
@@ -68,8 +160,84 @@ class PerformanceReportGenerator:
             "plugin_switching_overhead_ms": 1.0  # < 1ms
         }
         
-        # 加载测试结果
-        self._load_results()
+        # 加载测试结果（如果提供了结果文件）
+        if self.results_file:
+            self._load_results()
+    
+    def add_chart(self, chart: ChartData):
+        """添加图表"""
+        self.charts.append(chart)
+        
+    def set_metadata(self, metadata: ReportMetadata):
+        """设置元数据"""
+        self.metadata = metadata
+        
+    def set_summary(self, summary: PerformanceSummary):
+        """设置摘要"""
+        self.summary = summary
+        
+    def set_detailed_data(self, data: Dict[str, Any]):
+        """设置详细数据"""
+        self.detailed_data = data
+        
+    def _get_default_html_template(self) -> str:
+        """获取默认HTML模板"""
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>性能测试报告</title>
+            <meta charset="utf-8">
+        </head>
+        <body>
+            <h1>性能测试报告</h1>
+            <div id="content">
+                {content}
+            </div>
+        </body>
+        </html>
+        """
+        
+    def generate_html_report(self, filename: str = "report.html") -> str:
+        """生成HTML报告"""
+        report_path = self.output_dir / filename
+        content = self._generate_html_content()
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(self.html_template.format(content=content))
+            
+        return str(report_path)
+        
+    def generate_json_report(self, filename: str = "report.json") -> str:
+        """生成JSON报告"""
+        report_path = self.output_dir / filename
+        data = {
+            'metadata': self.metadata.to_dict() if self.metadata else None,
+            'summary': self.summary.to_dict() if self.summary else None,
+            'charts': [chart.to_dict() for chart in self.charts],
+            'detailed_data': self.detailed_data
+        }
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            
+        return str(report_path)
+        
+    def _generate_html_content(self) -> str:
+        """生成HTML内容"""
+        content = []
+        
+        if self.metadata:
+            content.append(f"<h2>{self.metadata.title}</h2>")
+            content.append(f"<p>{self.metadata.description}</p>")
+            
+        if self.summary:
+            content.append("<h3>测试摘要</h3>")
+            content.append(f"<p>总测试数: {self.summary.total_tests}</p>")
+            content.append(f"<p>通过测试: {self.summary.passed_tests}</p>")
+            content.append(f"<p>成功率: {self.summary.success_rate:.2%}</p>")
+            
+        return "\n".join(content)
     
     def _load_results(self):
         """加载测试结果"""
@@ -810,6 +978,28 @@ class PerformanceReportGenerator:
         plt.tight_layout()
         plt.savefig(charts_dir / "compliance_radar.png", dpi=300, bbox_inches='tight')
         plt.close()
+
+
+def generate_quick_report(data: Dict[str, Any], output_path: str) -> str:
+    """快速生成报告"""
+    try:
+        # 创建临时结果文件
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(data, f)
+            temp_file = f.name
+        
+        # 生成报告
+        generator = PerformanceReportGenerator(temp_file)
+        report_path = generator.generate_comprehensive_report()
+        
+        # 清理临时文件
+        os.unlink(temp_file)
+        
+        return report_path
+    except Exception as e:
+        logger.error(f"快速报告生成失败: {e}")
+        raise
 
 
 def main():

@@ -23,14 +23,24 @@ from unittest.mock import Mock, patch, MagicMock
 from typing import List, Dict, Any
 
 # 导入被测试的模块
-from performance_report_generator import (
-    PerformanceReportGenerator,
-    ReportMetadata,
-    PerformanceSummary,
-    ChartData,
-    generate_quick_report,
-    MATPLOTLIB_AVAILABLE
-)
+try:
+    from .performance_report_generator import (
+        PerformanceReportGenerator,
+        ReportMetadata,
+        PerformanceSummary,
+        ChartData,
+        generate_quick_report,
+        MATPLOTLIB_AVAILABLE
+    )
+except ImportError:
+    from performance_report_generator import (
+        PerformanceReportGenerator,
+        ReportMetadata,
+        PerformanceSummary,
+        ChartData,
+        generate_quick_report,
+        MATPLOTLIB_AVAILABLE
+    )
 
 
 class TestReportMetadata:

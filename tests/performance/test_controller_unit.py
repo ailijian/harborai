@@ -16,13 +16,22 @@ import time
 from unittest.mock import Mock
 from datetime import datetime
 
-from core_performance_framework import (
-    PerformanceTestController,
-    PerformanceConfig,
-    TestType,
-    TestStatus,
-    TestMetrics
-)
+try:
+    from .core_performance_framework import (
+        PerformanceTestController,
+        PerformanceConfig,
+        TestType,
+        TestStatus,
+        TestMetrics
+    )
+except ImportError:
+    from core_performance_framework import (
+        PerformanceTestController,
+        PerformanceConfig,
+        TestType,
+        TestStatus,
+        TestMetrics
+    )
 
 
 class TestPerformanceTestControllerUnit:

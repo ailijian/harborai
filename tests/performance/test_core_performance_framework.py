@@ -19,15 +19,26 @@ from datetime import datetime, timedelta
 from unittest.mock import Mock, patch
 from typing import Dict, List, Any
 
-from core_performance_framework import (
-    PerformanceConfig,
-    TestMetrics,
-    AggregatedResults,
-    ResultsCollector,
-    PerformanceTestController,
-    TestType,
-    TestStatus
-)
+try:
+    from .core_performance_framework import (
+        PerformanceConfig,
+        TestMetrics,
+        AggregatedResults,
+        ResultsCollector,
+        PerformanceTestController,
+        TestType,
+        TestStatus
+    )
+except ImportError:
+    from core_performance_framework import (
+        PerformanceConfig,
+        TestMetrics,
+        AggregatedResults,
+        ResultsCollector,
+        PerformanceTestController,
+        TestType,
+        TestStatus
+    )
 
 
 class TestPerformanceConfig:

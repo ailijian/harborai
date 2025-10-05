@@ -534,9 +534,9 @@ class SchemaComparator:
         agently_metrics.memory_usage = (agently_end_memory - agently_start_memory) / 1024 / 1024  # MB
         
         # 计算对比结果
-        performance_ratio = native_metrics.execution_time / agently_metrics.execution_time if agently_metrics.execution_time > 0 else float('inf')
-        memory_ratio = native_metrics.memory_usage / agently_metrics.memory_usage if agently_metrics.memory_usage > 0 else float('inf')
-        throughput_ratio = native_metrics.throughput / agently_metrics.throughput if agently_metrics.throughput > 0 else float('inf')
+        performance_ratio = native_metrics.execution_time / agently_metrics.execution_time if agently_metrics.execution_time > 0 else 1.0
+        memory_ratio = native_metrics.memory_usage / agently_metrics.memory_usage if agently_metrics.memory_usage > 0 else 1.0
+        throughput_ratio = native_metrics.throughput / agently_metrics.throughput if agently_metrics.throughput > 0 else 1.0
         
         # 确定获胜者
         native_score = (1/performance_ratio if performance_ratio > 0 else 0) + (1/memory_ratio if memory_ratio > 0 else 0) + throughput_ratio

@@ -40,9 +40,16 @@ except ImportError as e:
     print("请确保HarborAI包已正确安装")
     sys.exit(1)
 
-# 加载环境变量
+# 加载环境变量，优先加载.env.test
 from dotenv import load_dotenv
-load_dotenv(project_root / ".env")
+
+# 优先尝试加载 .env.test 文件
+env_test_file = project_root / ".env.test"
+env_file = project_root / ".env"
+
+target_file = env_test_file if env_test_file.exists() else env_file
+print(f"加载环境变量文件: {target_file}")
+load_dotenv(target_file)
 
 class ReasoningStreamTestCase:
     """Reasoning Model Stream Thinking Process Test Case"""
@@ -344,7 +351,9 @@ def main():
         test_case.generate_test_report()
         
         # Save test results to JSON file
-        results_file = project_root / "tests" / "end_to_end" / "e2e_006_results.json"
+        results_file = project_root / "tests" / "reports" / "e2e_006_results.json"
+        # 确保reports目录存在
+        results_file.parent.mkdir(parents=True, exist_ok=True)
         with open(results_file, "w", encoding="utf-8") as f:
             json.dump({
                 "test_name": "E2E-006 Reasoning Model Streaming Thinking Process Test",

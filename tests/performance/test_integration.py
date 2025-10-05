@@ -27,41 +27,96 @@ from datetime import datetime, timedelta
 import logging
 
 # 导入所有性能测试模块
-from .core_performance_framework import (
-    PerformanceTestController,
-    ResultsCollector,
-    PerformanceConfig,
-    TestMetrics
-)
-from .memory_leak_detector import (
-    MemoryLeakDetector,
-    MemorySnapshot,
-    MemoryLeakAnalysis
-)
-from .resource_utilization_monitor import (
-    ResourceUtilizationMonitor,
-    SystemResourceSnapshot,
-    ProcessMetrics
-)
-from .execution_efficiency_tests import (
-    ExecutionEfficiencyTester,
-    ExecutionMetrics,
-    PerformanceProfile
-)
-from .response_time_tests import (
-    ResponseTimeTester,
-    ResponseTimeMetrics
-)
-from .concurrency_tests import (
-    ConcurrencyTester,
-    ConcurrencyMetrics,
-    LoadTestConfig
-)
-from .performance_report_generator import (
-    PerformanceReportGenerator,
-    ReportMetadata,
-    PerformanceSummary
-)
+try:
+    from .core_performance_framework import (
+        PerformanceTestController,
+        ResultsCollector,
+        PerformanceConfig,
+        TestMetrics
+    )
+except ImportError:
+    from core_performance_framework import (
+        PerformanceTestController,
+        ResultsCollector,
+        PerformanceConfig,
+        TestMetrics
+    )
+
+try:
+    from .memory_leak_detector import (
+        MemoryLeakDetector,
+        MemorySnapshot,
+        MemoryLeakAnalysis
+    )
+except ImportError:
+    from memory_leak_detector import (
+        MemoryLeakDetector,
+        MemorySnapshot,
+        MemoryLeakAnalysis
+    )
+
+try:
+    from .resource_utilization_monitor import (
+        ResourceUtilizationMonitor,
+        SystemResourceSnapshot,
+        ProcessMetrics
+    )
+except ImportError:
+    from resource_utilization_monitor import (
+        ResourceUtilizationMonitor,
+        SystemResourceSnapshot,
+        ProcessMetrics
+    )
+
+try:
+    from .execution_efficiency_tests import (
+        ExecutionEfficiencyTester,
+        ExecutionMetrics,
+        PerformanceProfile
+    )
+except ImportError:
+    from execution_efficiency_tests import (
+        ExecutionEfficiencyTester,
+        ExecutionMetrics,
+        PerformanceProfile
+    )
+
+try:
+    from .response_time_tests import (
+        ResponseTimeTester,
+        ResponseTimeMetrics
+    )
+except ImportError:
+    from response_time_tests import (
+        ResponseTimeTester,
+        ResponseTimeMetrics
+    )
+
+try:
+    from .concurrency_tests import (
+        ConcurrencyTester,
+        ConcurrencyMetrics,
+        LoadTestConfig
+    )
+except ImportError:
+    from concurrency_tests import (
+        ConcurrencyTester,
+        ConcurrencyMetrics,
+        LoadTestConfig
+    )
+
+try:
+    from .performance_report_generator import (
+        PerformanceReportGenerator,
+        ReportMetadata,
+        PerformanceSummary
+    )
+except ImportError:
+    from performance_report_generator import (
+        PerformanceReportGenerator,
+        ReportMetadata,
+        PerformanceSummary
+    )
 
 # 配置日志
 logger = logging.getLogger(__name__)

@@ -33,15 +33,25 @@ from harborai.utils.tracer import get_or_create_trace_id, TraceContext
 
 # 加载.env文件中的环境变量
 def load_env_file():
-    """加载.env文件中的环境变量"""
-    env_file = Path(__file__).parent.parent.parent / ".env"
-    if env_file.exists():
-        with open(env_file, 'r', encoding='utf-8') as f:
+    """加载环境变量文件，优先加载.env.test，如果不存在则加载.env"""
+    project_root = Path(__file__).parent.parent.parent
+    
+    # 优先尝试加载 .env.test 文件
+    env_test_file = project_root / ".env.test"
+    env_file = project_root / ".env"
+    
+    target_file = env_test_file if env_test_file.exists() else env_file
+    
+    if target_file.exists():
+        print(f"加载环境变量文件: {target_file}")
+        with open(target_file, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     os.environ[key.strip()] = value.strip()
+    else:
+        print("警告: 未找到环境变量文件 (.env.test 或 .env)")
 
 # 在模块加载时加载环境变量
 load_env_file()

@@ -26,12 +26,20 @@ from typing import List, Dict, Any
 import psutil
 import tracemalloc
 
-from memory_leak_detector import (
-    MemoryLeakDetector,
-    MemorySnapshot,
-    MemoryLeakAnalysis,
-    detect_memory_leak
-)
+try:
+    from .memory_leak_detector import (
+        MemoryLeakDetector,
+        MemorySnapshot,
+        MemoryLeakAnalysis,
+        detect_memory_leak
+    )
+except ImportError:
+    from memory_leak_detector import (
+        MemoryLeakDetector,
+        MemorySnapshot,
+        MemoryLeakAnalysis,
+        detect_memory_leak
+    )
 
 
 class TestMemorySnapshot:

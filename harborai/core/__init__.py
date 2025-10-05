@@ -36,6 +36,9 @@ from .observability import (
     get_global_observability_exporter,
 )
 
+# 导入厂商管理器
+from .vendor_manager import VendorManager, VendorType, VendorConfig
+
 __all__ = [
     # 枚举类型
     "LogLevel",
@@ -63,4 +66,9 @@ __all__ = [
     "get_global_alert_manager",
     "get_global_performance_monitor",
     "get_global_observability_exporter",
+    
+    # 厂商管理器
+    "VendorManager",
+    "VendorType",
+    "VendorConfig",
 ]
