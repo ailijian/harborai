@@ -73,7 +73,8 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 $TestsDir = Join-Path $ProjectRoot "tests"
 $ReportsDir = Join-Path $TestsDir "reports"
-$LogFile = Join-Path $TestsDir "logs" "test_run_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$LogsDir = Join-Path $TestsDir "logs"
+$LogFile = Join-Path $LogsDir "test_run_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Create log directory
 $LogDir = Split-Path -Parent $LogFile

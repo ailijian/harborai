@@ -12,7 +12,6 @@ pytest-html>=4.1.0
 pytest-benchmark>=4.0.0
 
 # HTTP测试
-httpx>=0.25.0
 respx>=0.20.0
 aioresponses>=0.7.0
 
@@ -25,10 +24,10 @@ freezegun>=1.2.0
 testcontainers>=3.7.0
 docker>=6.1.0
 
-# 性能分析
-psutil>=5.9.0
+# 性能分析和内存监控
 memory-profiler>=0.61.0
 line-profiler>=4.1.0
+# tracemalloc - Python内置模块，用于内存追踪
 
 # 负载测试
 locust>=2.17.0
@@ -47,13 +46,9 @@ safety>=2.3.0
 pre-commit>=3.6.0
 
 # 报告生成
-jinja2>=3.1.0
 matplotlib>=3.8.0
 seaborn>=0.13.0
 pandas>=2.1.0
-
-# JSON Schema验证
-jsonschema>=4.20.0
 
 # 时间处理
 python-dateutil>=2.8.0
@@ -70,7 +65,6 @@ requests-mock>=1.11.0
 sqlalchemy-utils>=0.41.0
 
 # 异步测试支持
-aiohttp>=3.9.0
 aioredis>=2.0.0
 
 # 文档生成
@@ -78,3 +72,6 @@ mkdocs>=1.5.0
 mkdocs-material>=9.4.0
 mkdocs-mermaid2-plugin>=1.1.0
 mkdocstrings[python]>=0.24.0
+
+# 弱引用测试支持（Python内置）
+# weakref - 用于测试内存管理和对象生命周期

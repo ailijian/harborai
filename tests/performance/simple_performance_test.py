@@ -9,7 +9,12 @@ import time
 import psutil
 import json
 from datetime import datetime
+from pathlib import Path
 sys.path.append('../..')
+
+# 导入统一报告管理器
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.unified_report_manager import get_performance_report_path
 
 from tests.performance.response_time_tests import test_api_response_time
 from tests.performance.concurrency_tests import test_high_concurrency
@@ -119,8 +124,14 @@ def run_simple_performance_tests():
     
     results['end_time'] = datetime.now().isoformat()
     
-    # 保存结果
-    output_file = f'performance_reports/simple_test_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+    # 保存结果 - 使用统一报告管理器
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f'simple_test_{timestamp}.json'
+    output_file = get_performance_report_path("metrics", "json", output_filename)
+    
+    # 确保目录存在
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2, default=str)
     

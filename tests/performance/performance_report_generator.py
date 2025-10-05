@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import logging
 
+# 导入统一报告管理器
+sys.path.append(str(Path(__file__).parent.parent))
+from utils.unified_report_manager import get_performance_report_path
+
 # 尝试导入可视化库
 try:
     import matplotlib.pyplot as plt
@@ -49,8 +53,9 @@ class PerformanceReportGenerator:
         """
         self.results_file = Path(results_file)
         self.results = {}
-        self.report_dir = Path("tests/performance/performance_reports")
-        self.report_dir.mkdir(exist_ok=True)
+        # 使用统一报告管理器获取性能报告目录
+        self.report_dir = get_performance_report_path("metrics").parent
+        self.report_dir.mkdir(parents=True, exist_ok=True)
         
         # 设计目标（来自PRD/TD）
         self.design_targets = {
@@ -80,7 +85,8 @@ class PerformanceReportGenerator:
         """生成综合性能报告"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_filename = f"HarborAI_Performance_Report_{timestamp}.md"
-        report_path = self.report_dir / report_filename
+        # 使用统一报告管理器获取报告路径
+        report_path = get_performance_report_path("metrics", "markdown", report_filename)
         
         try:
             with open(report_path, 'w', encoding='utf-8') as f:
