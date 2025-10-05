@@ -1,5 +1,0 @@
-Method,Name,Error,Occurrences
-GET,/api/status,"ConnectionRefusedError(10061, '[WinError 10061] 由于目标计算机积极拒绝，无法连接。')",424
-GET,/api/info,"ConnectionRefusedError(10061, '[WinError 10061] 由于目标计算机积极拒绝，无法连接。')",194
-POST,/api/test,"ConnectionRefusedError(10061, '[WinError 10061] 由于目标计算机积极拒绝，无法连接。')",219
-GET,/health,"ConnectionRefusedError(10061, '[WinError 10061] 由于目标计算机积极拒绝，无法连接。')",620

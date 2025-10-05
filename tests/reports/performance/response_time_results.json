@@ -1,8 +1,0 @@
-{
-  "timestamp": "2025-10-05T09:20:39.491620",
-  "endpoint": "http://localhost:8000",
-  "total_requests": 100,
-  "successful_requests": 0,
-  "failed_requests": 100,
-  "error": "No successful requests"
-}
