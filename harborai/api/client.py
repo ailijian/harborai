@@ -353,7 +353,7 @@ class ChatCompletions:
         # 验证max_tokens参数
         if max_tokens is not None:
             from ..core.models import get_model_capabilities
-            from ..core.exceptions import ValidationError
+            from ..core.exceptions import ValidationError as CoreValidationError
             
             if not isinstance(max_tokens, int):
                 raise ValueError("max_tokens must be an integer")
@@ -363,7 +363,7 @@ class ChatCompletions:
             capabilities = get_model_capabilities(model)
             if capabilities and capabilities.max_tokens_limit:
                 if max_tokens > capabilities.max_tokens_limit:
-                    raise ValidationError(
+                    raise CoreValidationError(
                         f"max_tokens ({max_tokens}) exceeds limit for model {model}: {capabilities.max_tokens_limit}"
                     )
         
@@ -732,7 +732,7 @@ class ChatCompletions:
         # 验证max_tokens参数
         if max_tokens is not None:
             from ..core.models import get_model_capabilities
-            from ..core.exceptions import ValidationError
+            from ..core.exceptions import ValidationError as CoreValidationError
             
             if not isinstance(max_tokens, int):
                 raise ValueError("max_tokens must be an integer")
@@ -742,7 +742,7 @@ class ChatCompletions:
             capabilities = get_model_capabilities(model)
             if capabilities and capabilities.max_tokens_limit:
                 if max_tokens > capabilities.max_tokens_limit:
-                    raise ValidationError(
+                    raise CoreValidationError(
                         f"max_tokens ({max_tokens}) exceeds limit for model {model}: {capabilities.max_tokens_limit}"
                     )
         
@@ -984,6 +984,9 @@ class HarborAI:
         # 初始化接口
         self.chat = Chat(self.client_manager)
         
+        # 初始化成本跟踪器（可选）
+        self.cost_tracker = None
+        
         trace_id = get_or_create_trace_id()
         config_info = {
             k: v for k, v in self.config.items() 
@@ -998,7 +1001,12 @@ class HarborAI:
     
     def get_available_models(self) -> List[str]:
         """获取可用模型列表"""
-        return list(self.client_manager.model_to_plugin.keys())
+        model_infos = self.client_manager.get_available_models()
+        # 如果返回的是ModelInfo对象列表，提取id；如果是字符串列表，直接返回
+        if model_infos and hasattr(model_infos[0], 'id'):
+            return [model_info.id for model_info in model_infos]
+        else:
+            return model_infos
     
     def get_plugin_info(self) -> Dict[str, Any]:
         """获取插件信息"""
@@ -1012,16 +1020,25 @@ class HarborAI:
         """注销插件"""
         self.client_manager.unregister_plugin(plugin_name)
     
+    @property
+    def client(self):
+        """为了兼容性提供的别名属性"""
+        return self
+    
     def get_total_cost(self) -> float:
-        """获取总成本"""
-        # 这里可以从成本追踪系统获取总成本
-        # 目前返回0.0作为占位符
+        """获取总成本
+        
+        Returns:
+            总成本
+        """
+        if self.cost_tracker is not None:
+            return self.cost_tracker.get_total_cost()
         return 0.0
     
     def reset_cost(self) -> None:
         """重置成本计数器"""
-        # 重置成本追踪
-        pass
+        if self.cost_tracker is not None:
+            self.cost_tracker.reset()
     
     async def aclose(self) -> None:
         """异步关闭客户端"""

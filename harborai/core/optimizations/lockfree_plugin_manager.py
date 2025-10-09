@@ -302,7 +302,41 @@ class LockFreePluginManager:
             self._model_to_plugin[model] = AtomicReference(plugin_info.name)
         
         logger.debug("注册插件信息: %s，支持模型: %s", 
-                    plugin_info.name, plugin_info.supported_models)
+                     plugin_info.name, plugin_info.supported_models)
+
+    def initialize_plugin_registry(self, plugins_info: Optional[List[LazyPluginInfo]] = None):
+        """初始化插件注册表（公共方法）
+        
+        注册指定的插件信息，如果未提供则使用默认插件列表。
+        使用原子操作确保线程安全。
+        
+        Args:
+            plugins_info: 插件信息列表，如果为None则使用默认插件
+        """
+        if plugins_info is None:
+            # 使用默认插件列表
+            self._initialize_plugin_registry()
+        else:
+            # 清空现有注册表
+            self._plugin_entries.clear()
+            self._model_to_plugin.clear()
+            
+            # 注册指定的插件
+            for plugin_info in plugins_info:
+                self._register_plugin_info(plugin_info)
+            
+            logger.info("初始化插件注册表完成，注册了%d个插件", len(plugins_info))
+
+    def get_plugin_entry(self, plugin_name: str) -> Optional[AtomicReference]:
+        """获取插件条目的原子引用
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            插件条目的原子引用，如果不存在则返回None
+        """
+        return self._plugin_entries.get(plugin_name)
     
     def get_plugin_name_for_model(self, model: str) -> Optional[str]:
         """根据模型名称获取对应的插件名称
@@ -622,6 +656,46 @@ class LockFreePluginManager:
                 loaded_plugins.append(name)
         return loaded_plugins
     
+    def reload_plugin(self, plugin_name: str) -> Optional[Plugin]:
+        """重新加载插件
+        
+        Args:
+            plugin_name: 插件名称
+            
+        Returns:
+            重新加载的插件实例或None
+        """
+        try:
+            # 获取插件条目
+            entry_ref = self._plugin_entries.get(plugin_name)
+            if not entry_ref:
+                logger.warning("插件 %s 不存在", plugin_name)
+                return None
+            
+            entry = entry_ref.get()
+            if not entry:
+                logger.warning("插件 %s 条目无效", plugin_name)
+                return None
+            
+            # 清理当前实例
+            if entry.instance:
+                if hasattr(entry.instance, 'cleanup'):
+                    try:
+                        entry.instance.cleanup()
+                    except Exception as e:
+                        logger.warning("插件 %s 清理失败: %s", plugin_name, str(e))
+                entry.instance = None
+            
+            # 重置加载状态
+            entry.loading.set(0)
+            
+            # 重新加载
+            return self._load_plugin_lockfree(entry)
+            
+        except Exception as e:
+            logger.error("插件 %s 重新加载失败: %s", plugin_name, str(e))
+            return None
+    
     def get_supported_models(self) -> List[str]:
         """获取所有支持的模型列表
         
@@ -649,6 +723,10 @@ class LockFreePluginManager:
         
         # 关闭线程池
         self._executor.shutdown(wait=True)
+        
+        # 如果启用了垃圾回收，则执行垃圾回收
+        if self.config.get('enable_gc', False):
+            gc.collect()
         
         logger.info("LockFreePluginManager资源清理完成")
     

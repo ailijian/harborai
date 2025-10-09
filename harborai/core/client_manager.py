@@ -66,6 +66,11 @@ class ClientManager:
         trace_id = get_current_trace_id()
         self.logger.info(f"Loading plugins [trace_id={trace_id}]")
         
+        # 检查plugin_directories是否为None或空
+        if not self.settings.plugin_directories:
+            self.logger.info(f"No plugin directories configured [trace_id={trace_id}]")
+            return
+        
         for plugin_dir in self.settings.plugin_directories:
             try:
                 self._scan_plugin_directory(plugin_dir)
@@ -231,8 +236,20 @@ class ClientManager:
         在延迟加载模式下，返回所有支持的模型信息（无需加载插件）。
         """
         if self.lazy_loading and self._lazy_manager:
-            # 延迟加载模式：从LazyPluginManager获取模型信息
-            return self._lazy_manager.get_available_models()
+            # 延迟加载模式：从LazyPluginManager获取模型名称，然后创建基本的ModelInfo对象
+            model_names = self._lazy_manager.get_supported_models()
+            models = []
+            for model_name in model_names:
+                # 创建基本的ModelInfo对象
+                model_info = ModelInfo(
+                    id=model_name,
+                    name=model_name,
+                    provider="unknown",  # 在延迟加载模式下，我们不知道具体的provider
+                    max_tokens=4096,     # 默认值
+                    supports_streaming=True  # 默认支持
+                )
+                models.append(model_info)
+            return models
         
         # 传统模式：从已加载的插件获取
         models = []

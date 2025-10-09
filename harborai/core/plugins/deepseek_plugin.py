@@ -81,7 +81,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     }
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use DeepSeek plugin.")
+                raise PluginError("deepseek", "httpx not installed. Please install it to use DeepSeek plugin.")
         return self._client
     
     def _get_async_client(self):
@@ -98,7 +98,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     }
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use DeepSeek plugin.")
+                raise PluginError("deepseek", "httpx not installed. Please install it to use DeepSeek plugin.")
         return self._async_client
     
     def _validate_request(self, model: str, messages: List[ChatMessage], **kwargs) -> None:
@@ -400,6 +400,10 @@ class DeepSeekPlugin(BaseLLMPlugin):
                             # 如果仍然失败，返回原始响应而不是抛出错误
                             logger.warning(f"DeepSeek模型 {model} JSON解析最终失败，返回原始响应")
                             
+                            # 确保parsed字段不存在
+                            if hasattr(harbor_response.choices[0].message, 'parsed'):
+                                delattr(harbor_response.choices[0].message, 'parsed')
+                            
                             # 计算延迟并记录响应日志
                             latency_ms = (time.time() - start_time) * 1000
                             self.log_response(harbor_response, latency_ms)
@@ -513,7 +517,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
             if stream:
                 return self._handle_async_stream_response(response, model)
             else:
-                response_data = response.json()
+                response_data = await response.json()
                 harbor_response = self._convert_to_harbor_response(response_data, model)
                 
                 # 处理结构化输出

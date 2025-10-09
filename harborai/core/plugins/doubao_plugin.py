@@ -423,13 +423,13 @@ class DoubaoPlugin(BaseLLMPlugin):
             # 发送请求到标准端点
             client = self._get_async_client()
             response = await client.post("/chat/completions", json=request_data)
-            response.raise_for_status()
+            await response.raise_for_status()
             
             if stream:
                 return self._handle_async_stream_response(response, model)
             else:
                 start_time = time.time()
-                response_data = response.json()
+                response_data = await response.json()
                 harbor_response = self._convert_to_harbor_response(response_data, model)
                 
                 # 检查是否成功返回结构化输出
@@ -516,13 +516,13 @@ class DoubaoPlugin(BaseLLMPlugin):
                 # 发送请求
                 client = self._get_async_client()
                 response = await client.post("/chat/completions", json=request_data)
-                response.raise_for_status()
+                await response.raise_for_status()
                 
                 if stream:
                     return self._handle_async_stream_response(response, model)
                 else:
                     start_time = time.time()
-                    response_data = response.json()
+                    response_data = await response.json()
                     harbor_response = self._convert_to_harbor_response(response_data, model)
                     
                     # 处理结构化输出

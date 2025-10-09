@@ -275,6 +275,11 @@ class OptimizedConnectionPool:
             # 查找对应的连接
             for connection in self._pools[pool_key]:
                 if connection.session is session:
+                    # 检查连接是否已经关闭
+                    if connection.state.get() == ConnectionState.CLOSED:
+                        # 连接已关闭，忽略此次归还
+                        return
+                        
                     if success:
                         # 请求成功，将连接标记为空闲
                         connection.state.set(ConnectionState.IDLE)
@@ -287,13 +292,24 @@ class OptimizedConnectionPool:
                         connection.error_count.increment()
                         self._stats['failed_requests'].increment()
                         
+                        # 获取当前连接状态
+                        current_state = connection.state.get()
+                        
                         # 如果错误过多，关闭连接
                         if connection.error_count.get() >= self.config.max_retries:
-                            await self._close_connection(connection, pool_key)
+                            # 根据当前状态更新计数器
+                            if current_state == ConnectionState.ACTIVE:
+                                self._stats['active_connections'].decrement()
+                            elif current_state == ConnectionState.IDLE:
+                                self._stats['idle_connections'].decrement()
+                            await self._close_connection(connection, pool_key, skip_state_update=True)
                         else:
-                            connection.state.set(ConnectionState.IDLE)
-                            self._stats['active_connections'].decrement()
-                            self._stats['idle_connections'].increment()
+                            # 只有当连接是ACTIVE状态时才需要更新计数器
+                            if current_state == ConnectionState.ACTIVE:
+                                connection.state.set(ConnectionState.IDLE)
+                                self._stats['active_connections'].decrement()
+                                self._stats['idle_connections'].increment()
+                            # 如果已经是IDLE状态，保持不变
                     break
     
     async def _get_idle_connection(self, pool_key: str) -> Optional[ConnectionInfo]:
@@ -381,20 +397,30 @@ class OptimizedConnectionPool:
             连接会话，如果超时则返回None
         """
         start_time = time.time()
+        wait_interval = 0.1
+        max_attempts = int(timeout / wait_interval)
         
-        while time.time() - start_time < timeout:
-            async with self._pool_locks[pool_key]:
-                connection = await self._get_idle_connection(pool_key)
-                if connection:
-                    connection.state.set(ConnectionState.ACTIVE)
-                    connection.last_used = time.time()
-                    connection.use_count.increment()
-                    self._stats['active_connections'].increment()
-                    self._stats['idle_connections'].decrement()
-                    return connection.session
+        for attempt in range(max_attempts):
+            try:
+                # 使用超时锁避免死锁
+                await asyncio.wait_for(self._pool_locks[pool_key].acquire(), timeout=1.0)
+                try:
+                    connection = await self._get_idle_connection(pool_key)
+                    if connection:
+                        connection.state.set(ConnectionState.ACTIVE)
+                        connection.last_used = time.time()
+                        connection.use_count.increment()
+                        self._stats['active_connections'].increment()
+                        self._stats['idle_connections'].decrement()
+                        return connection.session
+                finally:
+                    self._pool_locks[pool_key].release()
+            except asyncio.TimeoutError:
+                # 锁获取超时，继续尝试
+                logger.debug("获取连接池锁超时，重试中: %s", pool_key)
             
             # 短暂等待
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(wait_interval)
         
         logger.warning("等待空闲连接超时: %s", pool_key)
         return None
@@ -427,12 +453,14 @@ class OptimizedConnectionPool:
         
         return True
     
-    async def _close_connection(self, connection: ConnectionInfo, pool_key: str):
+    async def _close_connection(self, connection: ConnectionInfo, pool_key: str, 
+                              skip_state_update: bool = False):
         """关闭连接
         
         Args:
             connection: 连接信息
             pool_key: 连接池键
+            skip_state_update: 是否跳过状态计数器更新（当调用者已经更新时）
         """
         try:
             # 更新状态
@@ -448,12 +476,14 @@ class OptimizedConnectionPool:
                 self._pools[pool_key].remove(connection)
                 self._stats['total_connections'].decrement()
                 
-                if old_state == ConnectionState.ACTIVE:
-                    self._stats['active_connections'].decrement()
-                elif old_state == ConnectionState.IDLE:
-                    self._stats['idle_connections'].decrement()
-                elif old_state == ConnectionState.FAILED:
-                    self._stats['failed_connections'].decrement()
+                # 只有在没有跳过状态更新时才更新计数器
+                if not skip_state_update:
+                    if old_state == ConnectionState.ACTIVE:
+                        self._stats['active_connections'].decrement()
+                    elif old_state == ConnectionState.IDLE:
+                        self._stats['idle_connections'].decrement()
+                    elif old_state == ConnectionState.FAILED:
+                        self._stats['failed_connections'].decrement()
             
             logger.debug("关闭连接: %s", connection.endpoint)
             
@@ -484,9 +514,20 @@ class OptimizedConnectionPool:
     async def _perform_health_checks(self):
         """执行健康检查"""
         for pool_key, connections in self._pools.items():
-            for connection in connections.copy():
+            # 使用副本避免在迭代过程中修改列表
+            connections_copy = connections.copy()
+            for connection in connections_copy:
                 if connection.state.get() == ConnectionState.IDLE:
-                    await self._health_check_connection(connection, pool_key)
+                    try:
+                        # 使用超时避免健康检查阻塞
+                        await asyncio.wait_for(
+                            self._health_check_connection(connection, pool_key),
+                            timeout=10.0
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning("健康检查超时: %s", connection.endpoint)
+                    except Exception as e:
+                        logger.error("健康检查异常: %s - %s", connection.endpoint, str(e))
     
     async def _health_check_connection(self, connection: ConnectionInfo, pool_key: str):
         """健康检查单个连接

@@ -102,7 +102,7 @@ class WenxinPlugin(BaseLLMPlugin):
                     headers=headers
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use Wenxin plugin.")
+                raise PluginError(self.name, "httpx not installed. Please install it to use Wenxin plugin.")
         return self._client
     
     def _get_async_client(self):
@@ -123,7 +123,7 @@ class WenxinPlugin(BaseLLMPlugin):
                     headers=headers
                 )
             except ImportError:
-                raise PluginError("httpx not installed. Please install it to use Wenxin plugin.")
+                raise PluginError(self.name, "httpx not installed. Please install it to use Wenxin plugin.")
         return self._async_client
     
 
@@ -411,7 +411,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 
                 # 检查错误
                 if "error_code" in response_data:
-                    raise PluginError(f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
+                    raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
                 
                 harbor_response = self._convert_to_harbor_response(response_data, model, messages)
                 
@@ -485,7 +485,7 @@ class WenxinPlugin(BaseLLMPlugin):
                 
                 # 检查错误
                 if "error_code" in response_data:
-                    raise PluginError(f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
+                    raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
                 
                 harbor_response = self._convert_to_harbor_response(response_data, model, messages)
                 

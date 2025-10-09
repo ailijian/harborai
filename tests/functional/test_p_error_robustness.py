@@ -150,12 +150,18 @@ class ResourceExhaustionSimulator:
     def simulate_disk_full(self, temp_dir: str):
         """模拟磁盘空间不足"""
         try:
-            # 创建大文件直到磁盘满
+            # 创建大文件直到磁盘满，添加最大迭代次数保护
+            max_iterations = 1000  # 最多写入1GB
+            iteration_count = 0
             with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as f:
-                while True:
+                while iteration_count < max_iterations:
                     f.write(b'0' * 1024 * 1024)  # 写入1MB
+                    iteration_count += 1
+                # 如果达到最大迭代次数，模拟磁盘满错误
+                if iteration_count >= max_iterations:
+                    raise OSError("Disk space exhausted (simulated)")
         except OSError as e:
-            if "No space left on device" in str(e):
+            if "No space left on device" in str(e) or "Disk space exhausted" in str(e):
                 raise OSError("Disk space exhausted")
             raise
     
@@ -163,11 +169,21 @@ class ResourceExhaustionSimulator:
         """模拟文件描述符耗尽"""
         files = []
         try:
-            while True:
+            # 添加最大迭代次数保护，防止无限循环
+            max_files = 1000  # 最多打开1000个文件
+            file_count = 0
+            while file_count < max_files:
                 f = tempfile.NamedTemporaryFile()
                 files.append(f)
+                file_count += 1
+            # 如果达到最大文件数，模拟文件描述符耗尽
+            if file_count >= max_files:
+                # 清理文件
+                for f in files:
+                    f.close()
+                raise OSError("File descriptor limit exceeded (simulated)")
         except OSError as e:
-            if "Too many open files" in str(e):
+            if "Too many open files" in str(e) or "File descriptor limit exceeded" in str(e):
                 # 清理文件
                 for f in files:
                     f.close()

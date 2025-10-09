@@ -130,7 +130,7 @@ def trace_function(func_name: Optional[str] = None):
     return decorator
 
 
-async def trace_async_function(func_name: Optional[str] = None):
+def trace_async_function(func_name: Optional[str] = None):
     """异步函数追踪装饰器"""
     def decorator(func):
         async def wrapper(*args, **kwargs):

@@ -113,6 +113,10 @@ class AccessControlManager:
         if not user or not user.is_active:
             return None
             
+        # 检查用户是否被锁定
+        if user.failed_login_attempts >= self.max_failed_attempts:
+            return None
+            
         import uuid
         session_id = str(uuid.uuid4())
         

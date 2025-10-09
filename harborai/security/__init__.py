@@ -6,9 +6,9 @@
 from .input_validation import InputValidator
 from .encryption import EncryptionManager
 from .access_control import AccessControlManager
-from .audit_logging import AuditLogger
+from .audit_logger import AuditLogger
 from .data_protection import DataProtectionManager
-from .monitoring import SecurityMonitor
+from .security_monitor import SecurityMonitor
 
 __all__ = [
     "InputValidator",

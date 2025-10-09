@@ -189,15 +189,19 @@ class MemoryManager:
         Returns:
             对象实例，如果池不存在则返回None
         """
-        obj = self._object_pool_manager.acquire_object(pool_name)
-        if obj is not None:
-            with self._stats_lock:
-                pool = self._object_pool_manager.get_pool(pool_name)
-                if pool and pool._reused_count > 0:
-                    self._stats['objects_reused'] += 1
-                else:
-                    self._stats['objects_created'] += 1
-        return obj
+        try:
+            obj = self._object_pool_manager.acquire_object(pool_name)
+            if obj is not None:
+                with self._stats_lock:
+                    pool = self._object_pool_manager.get_pool(pool_name)
+                    if pool and pool._reused_count > 0:
+                        self._stats['objects_reused'] += 1
+                    else:
+                        self._stats['objects_created'] += 1
+            return obj
+        except Exception as e:
+            logger.error("从对象池'%s'获取对象时发生错误: %s", pool_name, e)
+            return None
     
     def release_pooled_object(self, pool_name: str, obj: Any) -> bool:
         """释放对象到对象池
@@ -488,6 +492,9 @@ async def get_memory_manager(config: Optional[Dict[str, Any]] = None) -> MemoryM
     global _global_memory_manager
     
     if _global_memory_manager is None:
-        _global_memory_manager = MemoryManager(config or {})
+        if config:
+            _global_memory_manager = MemoryManager(**config)
+        else:
+            _global_memory_manager = MemoryManager()
     
     return _global_memory_manager

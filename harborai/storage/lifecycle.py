@@ -85,9 +85,11 @@ class LifecycleManager:
         for hook in self._startup_hooks:
             try:
                 hook()
-                logger.debug(f"Executed startup hook: {hook.__name__}")
+                hook_name = getattr(hook, '__name__', str(hook))
+                logger.debug(f"Executed startup hook: {hook_name}")
             except Exception as e:
-                logger.error(f"Error executing startup hook {hook.__name__}: {e}")
+                hook_name = getattr(hook, '__name__', str(hook))
+                logger.error(f"Error executing startup hook {hook_name}: {e}")
     
     def _shutdown(self):
         """执行关闭流程。"""

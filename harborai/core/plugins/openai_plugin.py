@@ -31,6 +31,64 @@ class OpenAIPlugin(BaseLLMPlugin):
         self.api_key = config.get("api_key")
         self.base_url = config.get("base_url")
         
+        # 设置支持的模型列表
+        self._supported_models = [
+            ModelInfo(
+                id="gpt-4o",
+                name="gpt-4o",
+                provider="openai",
+                supports_thinking=False,
+                supports_structured_output=True,
+                max_tokens=128000,
+                context_window=128000
+            ),
+            ModelInfo(
+                id="gpt-4o-mini",
+                name="gpt-4o-mini",
+                provider="openai",
+                supports_thinking=False,
+                supports_structured_output=True,
+                max_tokens=16384,
+                context_window=128000
+            ),
+            ModelInfo(
+                id="gpt-4-turbo",
+                name="gpt-4-turbo",
+                provider="openai",
+                supports_thinking=False,
+                supports_structured_output=True,
+                max_tokens=4096,
+                context_window=128000
+            ),
+            ModelInfo(
+                id="gpt-5",
+                name="gpt-5",
+                provider="openai",
+                supports_thinking=False,
+                supports_structured_output=True,
+                max_tokens=4096,
+                context_window=16385
+            ),
+            ModelInfo(
+                id="o1-preview",
+                name="o1-preview",
+                provider="openai",
+                supports_thinking=True,
+                supports_structured_output=False,
+                max_tokens=32768,
+                context_window=128000
+            ),
+            ModelInfo(
+                id="o1-mini",
+                name="o1-mini",
+                provider="openai",
+                supports_thinking=True,
+                supports_structured_output=False,
+                max_tokens=65536,
+                context_window=128000
+            )
+        ]
+        
         # 初始化 OpenAI 客户端
         self.client = OpenAI(
             api_key=self.api_key,
@@ -265,13 +323,13 @@ class OpenAIPlugin(BaseLLMPlugin):
             self.log_request(model, messages, **kwargs)
             
             # 准备请求参数
-            request_params = self._prepare_openai_request(model, messages, **kwargs)
+            request_params = self._prepare_openai_request(model, messages, stream=stream, **kwargs)
             
             # 发送请求
-            if kwargs.get("stream", False):
+            if stream:
                 # 流式响应
-                stream = self.client.chat.completions.create(**request_params)
-                return self._handle_stream_response(stream, **kwargs)
+                stream_response = self.client.chat.completions.create(**request_params)
+                return self._handle_stream_response(stream_response, **kwargs)
             else:
                 # 非流式响应
                 response = self.client.chat.completions.create(**request_params)
@@ -315,13 +373,13 @@ class OpenAIPlugin(BaseLLMPlugin):
             self.log_request(model, messages, **kwargs)
             
             # 准备请求参数
-            request_params = self._prepare_openai_request(model, messages, **kwargs)
+            request_params = self._prepare_openai_request(model, messages, stream=stream, **kwargs)
             
             # 发送请求
-            if kwargs.get("stream", False):
+            if stream:
                 # 流式响应
-                stream = await self.async_client.chat.completions.create(**request_params)
-                return self._handle_async_stream_response(stream, **kwargs)
+                stream_response = await self.async_client.chat.completions.create(**request_params)
+                return self._handle_async_stream_response(stream_response, **kwargs)
             else:
                 # 非流式响应
                 response = await self.async_client.chat.completions.create(**request_params)
@@ -355,7 +413,7 @@ class OpenAIPlugin(BaseLLMPlugin):
         
         if response_format and response_format.get("type") == "json_schema":
             # 流式结构化输出
-            return self._handle_streaming_structured_output(stream, response_format, structured_provider)
+            yield from self._handle_streaming_structured_output(stream, response_format, structured_provider)
         else:
             # 普通流式输出
             for chunk in stream:
@@ -377,50 +435,48 @@ class OpenAIPlugin(BaseLLMPlugin):
     
     def _handle_streaming_structured_output(self, stream, response_format: Dict[str, Any], structured_provider: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理流式结构化输出"""
+        from ...api.structured import default_handler
+        
+        # 从response_format中提取schema
+        schema = response_format.get("json_schema", {}).get("schema", {})
+        print(f"DEBUG: extracted schema: {schema}")
+        
+        # 创建内容流生成器
+        def content_stream():
+            for chunk in stream:
+                harbor_chunk = self._convert_chunk_to_harbor_format(chunk)
+                if harbor_chunk.choices and harbor_chunk.choices[0].delta.content:
+                    content = harbor_chunk.choices[0].delta.content
+                    yield content
+        
+        # 使用结构化处理器解析流
         try:
-            from ..api.structured import default_handler
-            
-            # 创建内容流生成器
-            def content_stream():
-                for chunk in stream:
-                    harbor_chunk = self._convert_chunk_to_harbor_format(chunk)
-                    if harbor_chunk.choices and harbor_chunk.choices[0].delta and harbor_chunk.choices[0].delta.content:
-                        yield harbor_chunk.choices[0].delta.content
-            
-            # 使用结构化输出处理器解析流式内容
-            schema = response_format.get('json_schema', {})
-            use_agently = structured_provider == 'agently'
-            parsed_stream = default_handler.parse_streaming_response(
+            for parsed_data in default_handler.parse_streaming_response(
                 content_stream(), 
                 schema, 
-                provider='agently' if use_agently else 'native',
-                api_key=self.api_key, 
-                base_url=self.base_url, 
-                model=self.model
-            )
-            
-            # 将解析结果转换为ChatCompletionChunk格式
-            for parsed_data in parsed_stream:
-                yield ChatCompletionChunk(
-                    id=f"chatcmpl-{int(time.time())}",
+                provider=structured_provider
+            ):
+                # 将解析结果转换为ChatCompletionChunk
+                chunk = ChatCompletionChunk(
+                    id=f"chunk-{int(time.time() * 1000)}",
                     object="chat.completion.chunk",
                     created=int(time.time()),
-                    model="structured-output",
+                    model="",
                     choices=[
                         ChatChoice(
                             index=0,
                             delta=ChatChoiceDelta(
                                 role="assistant",
-                                content=str(parsed_data)
+                                content=json.dumps(parsed_data, ensure_ascii=False)
                             ),
                             finish_reason=None
                         )
                     ]
                 )
-                
+                yield chunk
         except Exception as e:
-            self.logger.error(f"Streaming structured output failed: {e}")
-            # 回退到普通流式输出
+            self.logger.error(f"结构化输出解析失败: {e}")
+            # 降级到普通流式输出
             for chunk in stream:
                 yield self._convert_chunk_to_harbor_format(chunk)
     

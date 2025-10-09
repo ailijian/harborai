@@ -14,6 +14,15 @@ from ..utils.exceptions import StorageError
 logger = get_logger(__name__)
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    """自定义JSON编码器，处理datetime对象。"""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 class PostgreSQLLogger:
     """PostgreSQL日志记录器。
     
@@ -179,7 +188,12 @@ class PostgreSQLLogger:
             
             # 脱敏用户内容中的敏感信息
             if "content" in sanitized_msg:
-                content = str(sanitized_msg["content"])
+                try:
+                    content = str(sanitized_msg["content"])
+                except Exception:
+                    # 如果无法转换为字符串，使用占位符
+                    content = "[CONTENT_SERIALIZATION_ERROR]"
+                
                 # 简单的脱敏规则
                 import re
                 # 脱敏密码
@@ -296,17 +310,17 @@ class PostgreSQLLogger:
                     entry.get("timestamp"),
                     entry.get("type"),
                     entry.get("model"),
-                    json.dumps(entry.get("messages")),
-                    json.dumps(entry.get("parameters")),
+                    json.dumps(entry.get("messages"), cls=DateTimeEncoder),
+                    json.dumps(entry.get("parameters"), cls=DateTimeEncoder),
                     entry.get("reasoning_content_present"),
                     entry.get("structured_provider"),
                     entry.get("success"),
                     entry.get("latency"),
-                    json.dumps(entry.get("tokens")),
+                    json.dumps(entry.get("tokens"), cls=DateTimeEncoder),
                     entry.get("cost"),
                     entry.get("error"),
-                    json.dumps(entry.get("response_summary")),
-                    json.dumps(entry)
+                    json.dumps(entry.get("response_summary"), cls=DateTimeEncoder),
+                    json.dumps(entry, cls=DateTimeEncoder)
                 ))
             
             # 执行插入

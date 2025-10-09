@@ -87,7 +87,8 @@ class ObjectPool(Generic[T]):
         
         # 对象池
         self._pool: deque[T] = deque()
-        self._active_objects: weakref.WeakSet[T] = weakref.WeakSet()
+        # 使用对象id来跟踪活跃对象，避免弱引用和哈希问题
+        self._active_object_ids: set[int] = set()
         
         # 线程安全
         self._lock = threading.RLock()
@@ -120,7 +121,7 @@ class ObjectPool(Generic[T]):
                 logger.debug("创建新对象，类型=%s", self._object_type.__name__)
             
             # 添加到活跃对象集合
-            self._active_objects.add(obj)
+            self._active_object_ids.add(id(obj))
             self._acquired_count += 1
             
             return obj
@@ -136,13 +137,14 @@ class ObjectPool(Generic[T]):
         
         with self._lock:
             # 检查对象是否属于此池
-            if obj not in self._active_objects:
+            obj_id = id(obj)
+            if obj_id not in self._active_object_ids:
                 logger.warning("尝试释放不属于此池的对象，类型=%s", 
                              self._object_type.__name__)
                 return
             
             # 从活跃对象中移除
-            self._active_objects.discard(obj)
+            self._active_object_ids.discard(obj_id)
             
             # 检查池是否已满
             if len(self._pool) >= self._max_size:
@@ -198,7 +200,7 @@ class ObjectPool(Generic[T]):
     def active_count(self) -> int:
         """获取活跃对象数量"""
         with self._lock:
-            return len(self._active_objects)
+            return len(self._active_object_ids)
     
     def get_stats(self) -> Dict[str, Any]:
         """获取对象池统计信息
@@ -214,7 +216,7 @@ class ObjectPool(Generic[T]):
                 'object_type': self._object_type.__name__,
                 'max_size': self._max_size,
                 'pool_size': len(self._pool),
-                'active_count': len(self._active_objects),
+                'active_count': len(self._active_object_ids),
                 'created_count': self._created_count,
                 'acquired_count': self._acquired_count,
                 'released_count': self._released_count,
@@ -335,8 +337,12 @@ class ObjectPoolManager:
             对象，如果池不存在则返回None
         """
         pool = self.get_pool(pool_name)
-        if pool:
-            return pool.acquire()
+        if pool is not None:
+            try:
+                return pool.acquire()
+            except Exception as e:
+                logger.error("从池'%s'获取对象时发生错误: %s", pool_name, e)
+                return None
         return None
     
     def release_object(self, pool_name: str, obj: Any) -> bool:
@@ -350,7 +356,7 @@ class ObjectPoolManager:
             是否成功释放
         """
         pool = self.get_pool(pool_name)
-        if pool:
+        if pool is not None:
             pool.release(obj)
             return True
         return False

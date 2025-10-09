@@ -371,7 +371,13 @@ class TokenStatisticsAPI:
             JSON响应包含清理结果
         """
         try:
-            data = request.get_json() or {}
+            # 尝试获取JSON数据，如果失败则使用默认值
+            try:
+                data = request.get_json() or {}
+            except Exception:
+                # JSON解析失败，使用默认值
+                data = {}
+            
             days = data.get('days', 7)
             
             if not isinstance(days, int) or days <= 0 or days > 365:

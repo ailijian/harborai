@@ -17,7 +17,7 @@ from ..utils.logger import get_logger
 from ..utils.tracer import get_current_trace_id
 
 
-@dataclass
+@dataclass(frozen=True)
 class ModelInfo:
     """模型信息"""
     id: str  # 模型ID

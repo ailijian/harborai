@@ -29,6 +29,13 @@ class BackgroundTask:
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
+    
+    def __lt__(self, other):
+        """支持优先级队列比较"""
+        if not isinstance(other, BackgroundTask):
+            return NotImplemented
+        # 按创建时间排序，确保相同优先级的任务按FIFO顺序执行
+        return self.created_at < other.created_at
 
 
 class BackgroundTaskProcessor:

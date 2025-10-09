@@ -3,7 +3,6 @@
 提供敏感数据掩码、加密等数据保护功能。
 """
 
-import re
 import json
 from typing import Any, Dict, List, Union
 
@@ -16,14 +15,14 @@ class DataProtectionManager:
     
     def __init__(self):
         """初始化数据保护管理器"""
-        # 敏感数据模式
-        self.sensitive_patterns = {
-            'api_key': re.compile(r'\b[a-zA-Z0-9]{20,}\b'),
-            'email': re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-            'phone': re.compile(r'\b\d{3}-\d{3}-\d{4}\b|\b\d{10,11}\b'),
-            'credit_card': re.compile(r'\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'),
-            'ssn': re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-            'password': re.compile(r'(password|pwd|pass)\s*[:=]\s*[^\s]+', re.IGNORECASE)
+        # 敏感数据模式 - 使用简单字符串匹配避免正则表达式问题
+        self.sensitive_keywords = {
+            'api_key': ['api_key', 'apikey', 'api-key'],
+            'email': ['@'],
+            'phone': ['phone', 'tel', 'mobile'],
+            'credit_card': ['card', 'credit'],
+            'ssn': ['ssn', 'social'],
+            'password': ['password', 'pwd', 'pass']
         }
     
     def mask_api_key(self, api_key: str) -> str:
@@ -74,39 +73,39 @@ class DataProtectionManager:
             
         masked_text = text
         
-        # 掩码API密钥
-        for match in self.sensitive_patterns['api_key'].finditer(text):
-            original = match.group()
-            masked = self.mask_api_key(original)
-            masked_text = masked_text.replace(original, masked)
+        # 简化的敏感数据掩码 - 使用字符串匹配
+        # 掩码包含@的邮箱
+        if '@' in masked_text:
+            words = masked_text.split()
+            for i, word in enumerate(words):
+                if '@' in word and '.' in word:
+                    parts = word.split('@')
+                    if len(parts) == 2:
+                        username = parts[0]
+                        domain = parts[1]
+                        if len(username) > 2:
+                            masked_username = username[0] + '*' * (len(username) - 2) + username[-1]
+                        else:
+                            masked_username = '*' * len(username)
+                        words[i] = f"{masked_username}@{domain}"
+            masked_text = ' '.join(words)
         
-        # 掩码邮箱
-        for match in self.sensitive_patterns['email'].finditer(masked_text):
-            original = match.group()
-            parts = original.split('@')
-            if len(parts) == 2:
-                username = parts[0]
-                domain = parts[1]
-                if len(username) > 2:
-                    masked_username = username[0] + '*' * (len(username) - 2) + username[-1]
-                else:
-                    masked_username = '*' * len(username)
-                masked = f"{masked_username}@{domain}"
-                masked_text = masked_text.replace(original, masked)
-        
-        # 掩码密码
-        for match in self.sensitive_patterns['password'].finditer(masked_text):
-            original = match.group()
-            # 保留键名，掩码值
-            if ':' in original:
-                key, value = original.split(':', 1)
-                masked = f"{key}:***"
-            elif '=' in original:
-                key, value = original.split('=', 1)
-                masked = f"{key}=***"
-            else:
-                masked = "***"
-            masked_text = masked_text.replace(original, masked)
+        # 掩码密码相关字段
+        for keyword in self.sensitive_keywords['password']:
+            if keyword in masked_text.lower():
+                # 简单替换：将密码值替换为***
+                lines = masked_text.split('\n')
+                for i, line in enumerate(lines):
+                    if keyword in line.lower():
+                        if ':' in line:
+                            parts = line.split(':', 1)
+                            if len(parts) == 2:
+                                lines[i] = f"{parts[0]}:***"
+                        elif '=' in line:
+                            parts = line.split('=', 1)
+                            if len(parts) == 2:
+                                lines[i] = f"{parts[0]}=***"
+                masked_text = '\n'.join(lines)
         
         return masked_text
     
@@ -200,9 +199,12 @@ class DataProtectionManager:
         if not text:
             return False
             
-        for pattern in self.sensitive_patterns.values():
-            if pattern.search(text):
-                return True
+        # 使用简单字符串匹配检查敏感数据
+        text_lower = text.lower()
+        for category, keywords in self.sensitive_keywords.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    return True
                 
         return False
     

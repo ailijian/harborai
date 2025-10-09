@@ -109,6 +109,8 @@ class FallbackLogger:
             except Exception as e:
                 logger.warning(f"Failed to initialize PostgreSQL logger: {e}")
                 self._handle_postgres_failure(e)
+                # 在初始化阶段，如果PostgreSQL失败，立即切换到文件降级模式
+                self._switch_to_file_fallback()
                 
         except Exception as e:
             logger.error(f"Failed to initialize loggers: {e}")
