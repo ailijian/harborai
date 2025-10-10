@@ -116,10 +116,21 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install build twine hatchling
+          echo "✅ 构建工具安装完成"
+          
+      - name: 验证项目文件
+        run: |
+          echo "📁 项目根目录文件："
+          ls -la
+          echo "📁 harborai 包目录："
+          ls -la harborai/
+          echo "📄 pyproject.toml 内容（前50行）："
+          head -50 pyproject.toml
           
       - name: 构建分发包
         run: |
-          python -m build
+          echo "🔨 开始构建分发包..."
+          python -m build --verbose
           echo "✅ 分发包构建成功"
           
       - name: 验证构建结果
