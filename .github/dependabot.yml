@@ -1,0 +1,7 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"        # 监视 requirements.txt / pyproject.toml
+    directory: "/"                  # 仓库根目录
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 10
