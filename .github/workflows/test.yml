@@ -1,5 +1,4 @@
-# HarborAI测试CI/CD流水线
-name: HarborAI Tests
+# HarborAI测试CI/CD流水�?name: HarborAI Tests
 
 on:
   push:
@@ -7,8 +6,7 @@ on:
   pull_request:
     branches: [ main, develop ]
   schedule:
-    # 每天凌晨2点运行完整测试套件
-    - cron: '0 2 * * *'
+    # 每天凌晨2点运行完整测试套�?    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       test_type:
@@ -40,13 +38,10 @@ env:
   PYTEST_WORKERS: 4
 
 jobs:
-  # 代码质量检查
-  code-quality:
-    name: 代码质量检查
-    runs-on: ubuntu-latest
+  # 代码质量检�?  code-quality:
+    name: 代码质量检�?    runs-on: ubuntu-latest
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -59,26 +54,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-test.txt
           
-      - name: 代码格式检查
-        run: |
+      - name: 代码格式检�?        run: |
           black --check --diff .
           isort --check-only --diff .
           
-      - name: 代码风格检查
-        run: |
+      - name: 代码风格检�?        run: |
           flake8 harborai/ tests/
           
-      - name: 类型检查
-        run: |
+      - name: 类型检�?        run: |
           mypy harborai/
           
-      - name: 安全检查
-        run: |
+      - name: 安全检�?        run: |
           bandit -r harborai/ -f json -o security-report.json
           safety check --json --output safety-report.json
           
       - name: 上传安全报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-reports
@@ -95,8 +86,7 @@ jobs:
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -121,15 +111,14 @@ jobs:
             --html=unit-report.html \
             --self-contained-html
             
-      - name: 上传覆盖率报告
-        uses: codecov/codecov-action@v3
+      - name: 上传覆盖率报�?        uses: codecov/codecov-action@v3
         with:
           file: ./coverage.xml
           flags: unit-tests
           name: codecov-${{ matrix.python-version }}
           
       - name: 上传测试报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: unit-test-reports-${{ matrix.python-version }}
@@ -146,15 +135,9 @@ jobs:
     strategy:
       matrix:
         test-group: 
-          - 'test_a_* or test_b_* or test_c_*'  # API兼容性
-          - 'test_d_* or test_e_* or test_f_*'  # 流式和结构化输出
-          - 'test_g_* or test_h_* or test_i_*'  # 推理模型和错误处理
-          - 'test_j_* or test_k_* or test_l_*'  # 并发和资源监控
-          - 'test_m_* or test_n_* or test_o_*'  # 安全和集成
-          - 'test_p_* or test_q_*'              # 性能和对齐
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+          - 'test_a_* or test_b_* or test_c_*'  # API兼容�?          - 'test_d_* or test_e_* or test_f_*'  # 流式和结构化输出
+          - 'test_g_* or test_h_* or test_i_*'  # 推理模型和错误处�?          - 'test_j_* or test_k_* or test_l_*'  # 并发和资源监�?          - 'test_m_* or test_n_* or test_o_*'  # 安全和集�?          - 'test_p_* or test_q_*'              # 性能和对�?    steps:
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -190,7 +173,7 @@ jobs:
             -m "not real_api or (real_api and not slow)"
             
       - name: 上传测试报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: functional-test-reports-${{ strategy.job-index }}
@@ -229,8 +212,7 @@ jobs:
           - 6379:6379
           
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -278,7 +260,7 @@ jobs:
             --self-contained-html
             
       - name: 上传测试报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: integration-test-reports
@@ -293,8 +275,7 @@ jobs:
     needs: integration-tests
     if: github.event_name == 'schedule' || github.event.inputs.test_type == 'performance' || github.event.inputs.test_type == 'all'
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -321,15 +302,14 @@ jobs:
             --self-contained-html \
             --benchmark-json=benchmark-results.json
             
-      - name: 性能回归检查
-        run: |
+      - name: 性能回归检�?        run: |
           python tests/scripts/check_performance_regression.py \
             --current benchmark-results.json \
             --baseline tests/data/performance_baselines/baseline_v1.0.json \
             --threshold 0.1
             
       - name: 上传性能报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-test-reports
@@ -345,8 +325,7 @@ jobs:
     needs: functional-tests
     if: github.event_name == 'schedule' || github.event.inputs.test_type == 'security' || github.event.inputs.test_type == 'all'
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v5
@@ -370,7 +349,7 @@ jobs:
             --self-contained-html
             
       - name: 上传安全报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: security-test-reports
@@ -378,15 +357,13 @@ jobs:
             junit-security.xml
             security-report.html
 
-  # 真实API测试（仅在手动触发时运行）
-  real-api-tests:
+  # 真实API测试（仅在手动触发时运行�?  real-api-tests:
     name: 真实API测试
     runs-on: ubuntu-latest
     needs: functional-tests
     if: github.event.inputs.real_api == 'true' || github.event_name == 'schedule'
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
       - name: 设置Python环境
         uses: actions/setup-python@v4
@@ -414,7 +391,7 @@ jobs:
             --self-contained-html
             
       - name: 上传真实API测试报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: real-api-test-reports
@@ -429,11 +406,9 @@ jobs:
     needs: [unit-tests, functional-tests, integration-tests]
     if: always()
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+      - name: 检出代�?        uses: actions/checkout@v4
         
-      - name: 下载所有测试报告
-        uses: actions/download-artifact@v3
+      - name: 下载所有测试报�?        uses: actions/download-artifact@v4
         with:
           path: test-artifacts
           
@@ -454,7 +429,7 @@ jobs:
             --format all
             
       - name: 上传综合报告
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: comprehensive-report
           path: comprehensive-report/
@@ -474,29 +449,28 @@ jobs:
     needs: [unit-tests, functional-tests, integration-tests]
     if: always()
     steps:
-      - name: 检查测试结果
-        run: |
-          echo "检查质量门控条件..."
+      - name: 检查测试结�?        run: |
+          echo "检查质量门控条�?.."
           
           # 检查单元测试是否通过
           if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
-            echo "❌ 单元测试失败"
+            echo "�?单元测试失败"
             exit 1
           fi
           
           # 检查功能测试是否通过
           if [[ "${{ needs.functional-tests.result }}" != "success" ]]; then
-            echo "❌ 功能测试失败"
+            echo "�?功能测试失败"
             exit 1
           fi
           
           # 检查集成测试是否通过
           if [[ "${{ needs.integration-tests.result }}" != "success" ]]; then
-            echo "❌ 集成测试失败"
+            echo "�?集成测试失败"
             exit 1
           fi
           
-          echo "✅ 所有质量门控条件已满足"
+          echo "�?所有质量门控条件已满足"
           
       - name: 通知测试结果
         if: always()
