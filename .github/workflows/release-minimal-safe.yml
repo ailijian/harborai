@@ -1,0 +1,124 @@
+name: 最小化安全发布
+
+on:
+  push:
+    tags:
+      - 'safe-*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (例如: safe-v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # 基础验证
+  basic-validation:
+    name: 基础验证
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: 输出环境信息
+        run: |
+          echo "✅ GitHub Actions 环境正常"
+          echo "运行环境: $RUNNER_OS"
+          echo "Python版本: $(python3 --version)"
+          
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 验证项目结构
+        run: |
+          echo "✅ 验证项目结构"
+          ls -la
+          if [ -d "harborai" ]; then
+            echo "✅ harborai 目录存在"
+            ls -la harborai/
+          else
+            echo "❌ harborai 目录不存在"
+            exit 1
+          fi
+          
+      - name: 提取版本号
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✅ 版本号: $VERSION"
+
+  # 构建包
+  build-package:
+    name: 构建包
+    runs-on: ubuntu-latest
+    needs: basic-validation
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置Python环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: 安装构建工具
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel
+          echo "✅ 构建工具安装完成"
+          
+      - name: 构建分发包
+        run: |
+          python -m build
+          echo "✅ 分发包构建完成"
+          ls -la dist/
+          
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist-packages
+          path: dist/
+
+  # 创建发布
+  create-release:
+    name: 创建发布
+    runs-on: ubuntu-latest
+    needs: [basic-validation, build-package]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 下载构建产物
+        uses: actions/download-artifact@v3
+        with:
+          name: dist-packages
+          path: dist/
+          
+      - name: 创建GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.basic-validation.outputs.version }}
+          name: HarborAI ${{ needs.basic-validation.outputs.version }} (Safe Release)
+          body: |
+            ## 🚀 HarborAI 安全发布版本
+            
+            这是一个通过最小化安全流程创建的发布版本。
+            
+            ### 📦 安装方式
+            ```bash
+            pip install harborai
+            ```
+            
+            ### 🔧 构建信息
+            - 构建时间: ${{ github.run_id }}
+            - 提交: ${{ github.sha }}
+          files: dist/*
+          token: ${{ secrets.GITHUB_TOKEN }}
