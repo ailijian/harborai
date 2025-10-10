@@ -124,7 +124,7 @@ Repository = "https://github.com/harborai/harborai.git"
 Changelog = "https://github.com/harborai/harborai/blob/main/CHANGELOG.md"
 
 [project.scripts]
-harborai = "harborai.cli:main"
+harborai = "harborai.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["harborai"]
