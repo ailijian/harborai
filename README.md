@@ -1108,7 +1108,7 @@ HarborAI 提供丰富的 Prometheus 指标：
 
 ***
 
-**HarborAI v0.1.0** - 世界级多模型统一客户端 🚀
+**HarborAI v1.0.0-beta.1** - 世界级多模型统一客户端 🚀
 
 ***
 

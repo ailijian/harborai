@@ -238,12 +238,22 @@ jobs:
           # 使用 Python 脚本更新版本号，确保跨平台兼容性
           python -c "
           import re
+          
+          # 更新 pyproject.toml
           with open('pyproject.toml', 'r', encoding='utf-8') as f:
               content = f.read()
           content = re.sub(r'version = \"[^\"]*\"', f'version = \"$VERSION_NUM\"', content)
           with open('pyproject.toml', 'w', encoding='utf-8') as f:
               f.write(content)
-          print(f'✅ 版本号已更新为: $VERSION_NUM')
+          print(f'✅ pyproject.toml 版本号已更新为: $VERSION_NUM')
+          
+          # 更新 harborai/__init__.py
+          with open('harborai/__init__.py', 'r', encoding='utf-8') as f:
+              content = f.read()
+          content = re.sub(r'__version__ = \"[^\"]*\"', f'__version__ = \"$VERSION_NUM\"', content)
+          with open('harborai/__init__.py', 'w', encoding='utf-8') as f:
+              f.write(content)
+          print(f'✅ harborai/__init__.py 版本号已更新为: $VERSION_NUM')
           "
           
       - name: 构建分发包
