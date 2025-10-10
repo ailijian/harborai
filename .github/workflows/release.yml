@@ -18,7 +18,7 @@ on:
         type: boolean
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.10'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -235,7 +235,16 @@ jobs:
         run: |
           VERSION="${{ needs.validate-version.outputs.version }}"
           VERSION_NUM=${VERSION#v}
-          sed -i "s/version = \".*\"/version = \"$VERSION_NUM\"/" pyproject.toml
+          # 使用 Python 脚本更新版本号，确保跨平台兼容性
+          python -c "
+          import re
+          with open('pyproject.toml', 'r', encoding='utf-8') as f:
+              content = f.read()
+          content = re.sub(r'version = \"[^\"]*\"', f'version = \"$VERSION_NUM\"', content)
+          with open('pyproject.toml', 'w', encoding='utf-8') as f:
+              f.write(content)
+          print(f'✅ 版本号已更新为: $VERSION_NUM')
+          "
           
       - name: 构建分发包
         run: |
@@ -398,8 +407,7 @@ jobs:
           
       - name: 发布到PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://upload.pypi.org/legacy/
+        # 使用 Trusted Publishing，不需要 repository-url
 
   # 发布到TestPyPI（预发布版本）
   publish-test-pypi:

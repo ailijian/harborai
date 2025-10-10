@@ -1,0 +1,139 @@
+# HarborAI 项目文档配置
+site_name: HarborAI 文档
+site_description: 智能化的 AI 模型管理和部署平台
+site_author: ailijian
+site_url: https://ailijian.github.io/harborai/
+
+# 仓库信息
+repo_name: ailijian/harborai
+repo_url: https://github.com/ailijian/harborai
+edit_uri: edit/main/docs/
+
+# 版权信息
+copyright: Copyright &copy; 2024 ailijian
+
+# 主题配置
+theme:
+  name: material
+  language: zh
+  palette:
+    # 浅色模式
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    # 深色模式
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.share
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+  icon:
+    repo: fontawesome/brands/github
+
+# 插件配置
+plugins:
+  - search:
+      lang: zh
+  - mermaid2:
+      arguments:
+        theme: auto
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+
+# Markdown 扩展
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+
+# 导航结构
+nav:
+  - 首页: index.md
+  - 快速开始:
+    - 安装指南: getting-started/installation.md
+    - 基础配置: getting-started/configuration.md
+    - 第一个项目: getting-started/first-project.md
+  - 用户指南:
+    - 模型管理: user-guide/model-management.md
+    - 数据处理: user-guide/data-processing.md
+    - 训练与评估: user-guide/training.md
+    - 部署与监控: user-guide/deployment.md
+  - API 参考:
+    - 核心 API: api/core.md
+    - 模型 API: api/models.md
+    - 数据 API: api/data.md
+    - 工具 API: api/utils.md
+  - 开发者指南:
+    - 贡献指南: development/contributing.md
+    - 开发环境: development/setup.md
+    - 测试指南: development/testing.md
+    - 发布流程: development/release.md
+  - 更新日志: changelog.md
+
+# 额外的 CSS 和 JavaScript
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/extra.js
+
+# 额外配置
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ailijian/harborai
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/harborai/
+  
+  version:
+    provider: mike
+    default: latest
+
+# 文档目录
+docs_dir: docs
+site_dir: site

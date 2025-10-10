@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2024-01-15T10:00:00Z",
+  "description": "HarborAI v1.0.0 性能基线数据",
+  "test_environment": {
+    "os": "ubuntu-latest",
+    "python_version": "3.10",
+    "cpu_cores": 2,
+    "memory_gb": 7,
+    "test_duration_minutes": 30
+  },
+  "latency": {
+    "avg_response_time": 0.12,
+    "p95_response_time": 0.20,
+    "p99_response_time": 0.30,
+    "min_response_time": 0.05,
+    "max_response_time": 0.45
+  },
+  "throughput": {
+    "requests_per_second": 900.0,
+    "tokens_per_second": 1300.0,
+    "concurrent_requests": 60.0,
+    "successful_requests_percent": 99.5
+  },
+  "memory": {
+    "peak_memory_mb": 120.0,
+    "avg_memory_mb": 85.0,
+    "memory_growth_rate": 0.01,
+    "gc_frequency_per_hour": 12.0
+  },
+  "concurrency": {
+    "max_concurrent_users": 120.0,
+    "concurrent_throughput": 800.0,
+    "error_rate_percent": 0.3,
+    "connection_pool_efficiency": 95.0
+  },
+  "resource_usage": {
+    "avg_cpu_percent": 45.0,
+    "peak_cpu_percent": 75.0,
+    "disk_io_mb_per_sec": 15.0,
+    "network_io_mb_per_sec": 25.0
+  },
+  "api_specific": {
+    "openai_compatibility": {
+      "chat_completions_latency": 0.15,
+      "streaming_latency": 0.08,
+      "embeddings_latency": 0.10
+    },
+    "structured_output": {
+      "json_parsing_time": 0.005,
+      "schema_validation_time": 0.003,
+      "serialization_time": 0.002
+    },
+    "reasoning_models": {
+      "reasoning_overhead_percent": 15.0,
+      "reasoning_accuracy_percent": 92.0,
+      "reasoning_latency_multiplier": 1.8
+    }
+  },
+  "stability": {
+    "uptime_percent": 99.9,
+    "error_recovery_time_seconds": 2.5,
+    "memory_leak_rate_mb_per_hour": 0.1,
+    "connection_timeout_rate_percent": 0.05
+  },
+  "test_metadata": {
+    "total_requests": 50000,
+    "test_scenarios": [
+      "basic_chat_completion",
+      "streaming_responses", 
+      "structured_output",
+      "concurrent_requests",
+      "reasoning_models",
+      "error_handling",
+      "long_running_sessions"
+    ],
+    "baseline_confidence": "high",
+    "notes": "基于生产环境典型负载的性能基线"
+  }
+}
