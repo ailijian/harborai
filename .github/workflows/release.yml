@@ -49,9 +49,10 @@ jobs:
             fi
           fi
           
-          # 验证版本号格式
-          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+          # 验证版本号格式 (支持 PEP 440 标准)
+          if [[ ! $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*)?$ ]]; then
             echo "❌ 无效的版本号格式: $VERSION"
+            echo "支持的格式: v1.0.0, v1.0.0-alpha, v1.0.0-beta.1, v1.0.0-rc.1"
             exit 1
           fi
           
@@ -235,25 +236,39 @@ jobs:
         run: |
           VERSION="${{ needs.validate-version.outputs.version }}"
           VERSION_NUM=${VERSION#v}
+          echo "正在更新版本号到: $VERSION_NUM"
+          
           # 使用 Python 脚本更新版本号，确保跨平台兼容性
           python -c "
-          import re
-          
-          # 更新 pyproject.toml
-          with open('pyproject.toml', 'r', encoding='utf-8') as f:
-              content = f.read()
-          content = re.sub(r'version = \"[^\"]*\"', f'version = \"$VERSION_NUM\"', content)
-          with open('pyproject.toml', 'w', encoding='utf-8') as f:
-              f.write(content)
-          print(f'✅ pyproject.toml 版本号已更新为: $VERSION_NUM')
-          
-          # 更新 harborai/__init__.py
-          with open('harborai/__init__.py', 'r', encoding='utf-8') as f:
-              content = f.read()
-          content = re.sub(r'__version__ = \"[^\"]*\"', f'__version__ = \"$VERSION_NUM\"', content)
-          with open('harborai/__init__.py', 'w', encoding='utf-8') as f:
-              f.write(content)
-          print(f'✅ harborai/__init__.py 版本号已更新为: $VERSION_NUM')
+import re
+import sys
+
+version_num = '$VERSION_NUM'
+print(f'目标版本号: {version_num}')
+
+# 更新 pyproject.toml
+try:
+    with open('pyproject.toml', 'r', encoding='utf-8') as f:
+        content = f.read()
+    content = re.sub(r'version = \"[^\"]*\"', f'version = \"{version_num}\"', content)
+    with open('pyproject.toml', 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'✅ pyproject.toml 版本号已更新为: {version_num}')
+except Exception as e:
+    print(f'❌ 更新 pyproject.toml 失败: {e}')
+    sys.exit(1)
+
+# 更新 harborai/__init__.py
+try:
+    with open('harborai/__init__.py', 'r', encoding='utf-8') as f:
+        content = f.read()
+    content = re.sub(r'__version__ = \"[^\"]*\"', f'__version__ = \"{version_num}\"', content)
+    with open('harborai/__init__.py', 'w', encoding='utf-8') as f:
+        f.write(content)
+    print(f'✅ harborai/__init__.py 版本号已更新为: {version_num}')
+except Exception as e:
+    print(f'❌ 更新 harborai/__init__.py 失败: {e}')
+    sys.exit(1)
           "
           
       - name: 构建分发包
