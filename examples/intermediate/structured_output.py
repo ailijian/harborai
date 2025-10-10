@@ -193,7 +193,7 @@ JSON Schema:
             model=model,
             messages=[{"role": "user", "content": schema_prompt}],
             temperature=0.1,  # 低温度确保格式一致性
-            max_tokens=1000
+            # max_tokens 默认无限制，由模型厂商控制
         )
         
         elapsed_time = time.time() - start_time
@@ -291,7 +291,7 @@ def extract_structured_data_with_pydantic(client: HarborAI, prompt: str, model_c
             model=model,
             messages=[{"role": "user", "content": pydantic_prompt}],
             temperature=0.1,
-            max_tokens=1000
+            # max_tokens 默认无限制，由模型厂商控制
         )
         
         elapsed_time = time.time() - start_time

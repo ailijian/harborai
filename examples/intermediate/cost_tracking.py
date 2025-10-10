@@ -542,7 +542,7 @@ async def track_api_call(tracker: CostTracker, client: HarborAI, model_name: str
                 "prompt_length": len(prompt),
                 "response_length": len(response.choices[0].message.content),
                 "temperature": kwargs.get("temperature", 0.7),
-                "max_tokens": kwargs.get("max_tokens", 1000)
+                "max_tokens": kwargs.get("max_tokens")  # 默认无限制，由模型厂商控制
             }
         )
         

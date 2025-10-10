@@ -23,7 +23,7 @@ class TestFastPathOptimization:
         settings.enable_fast_path = True
         settings.performance_mode = "balanced"  # 使用balanced模式来测试基于模型和token的判断
         settings.fast_path_models = ["gpt-3.5-turbo", "gpt-4"]
-        settings.fast_path_max_tokens = 1000
+        settings.fast_path_max_tokens = None  # 无限制，由模型厂商控制
         settings.enable_detailed_tracing = False
         settings.enable_postgres_logging = False
         settings.enable_async_decorators = True

@@ -612,7 +612,7 @@ class HarborAIMonitor:
             metadata={
                 "prompt_length": len(prompt),
                 "temperature": kwargs.get("temperature", 0.7),
-                "max_tokens": kwargs.get("max_tokens", 1000)
+                "max_tokens": kwargs.get("max_tokens")  # 默认无限制，由模型厂商控制
             }
         )
         

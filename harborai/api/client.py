@@ -227,7 +227,7 @@ class ChatCompletions:
                 base_url=self.client_manager.client_config.get('base_url'),
                 model=model,
                 temperature=kwargs.get('temperature', 0.1),
-                max_tokens=kwargs.get('max_tokens', 1000)
+                max_tokens=kwargs.get('max_tokens')
             )
             duration = time.time() - start_time
             print(f"✅ 快速处理器返回结果: {parsed_result}")
@@ -641,7 +641,7 @@ class ChatCompletions:
                 base_url=self.client_manager.client_config.get('base_url'),
                 model=model,
                 temperature=kwargs.get('temperature', 0.1),
-                max_tokens=kwargs.get('max_tokens', 1000)
+                max_tokens=kwargs.get('max_tokens')
             )
             
             # 构造兼容的响应对象

@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     
     # 快速路径配置
     fast_path_models: List[str] = Field(default_factory=lambda: ["gpt-3.5-turbo", "gpt-4o-mini"], alias="HARBORAI_FAST_PATH_MODELS")
-    fast_path_max_tokens: int = Field(default=1000, alias="HARBORAI_FAST_PATH_MAX_TOKENS")
+    fast_path_max_tokens: Optional[int] = Field(default=None, alias="HARBORAI_FAST_PATH_MAX_TOKENS")  # None表示无限制，由模型厂商控制
     fast_path_skip_cost_tracking: bool = Field(default=False, alias="HARBORAI_FAST_PATH_SKIP_COST")
     
     # 缓存配置
@@ -127,6 +127,10 @@ class Settings(BaseSettings):
         
         # balanced 模式下的判断逻辑
         if model in self.fast_path_models:
+            # 如果 fast_path_max_tokens 为 None，表示无限制，允许快速路径
+            if self.fast_path_max_tokens is None:
+                return True
+            # 如果用户未指定 max_tokens 或者指定的值在限制范围内，允许快速路径
             if max_tokens is None or max_tokens <= self.fast_path_max_tokens:
                 return True
         

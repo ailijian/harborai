@@ -240,7 +240,7 @@ async def call_model_with_metrics(router: ModelRouter, model_name: str, prompt: 
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=kwargs.get("temperature", 0.7),
-            max_tokens=kwargs.get("max_tokens", 1000)
+            max_tokens=kwargs.get("max_tokens")  # 默认无限制，由模型厂商控制
         )
         
         elapsed_time = time.time() - start_time

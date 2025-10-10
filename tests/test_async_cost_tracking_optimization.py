@@ -37,7 +37,7 @@ class TestAsyncCostTrackingOptimization:
         settings.enable_async_decorators = True
         settings.enable_fast_path = True
         settings.fast_path_models = ["gpt-3.5-turbo", "gpt-4o-mini"]
-        settings.fast_path_max_tokens = 1000
+        settings.fast_path_max_tokens = None  # 无限制，由模型厂商控制
         settings.debug = False
         settings.enable_prometheus_metrics = True
         settings.enable_opentelemetry = True

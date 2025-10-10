@@ -128,7 +128,7 @@ class TestChatCompletionsCoverageImprovement:
         # Mock快速处理器抛出异常
         with patch.object(self.chat_completions, '_get_fast_processor') as mock_get_processor:
             mock_processor = Mock()
-            mock_processor.aprocess = AsyncMock(side_effect=Exception("异步处理失败"))
+            mock_processor.process_structured_output = Mock(side_effect=Exception("异步处理失败"))
             mock_get_processor.return_value = mock_processor
             
             with patch.object(self.chat_completions, '_acreate_core', new_callable=AsyncMock) as mock_acreate_core:
