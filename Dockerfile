@@ -14,14 +14,16 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
-COPY requirements.txt requirements-test.txt pyproject.toml ./
+COPY pyproject.toml README.md ./
+COPY requirements.txt ./
 
 # 创建虚拟环境并安装依赖
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# 升级 pip 并安装依赖
+# 升级 pip 并安装构建工具和依赖
 RUN pip install --upgrade pip && \
+    pip install --no-cache-dir build wheel && \
     pip install --no-cache-dir -r requirements.txt
 
 # 第二阶段：运行阶段
@@ -51,6 +53,9 @@ WORKDIR /app
 COPY harborai/ ./harborai/
 COPY README.md LICENSE ./
 
+# 安装应用本身（以开发模式）
+RUN pip install -e .
+
 # 创建必要的目录
 RUN mkdir -p /app/logs /app/data && \
     chown -R harborai:harborai /app
@@ -58,8 +63,8 @@ RUN mkdir -p /app/logs /app/data && \
 # 切换到非 root 用户
 USER harborai
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# 健康检查 - 使用curl检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # 暴露端口
