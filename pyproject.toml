@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "harborai"
@@ -126,8 +126,16 @@ Changelog = "https://github.com/harborai/harborai/blob/main/CHANGELOG.md"
 [project.scripts]
 harborai = "harborai.cli.main:cli"
 
-[tool.hatch.build.targets.wheel]
-packages = ["harborai"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["harborai*"]
+exclude = ["tests*"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+harborai = ["py.typed"]
 
 # Black配置
 [tool.black]
