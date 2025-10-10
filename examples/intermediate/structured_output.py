@@ -30,12 +30,16 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+# 添加本地源码路径
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 try:
     from harborai import HarborAI
     from pydantic import BaseModel, Field, validator
     import jsonschema
 except ImportError as e:
-    print(f"❌ 请先安装依赖: pip install harborai pydantic jsonschema")
+    print(f"❌ 无法导入 HarborAI，请检查路径配置")
     print(f"缺失模块: {e}")
     exit(1)
 

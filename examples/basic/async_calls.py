@@ -25,10 +25,14 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+# 添加本地源码路径
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 try:
     from harborai import HarborAI
 except ImportError:
-    print("❌ 请先安装 HarborAI: pip install harborai")
+    print("❌ 无法导入 HarborAI，请检查路径配置")
     exit(1)
 
 

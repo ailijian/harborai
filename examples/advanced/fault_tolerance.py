@@ -29,8 +29,18 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-from harborai import HarborAI
-from harborai.types.chat import ChatCompletion
+import os
+
+# 添加本地源码路径
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+try:
+    from harborai import HarborAI
+    from harborai.types.chat import ChatCompletion
+except ImportError:
+    print("❌ 无法导入 HarborAI，请检查路径配置")
+    exit(1)
 
 # 配置日志
 logging.basicConfig(

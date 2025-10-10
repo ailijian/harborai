@@ -35,8 +35,20 @@ import threading
 from collections import OrderedDict, defaultdict
 import psutil
 import aiohttp
-from harborai import HarborAI
-from harborai.types.chat import ChatCompletion
+import os
+
+# 添加本地源码路径
+import sys
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, project_root)
+
+try:
+    from harborai import HarborAI
+    from harborai.core.base_plugin import ChatCompletion
+    print(f"[OK] 成功导入 HarborAI，项目路径: {project_root}")
+except ImportError as e:
+    print(f"[ERROR] 无法导入 HarborAI: {e}")
+    exit(1)
 
 # 配置日志
 logging.basicConfig(

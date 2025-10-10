@@ -629,38 +629,43 @@ class ChatCompletions:
             # 获取快速处理器
             fast_processor = self._get_fast_processor()
             
-            # 使用快速处理器处理结构化输出
-            result = await fast_processor.aprocess_structured_output(
-                user_input=user_input,
-                schema=response_format.get("json_schema", {}),
-                model=model
+            # 提取schema
+            json_schema = response_format.get('json_schema', {})
+            schema = json_schema.get('schema', {})
+            
+            # 使用快速处理器处理结构化输出（同步方法，在异步上下文中运行）
+            result = fast_processor.process_structured_output(
+                user_query=user_input,
+                schema=schema,
+                api_key=self.client_manager.client_config.get('api_key'),
+                base_url=self.client_manager.client_config.get('base_url'),
+                model=model,
+                temperature=kwargs.get('temperature', 0.1),
+                max_tokens=kwargs.get('max_tokens', 1000)
             )
             
-            # 构造ChatCompletion响应
-            from ..types.chat_completion import ChatCompletion, Choice, Message
-            from ..types.completion_usage import CompletionUsage
+            # 构造兼容的响应对象
+            from ..core.base_plugin import ChatMessage, ChatChoice
             
             response = ChatCompletion(
-                id=f"chatcmpl-{uuid.uuid4().hex[:29]}",
+                id=f"fast-structured-async-{int(time.time())}",
                 object="chat.completion",
                 created=int(time.time()),
                 model=model,
                 choices=[
-                    Choice(
+                    ChatChoice(
                         index=0,
-                        message=Message(
+                        message=ChatMessage(
                             role="assistant",
-                            content=result
+                            content=str(result)  # 将结构化结果转为字符串
                         ),
                         finish_reason="stop"
                     )
-                ],
-                usage=CompletionUsage(
-                    prompt_tokens=len(user_input.split()),  # 简单估算
-                    completion_tokens=len(result.split()) if isinstance(result, str) else 50,
-                    total_tokens=len(user_input.split()) + (len(result.split()) if isinstance(result, str) else 50)
-                )
+                ]
             )
+            
+            # 设置parsed属性
+            response.choices[0].message.parsed = result
             
             return response
             

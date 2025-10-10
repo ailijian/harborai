@@ -93,13 +93,20 @@ class WenxinPlugin(BaseLLMPlugin):
                 # 直接使用Bearer + API Key的格式
                 headers = {
                     "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Accept": "text/event-stream, application/json"
                 }
                 
                 self._client = httpx.Client(
                     base_url=self.base_url,
                     timeout=self.timeout,
-                    headers=headers
+                    headers=headers,
+                    # 禁用响应缓冲以支持流式传输
+                    follow_redirects=True,
+                    # 优化流式传输的配置
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                    # 禁用HTTP/2以避免潜在的流式问题
+                    http2=False
                 )
             except ImportError:
                 raise PluginError(self.name, "httpx not installed. Please install it to use Wenxin plugin.")
@@ -114,13 +121,20 @@ class WenxinPlugin(BaseLLMPlugin):
                 # 直接使用Bearer + API Key的格式
                 headers = {
                     "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
+                    "Accept": "text/event-stream, application/json"
                 }
                 
                 self._async_client = httpx.AsyncClient(
                     base_url=self.base_url,
                     timeout=self.timeout,
-                    headers=headers
+                    headers=headers,
+                    # 禁用响应缓冲以支持流式传输
+                    follow_redirects=True,
+                    # 优化流式传输的配置
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                    # 禁用HTTP/2以避免潜在的流式问题
+                    http2=False
                 )
             except ImportError:
                 raise PluginError(self.name, "httpx not installed. Please install it to use Wenxin plugin.")
@@ -398,34 +412,45 @@ class WenxinPlugin(BaseLLMPlugin):
             
             # 发送请求（统一使用OpenAI标准调用方式）
             client = self._get_client()
-            response = client.post(
-                endpoint,
-                json=request_data
-            )
+            
+            # 为流式请求添加特殊配置
+            if stream:
+                # 流式请求需要特殊的headers和配置
+                stream_headers = {
+                    "Accept": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+                }
+                # 使用stream方法进行真正的流式请求
+                return self._handle_stream_request(client, endpoint, request_data, stream_headers, model)
+            else:
+                response = client.post(
+                    endpoint,
+                    json=request_data
+                )
+            
             response.raise_for_status()
             
-            if stream:
-                return self._handle_stream_response(response, model)
-            else:
-                response_data = response.json()
-                
-                # 检查错误
-                if "error_code" in response_data:
-                    raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
-                
-                harbor_response = self._convert_to_harbor_response(response_data, model, messages)
-                
-                # 处理结构化输出
-                response_format = kwargs.get('response_format')
-                if response_format:
-                    structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
-                
-                # 记录响应日志
-                latency_ms = (time.time() - start_time) * 1000
-                self.log_response(harbor_response, latency_ms)
-                
-                return harbor_response
+            response_data = response.json()
+            
+            # 检查错误
+            if "error_code" in response_data:
+                raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
+            
+            harbor_response = self._convert_to_harbor_response(response_data, model, messages)
+            
+            # 处理结构化输出
+            response_format = kwargs.get('response_format')
+            if response_format:
+                structured_provider = kwargs.get('structured_provider', 'agently')
+                harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
+            
+            # 记录响应日志
+            latency_ms = (time.time() - start_time) * 1000
+            self.log_response(harbor_response, latency_ms)
+            
+            return harbor_response
                 
         except Exception as e:
             logger.error(f"Wenxin API error: {e}")
@@ -472,34 +497,45 @@ class WenxinPlugin(BaseLLMPlugin):
             
             # 发送请求（统一使用OpenAI标准调用方式）
             client = self._get_async_client()
-            response = await client.post(
-                endpoint,
-                json=request_data
-            )
+            
+            # 为流式请求添加特殊配置
+            if stream:
+                # 流式请求需要特殊的headers和配置
+                stream_headers = {
+                    "Accept": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+                }
+                # 使用stream方法进行真正的流式请求
+                return self._handle_async_stream_request(client, endpoint, request_data, stream_headers, model)
+            else:
+                response = await client.post(
+                    endpoint,
+                    json=request_data
+                )
+            
             response.raise_for_status()
             
-            if stream:
-                return self._handle_async_stream_response(response, model)
-            else:
-                response_data = response.json()
-                
-                # 检查错误
-                if "error_code" in response_data:
-                    raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
-                
-                harbor_response = self._convert_to_harbor_response(response_data, model, messages)
-                
-                # 处理结构化输出
-                response_format = kwargs.get('response_format')
-                if response_format:
-                    structured_provider = kwargs.get('structured_provider', 'agently')
-                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
-                
-                # 记录响应日志
-                latency_ms = (time.time() - start_time) * 1000
-                self.log_response(harbor_response, latency_ms)
-                
-                return harbor_response
+            response_data = response.json()
+            
+            # 检查错误
+            if "error_code" in response_data:
+                raise PluginError(self.name, f"Wenxin API error: {response_data.get('error_msg', 'Unknown error')}")
+            
+            harbor_response = self._convert_to_harbor_response(response_data, model, messages)
+            
+            # 处理结构化输出
+            response_format = kwargs.get('response_format')
+            if response_format:
+                structured_provider = kwargs.get('structured_provider', 'agently')
+                harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, original_messages=messages, model=model)
+            
+            # 记录响应日志
+            latency_ms = (time.time() - start_time) * 1000
+            self.log_response(harbor_response, latency_ms)
+            
+            return harbor_response
                 
         except Exception as e:
             logger.error(f"Wenxin API error: {e}")
@@ -526,6 +562,28 @@ class WenxinPlugin(BaseLLMPlugin):
             else:
                 return error_response
     
+    def _handle_stream_request(self, client, endpoint: str, request_data: dict, headers: dict, model: str) -> Generator[ChatCompletionChunk, None, None]:
+        """处理同步流式请求。"""
+        with client.stream("POST", endpoint, json=request_data, headers=headers, timeout=None) as response:
+            response.raise_for_status()
+            
+            for line in response.iter_lines():
+                # 处理字节和字符串类型的line
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8')
+                
+                if line.startswith("data: "):
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        break
+                    
+                    try:
+                        chunk_data = json.loads(data)
+                        if "error_code" not in chunk_data:
+                            yield self._convert_to_harbor_chunk(chunk_data, model)
+                    except json.JSONDecodeError:
+                        continue
+
     def _handle_stream_response(self, response, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式响应。"""
         for line in response.iter_lines():
@@ -547,6 +605,28 @@ class WenxinPlugin(BaseLLMPlugin):
                 except json.JSONDecodeError:
                     continue
     
+    async def _handle_async_stream_request(self, client, endpoint: str, request_data: dict, headers: dict, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
+        """处理异步流式请求。"""
+        async with client.stream("POST", endpoint, json=request_data, headers=headers, timeout=None) as response:
+            response.raise_for_status()
+            
+            async for line in response.aiter_lines():
+                # 处理字节和字符串类型的line
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8')
+                
+                if line.startswith("data: "):
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        break
+                    
+                    try:
+                        chunk_data = json.loads(data)
+                        if "error_code" not in chunk_data:
+                            yield self._convert_to_harbor_chunk(chunk_data, model)
+                    except json.JSONDecodeError:
+                        continue
+
     async def _handle_async_stream_response(self, response, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
         """处理异步流式响应。"""
         async for line in response.aiter_lines():

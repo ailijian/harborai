@@ -26,10 +26,14 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+# 添加本地源码路径
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
 try:
     from harborai import HarborAI
 except ImportError:
-    print("❌ 请先安装 HarborAI: pip install harborai")
+    print("❌ 无法导入 HarborAI，请检查路径配置")
     exit(1)
 
 
@@ -323,7 +327,7 @@ def compare_streaming_vs_normal(client: HarborAI, question: str, model: str = "d
 
 async def multiple_concurrent_streams(client: HarborAI, questions: list, model: str = "deepseek-chat"):
     """
-    多个并发流式请求
+    多个并发流式请求（修复乱序问题）
     
     Args:
         client: HarborAI客户端
@@ -331,15 +335,17 @@ async def multiple_concurrent_streams(client: HarborAI, questions: list, model: 
         model: 使用的模型名称
     """
     print("\n" + "="*60)
-    print("🔄 多个并发流式请求示例")
+    print("🔄 多个并发流式请求示例（修复版）")
     print("="*60)
     
+    # 使用锁来控制输出顺序
+    output_lock = asyncio.Lock()
+    
     async def stream_with_id(question: str, stream_id: int):
-        """带ID的流式处理"""
-        print(f"\n🎯 流 {stream_id}: {question}")
-        print(f"💭 回答 {stream_id}: ", end="", flush=True)
+        """带ID的流式处理（修复版）"""
         
         try:
+            # 静默处理流式响应，避免输出混乱
             stream = await client.chat.completions.acreate(
                 model=model,
                 messages=[{"role": "user", "content": question}],
@@ -349,19 +355,41 @@ async def multiple_concurrent_streams(client: HarborAI, questions: list, model: 
             )
             
             full_response = ""
+            chunk_count = 0
+            start_time = time.time()
+            
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     content = chunk.choices[0].delta.content
                     full_response += content
-                    print(content, end="", flush=True)
-                    await asyncio.sleep(0.01)
+                    chunk_count += 1
             
-            print(f"\n✅ 流 {stream_id} 完成")
-            return {"id": stream_id, "question": question, "answer": full_response}
+            elapsed_time = time.time() - start_time
+            
+            # 使用锁确保输出不混乱
+            async with output_lock:
+                print(f"\n🎯 流 {stream_id}: {question}")
+                print(f"💭 回答 {stream_id}: {full_response[:100]}{'...' if len(full_response) > 100 else ''}")
+                print(f"✅ 流 {stream_id} 完成 - 耗时: {elapsed_time:.2f}秒, 数据块: {chunk_count}")
+            
+            return {
+                "id": stream_id, 
+                "question": question, 
+                "answer": full_response,
+                "elapsed_time": elapsed_time,
+                "chunk_count": chunk_count,
+                "success": True
+            }
             
         except Exception as e:
-            print(f"\n❌ 流 {stream_id} 失败: {e}")
-            return {"id": stream_id, "question": question, "error": str(e)}
+            async with output_lock:
+                print(f"\n❌ 流 {stream_id} 失败: {e}")
+            return {
+                "id": stream_id, 
+                "question": question, 
+                "error": str(e),
+                "success": False
+            }
     
     # 创建并发任务
     tasks = [stream_with_id(q, i+1) for i, q in enumerate(questions)]
@@ -371,7 +399,15 @@ async def multiple_concurrent_streams(client: HarborAI, questions: list, model: 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     total_time = time.time() - start_time
     
-    print(f"\n🎉 所有并发流完成，总耗时: {total_time:.2f}秒")
+    # 统计结果
+    successful = sum(1 for r in results if isinstance(r, dict) and r.get('success', False))
+    failed = len(results) - successful
+    
+    print(f"\n🎉 所有并发流完成统计:")
+    print(f"   总耗时: {total_time:.2f}秒")
+    print(f"   成功数: {successful}/{len(results)}")
+    print(f"   失败数: {failed}")
+    
     return results
 
 

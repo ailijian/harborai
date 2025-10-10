@@ -77,8 +77,15 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     timeout=self.timeout,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    }
+                        "Content-Type": "application/json",
+                        "Accept": "text/event-stream, application/json"
+                    },
+                    # 禁用响应缓冲以支持流式传输
+                    follow_redirects=True,
+                    # 优化流式传输的配置
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                    # 禁用HTTP/2以避免潜在的流式问题
+                    http2=False
                 )
             except ImportError:
                 raise PluginError("deepseek", "httpx not installed. Please install it to use DeepSeek plugin.")
@@ -94,8 +101,15 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     timeout=self.timeout,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
-                        "Content-Type": "application/json"
-                    }
+                        "Content-Type": "application/json",
+                        "Accept": "text/event-stream, application/json"
+                    },
+                    # 禁用响应缓冲以支持流式传输
+                    follow_redirects=True,
+                    # 优化流式传输的配置
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                    # 禁用HTTP/2以避免潜在的流式问题
+                    http2=False
                 )
             except ImportError:
                 raise PluginError("deepseek", "httpx not installed. Please install it to use DeepSeek plugin.")
@@ -344,7 +358,12 @@ class DeepSeekPlugin(BaseLLMPlugin):
             
             # 发送请求到标准端点
             client = self._get_client()
-            response = client.post("/v1/chat/completions", json=request_data)
+            # 构建URL路径 - 检查base_url是否已包含/v1
+            if self.base_url.endswith('/v1'):
+                url_path = "/chat/completions"
+            else:
+                url_path = "/v1/chat/completions"
+            response = client.post(url_path, json=request_data)
             response.raise_for_status()
             
             if stream:
@@ -414,9 +433,7 @@ class DeepSeekPlugin(BaseLLMPlugin):
                     raise PluginError("deepseek", "DeepSeek返回了无效的响应内容")
                     
         except Exception as e:
-            logger.error(f"DeepSeek原生结构化输出处理失败: {e}")
-            if isinstance(e, PluginError):
-                raise
+            logger.error(f"DeepSeek原生结构化输出处理失败: {str(e)}")
             raise PluginError("deepseek", f"DeepSeek原生结构化输出处理失败: {str(e)}")
 
     def chat_completion(self, 
@@ -452,11 +469,33 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 client = self._get_client()
                 
                 # 调试信息：显示请求详情
-                full_url = f"{self.base_url}/v1/chat/completions"
+                # 构建完整URL - 检查base_url是否已包含/v1
+                if self.base_url.endswith('/v1'):
+                    full_url = f"{self.base_url}/chat/completions"
+                else:
+                    full_url = f"{self.base_url}/v1/chat/completions"
                 self.logger.info(f"发送请求到: {full_url}")
                 self.logger.info(f"请求模型: {model}")
                 
-                response = client.post("/v1/chat/completions", json=request_data)
+                # 构建URL路径 - 检查base_url是否已包含/v1
+                if self.base_url.endswith('/v1'):
+                    url_path = "/chat/completions"
+                else:
+                    url_path = "/v1/chat/completions"
+                
+                # 为流式请求添加特殊配置
+                if stream:
+                    # 流式请求需要特殊的headers和配置
+                    stream_headers = {
+                        "Accept": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+                    }
+                    # 使用stream方法进行真正的流式请求
+                    return self._handle_stream_request(client, url_path, request_data, stream_headers, model)
+                else:
+                    response = client.post(url_path, json=request_data)
                 
                 # 调试信息：显示响应状态
                 self.logger.info(f"响应状态码: {response.status_code}")
@@ -465,32 +504,57 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 
                 response.raise_for_status()
                 
-                if stream:
-                    return self._handle_stream_response(response, model)
-                else:
-                    response_data = response.json()
-                    harbor_response = self._convert_to_harbor_response(response_data, model)
-                    
-                    # 处理结构化输出（使用Agently后处理）
-                    self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
-                    if response_format:
-                        self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
-                        harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
-                    
-                    # 计算延迟并记录响应日志
-                    latency_ms = (time.time() - start_time) * 1000
-                    self.log_response(harbor_response, latency_ms)
-                    
-                    return harbor_response
+                response_data = response.json()
+                harbor_response = self._convert_to_harbor_response(response_data, model)
+                
+                # 处理结构化输出（使用Agently后处理）
+                self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
+                if response_format:
+                    self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
+                    harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
+                
+                # 计算延迟并记录响应日志
+                latency_ms = (time.time() - start_time) * 1000
+                self.log_response(harbor_response, latency_ms)
+                
+                return harbor_response
                 
         except Exception as e:
             self.logger.error(f"DeepSeek API error: {e}")
-            error_response = self.create_error_response(str(e), model)
+            # 计算延迟
             latency_ms = (time.time() - start_time) * 1000
-            self.log_response(error_response, latency_ms)
-            return error_response
-    
-    async def chat_completion_async(self, 
+            # 记录错误信息
+            self.logger.error(f"DeepSeek同步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+            # 抛出异常而不是返回错误响应，让上层处理
+            raise
+
+    def _handle_stream_request(self, client, url_path: str, request_data: dict, headers: dict, model: str) -> Generator[ChatCompletionChunk, None, None]:
+        """处理同步流式请求。"""
+        with client.stream("POST", url_path, json=request_data, headers=headers, timeout=None) as response:
+            # 调试信息：显示响应状态
+            self.logger.info(f"响应状态码: {response.status_code}")
+            if response.status_code != 200:
+                self.logger.error(f"响应内容: {response.text}")
+            
+            response.raise_for_status()
+            
+            for line in response.iter_lines():
+                # 处理字节和字符串类型的line
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8')
+                
+                if line.startswith("data: "):
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        break
+                    
+                    try:
+                        chunk_data = json.loads(data)
+                        yield self._convert_to_harbor_chunk(chunk_data, model)
+                    except json.JSONDecodeError:
+                        continue
+
+    async def chat_completion_async(self,
                                    model: str, 
                                    messages: List[ChatMessage], 
                                    stream: bool = False,
@@ -506,24 +570,65 @@ class DeepSeekPlugin(BaseLLMPlugin):
         self.log_request(model, messages, **kwargs)
         
         try:
-            # 准备请求
-            request_data = self._prepare_deepseek_request(model, messages, stream=stream, **kwargs)
+            # 检查是否使用原生结构化输出
+            response_format = kwargs.get('response_format')
+            structured_provider = kwargs.get('structured_provider', 'agently')
+            use_native_structured = response_format and structured_provider == 'native'
             
-            # 发送请求
-            client = self._get_async_client()
-            response = await client.post("/v1/chat/completions", json=request_data)
-            response.raise_for_status()
-            
-            if stream:
-                return self._handle_async_stream_response(response, model)
+            if use_native_structured:
+                # DeepSeek原生结构化输出：直接使用json_object，无需Agently后处理
+                logger.info(f"使用DeepSeek原生结构化输出处理模型 {model}")
+                return self._handle_native_structured_output(model, messages, stream, **kwargs)
             else:
-                response_data = await response.json()
+                # 标准请求处理（使用Agently后处理）
+                request_data = self._prepare_deepseek_request(model, messages, stream=stream, **kwargs)
+                
+                # 发送请求
+                client = self._get_async_client()
+                
+                # 调试信息：显示请求详情
+                # 构建完整URL - 检查base_url是否已包含/v1
+                if self.base_url.endswith('/v1'):
+                    full_url = f"{self.base_url}/chat/completions"
+                else:
+                    full_url = f"{self.base_url}/v1/chat/completions"
+                self.logger.info(f"发送请求到: {full_url}")
+                self.logger.info(f"请求模型: {model}")
+                
+                # 构建URL路径 - 检查base_url是否已包含/v1
+                if self.base_url.endswith('/v1'):
+                    url_path = "/chat/completions"
+                else:
+                    url_path = "/v1/chat/completions"
+                
+                # 为流式请求添加特殊配置
+                if stream:
+                    # 流式请求需要特殊的headers和配置
+                    stream_headers = {
+                        "Accept": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "X-Accel-Buffering": "no"  # 禁用Nginx缓冲
+                    }
+                    # 使用stream方法进行真正的流式请求
+                    return self._handle_async_stream_request(client, url_path, request_data, stream_headers, model)
+                else:
+                    response = await client.post(url_path, json=request_data)
+                
+                # 调试信息：显示响应状态
+                self.logger.info(f"响应状态码: {response.status_code}")
+                if response.status_code != 200:
+                    self.logger.error(f"响应内容: {response.text}")
+                
+                response.raise_for_status()
+                
+                response_data = response.json()
                 harbor_response = self._convert_to_harbor_response(response_data, model)
                 
-                # 处理结构化输出
-                response_format = kwargs.get('response_format')
+                # 处理结构化输出（使用Agently后处理）
+                self.logger.debug(f"DeepSeek插件检查结构化输出: response_format={response_format}")
                 if response_format:
-                    structured_provider = kwargs.get('structured_provider', 'agently')
+                    self.logger.debug(f"DeepSeek插件调用handle_structured_output: structured_provider={structured_provider}")
                     harbor_response = self.handle_structured_output(harbor_response, response_format, structured_provider, model=model, original_messages=messages)
                 
                 # 计算延迟并记录响应日志
@@ -534,11 +639,39 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 
         except Exception as e:
             self.logger.error(f"DeepSeek API error: {e}")
-            error_response = self.create_error_response(str(e), model)
+            # 计算延迟
             latency_ms = (time.time() - start_time) * 1000
-            self.log_response(error_response, latency_ms)
-            return error_response
+            # 记录错误信息
+            self.logger.error(f"DeepSeek异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+            # 抛出异常而不是返回错误响应，让上层处理
+            raise
     
+    async def _handle_async_stream_request(self, client, url_path: str, request_data: dict, headers: dict, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
+        """处理异步流式请求。"""
+        async with client.stream("POST", url_path, json=request_data, headers=headers, timeout=None) as response:
+            # 调试信息：显示响应状态
+            self.logger.info(f"响应状态码: {response.status_code}")
+            if response.status_code != 200:
+                self.logger.error(f"响应内容: {response.aread()}")
+            
+            response.raise_for_status()
+            
+            async for line in response.aiter_lines():
+                # 处理字节和字符串类型的line
+                if isinstance(line, bytes):
+                    line = line.decode('utf-8')
+                
+                if line.startswith("data: "):
+                    data = line[6:].strip()
+                    if data == "[DONE]":
+                        break
+                    
+                    try:
+                        chunk_data = json.loads(data)
+                        yield self._convert_to_harbor_chunk(chunk_data, model)
+                    except json.JSONDecodeError:
+                        continue
+ 
     def _handle_stream_response(self, response, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式响应。"""
         for line in response.iter_lines():

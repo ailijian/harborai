@@ -34,7 +34,7 @@ import re
 from collections import defaultdict, deque
 import threading
 from harborai import HarborAI
-from harborai.types.chat import ChatCompletion
+from harborai.core.base_plugin import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
