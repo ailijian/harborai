@@ -30,7 +30,7 @@ logger = get_logger("harborai.cli")
 
 
 @click.group()
-@click.version_option(version="1.0.0")
+@click.version_option(version="1.0.0-beta.6")
 @click.option(
     "--format",
     type=click.Choice(["text", "json"]),
@@ -737,6 +737,59 @@ def config(ctx, format: str):
             click.echo(error_msg)
         else:
             console.print(f"[bold red]{error_msg}[/bold red]")
+        raise click.ClickException(str(e))
+
+
+@cli.command()
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    help="服务器主机地址 (默认: 127.0.0.1)"
+)
+@click.option(
+    "--port",
+    default=8000,
+    type=int,
+    help="服务器端口 (默认: 8000)"
+)
+@click.option(
+    "--reload",
+    is_flag=True,
+    help="启用自动重载 (开发模式)"
+)
+@click.option(
+    "--workers",
+    default=1,
+    type=int,
+    help="工作进程数 (默认: 1)"
+)
+def serve(host: str, port: int, reload: bool, workers: int):
+    """启动 HarborAI API 服务器"""
+    try:
+        import uvicorn
+        from ..api.app import create_app
+        
+        console.print(f"[bold green]🚀 启动 HarborAI API 服务器[/bold green]")
+        console.print(f"地址: http://{host}:{port}")
+        console.print(f"工作进程: {workers}")
+        console.print(f"自动重载: {'启用' if reload else '禁用'}")
+        
+        app = create_app()
+        
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=reload,
+            workers=workers if not reload else 1,
+            log_level="info"
+        )
+        
+    except ImportError:
+        console.print("[bold red]✗ 缺少 uvicorn 依赖，请安装: pip install uvicorn[/bold red]")
+        raise click.ClickException("缺少 uvicorn 依赖")
+    except Exception as e:
+        console.print(f"[bold red]✗ 启动服务器失败: {e}[/bold red]")
         raise click.ClickException(str(e))
 
 
