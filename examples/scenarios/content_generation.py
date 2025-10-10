@@ -34,8 +34,8 @@ import sqlite3
 from collections import defaultdict
 import hashlib
 import threading
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -245,7 +245,7 @@ class ContentTemplateManager:
 class ContentGenerator:
     """内容生成器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
         self.template_manager = ContentTemplateManager()
     
@@ -333,7 +333,7 @@ class ContentGenerator:
 class QualityAssessor:
     """质量评估器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
     
     async def assess_quality(self, content: str, requirement: ContentRequirement) -> QualityAssessment:
@@ -427,7 +427,7 @@ class QualityAssessor:
 class SEOOptimizer:
     """SEO优化器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
     
     async def optimize_for_seo(self, content: str, keywords: List[str], target_audience: str) -> Dict[str, Any]:
@@ -716,11 +716,11 @@ class ContentGenerationSystem:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  db_path: str = "content_system.db"):
         
         # 初始化组件
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
         self.generator = ContentGenerator(self.client)
         self.quality_assessor = QualityAssessor(self.client)
         self.seo_optimizer = SEOOptimizer(self.client)
@@ -965,7 +965,7 @@ async def demo_basic_content_generation():
     print("=" * 50)
     
     # 创建内容生成系统
-    system = ContentGenerationSystem(api_key="your-api-key-here")
+    system = ContentGenerationSystem(api_key="your-deepseek-key")
     
     # 创建内容需求
     requirement = ContentRequirement(
@@ -1031,7 +1031,7 @@ async def demo_content_variations():
     print("\n🎭 内容变体生成演示")
     print("=" * 50)
     
-    system = ContentGenerationSystem(api_key="your-api-key-here")
+    system = ContentGenerationSystem(api_key="your-deepseek-key")
     
     # 创建营销文案需求
     requirement = ContentRequirement(
@@ -1081,7 +1081,7 @@ async def demo_batch_generation():
     print("\n⚡ 批量内容生成演示")
     print("=" * 50)
     
-    system = ContentGenerationSystem(api_key="your-api-key-here")
+    system = ContentGenerationSystem(api_key="your-deepseek-key")
     
     # 创建多个内容需求
     requirements = [
@@ -1148,7 +1148,7 @@ async def demo_content_optimization():
     print("\n🔧 内容优化演示")
     print("=" * 50)
     
-    system = ContentGenerationSystem(api_key="your-api-key-here")
+    system = ContentGenerationSystem(api_key="your-deepseek-key")
     
     # 先生成一个内容
     requirement = ContentRequirement(
@@ -1193,7 +1193,7 @@ async def demo_content_workflow():
     print("\n🔄 内容工作流演示")
     print("=" * 50)
     
-    system = ContentGenerationSystem(api_key="your-api-key-here")
+    system = ContentGenerationSystem(api_key="your-deepseek-key")
     
     # 1. 创建内容
     requirement = ContentRequirement(

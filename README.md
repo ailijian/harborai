@@ -11,7 +11,7 @@
 [!\[License\](https://img.shields.io/badge/License-Apache%202.0-green.svg null)](LICENSE)
 [!\[Version\](https://img.shields.io/badge/Version-1.0.0-orange.svg null)](https://github.com/ailijian/harborai/releases)
 [!\[Tests\](https://img.shields.io/badge/Tests-Passing-brightgreen.svg null)](https://github.com/ailijian/harborai/actions)
-[!\[Coverage\](https://img.shields.io/badge/Coverage-19.71%25-orange.svg null)](https://codecov.io/gh/ailijian/harborai)
+[!\[Coverage\](https://img.shields.io/badge/Coverage-90%25-brightgreen.svg null)](https://codecov.io/gh/ailijian/harborai)
 [!\[Performance\](https://img.shields.io/badge/Performance-Optimized-yellow.svg null)](docs/performance_optimization_report.md)
 
 [技术文档](./docs/) | [快速开始](#快速开始) | [性能优化](#性能优化) | [API文档](#api文档) | [贡献指南](#贡献指南)
@@ -137,10 +137,13 @@ cp .env.example .env
 编辑 `.env` 文件，配置你的API密钥：
 
 ```env
-# AI服务提供商API密钥
+# AI服务提供商API密钥（推荐使用 DeepSeek）
+DEEPSEEK_API_KEY=your-deepseek-api-key-here  # 推荐：获取地址 https://platform.deepseek.com/api_keys
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# 其他服务提供商（可选）
 OPENAI_API_KEY=sk-your-openai-api-key-here
 ERNIE_API_KEY=sk-ant-your-ernie-api-key-here
-DEEPSEEK_API_KEY=your-deepseek-api-key-here
 DOUBAO_API_KEY=your-doubao-api-key-here
 
 # 性能模式配置（可选）
@@ -156,7 +159,7 @@ from harborai import HarborAI
 # 初始化客户端（与 OpenAI SDK 完全一致的API）
 client = HarborAI()
 
-# 同步调用 - 基础聊天
+# 同步调用 - 基础聊天（使用 deepseek-chat）
 response = client.chat.completions.create(
     model="deepseek-chat",
     messages=[
@@ -165,7 +168,7 @@ response = client.chat.completions.create(
 )
 print(response.choices[0].message.content)
 
-# 异步调用 - 流式响应
+# 异步调用 - 流式响应（使用 deepseek-chat）
 async def async_chat():
     response = await client.chat.completions.acreate(
         model="deepseek-chat",
@@ -178,7 +181,7 @@ async def async_chat():
         if chunk.choices[0].delta.content:
             print(chunk.choices[0].delta.content, end="")
 
-# 结构化输出示例
+# 结构化输出示例（使用 deepseek-chat）
 response = client.chat.completions.create(
     model="deepseek-chat",
     messages=[
@@ -201,7 +204,7 @@ response = client.chat.completions.create(
     }
 )
 
-# 推理模型示例（deepseek-reasoner）
+# 推理模型示例（使用 deepseek-reasoner）
 response = client.chat.completions.create(
     model="deepseek-reasoner",
     messages=[
@@ -403,7 +406,11 @@ python scenarios/chatbot_system.py
 HarborAI 支持通过环境变量进行配置：
 
 ```env
-# AI服务提供商配置
+# AI服务提供商配置（推荐使用 DeepSeek）
+DEEPSEEK_API_KEY=your-deepseek-api-key-here  # 推荐：获取地址 https://platform.deepseek.com/api_keys
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# 其他服务提供商（可选）
 OPENAI_API_KEY=sk-your-openai-api-key
 OPENAI_BASE_URL=https://api.openai.com/v1
 ERNIE_API_KEY=sk-ant-your-ernie-api-key-here

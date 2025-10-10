@@ -46,8 +46,8 @@ pip install -r requirements.txt
 # 复制环境变量模板
 cp .env.example .env
 
-# 编辑环境变量，填入你的API密钥
-# DEEPSEEK_API_KEY=your_deepseek_api_key
+# 编辑环境变量，填入你的API密钥（推荐使用 DeepSeek）
+# DEEPSEEK_API_KEY=your_deepseek_api_key  # 推荐：获取地址 https://platform.deepseek.com/api_keys
 # OPENAI_API_KEY=your_openai_api_key
 # ANTHROPIC_API_KEY=your_anthropic_api_key
 ```
@@ -114,8 +114,8 @@ response = client.chat.completions.create(
 ```
 
 ### 插件化架构
-支持多个模型厂商的无缝切换：
-- DeepSeek (deepseek-chat, deepseek-reasoner)
+支持多个模型厂商的无缝切换（推荐使用 DeepSeek）：
+- **DeepSeek** (deepseek-chat, deepseek-reasoner) - 推荐
 - OpenAI (gpt-4, gpt-3.5-turbo)
 - Anthropic (claude-3)
 - 豆包 (doubao-pro)
@@ -132,13 +132,15 @@ response = client.chat.completions.create(
 
 ### 环境变量配置
 ```bash
-# 必需的API密钥
-DEEPSEEK_API_KEY=sk-xxx
+# 必需的API密钥（推荐使用 DeepSeek）
+DEEPSEEK_API_KEY=sk-xxx  # 推荐：获取地址 https://platform.deepseek.com/api_keys
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+# 其他服务提供商（可选）
 OPENAI_API_KEY=sk-xxx
 ANTHROPIC_API_KEY=sk-ant-xxx
 
 # 可选的基础URL
-DEEPSEEK_BASE_URL=https://api.deepseek.com
 OPENAI_BASE_URL=https://api.openai.com/v1
 
 # 日志配置

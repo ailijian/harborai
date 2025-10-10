@@ -33,8 +33,8 @@ import sqlite3
 import re
 from collections import defaultdict, deque
 import threading
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -118,7 +118,7 @@ class IntentAnalysisResult:
 class IntentClassifier:
     """意图分类器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
         
         # 意图识别提示模板
@@ -452,7 +452,7 @@ class ConversationManager:
 class ResponseGenerator:
     """回复生成器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
         
         # 回复生成提示模板
@@ -578,11 +578,11 @@ class ChatbotSystem:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  db_path: str = "chatbot.db"):
         
         # 初始化组件
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
         self.intent_classifier = IntentClassifier(self.client)
         self.conversation_manager = ConversationManager(db_path)
         self.response_generator = ResponseGenerator(self.client)
@@ -768,7 +768,7 @@ async def demo_basic_conversation():
     print("=" * 50)
     
     # 创建聊天机器人系统
-    chatbot = ChatbotSystem(api_key="your-api-key-here")
+    chatbot = ChatbotSystem(api_key="your-deepseek-key")
     
     # 模拟用户对话
     user_id = "user_001"
@@ -812,7 +812,7 @@ async def demo_intent_analysis():
     print("\n🧠 意图分析功能演示")
     print("=" * 50)
     
-    chatbot = ChatbotSystem(api_key="your-api-key-here")
+    chatbot = ChatbotSystem(api_key="your-deepseek-key")
     
     # 测试不同类型的消息
     test_cases = [
@@ -844,7 +844,7 @@ async def demo_escalation_system():
     print("\n🚨 升级系统功能演示")
     print("=" * 50)
     
-    chatbot = ChatbotSystem(api_key="your-api-key-here")
+    chatbot = ChatbotSystem(api_key="your-deepseek-key")
     
     # 测试升级触发场景
     escalation_cases = [
@@ -875,7 +875,7 @@ async def demo_conversation_management():
     print("\n💬 对话管理功能演示")
     print("=" * 50)
     
-    chatbot = ChatbotSystem(api_key="your-api-key-here")
+    chatbot = ChatbotSystem(api_key="your-deepseek-key")
     
     # 创建多个对话
     conversations = []
@@ -916,7 +916,7 @@ async def demo_performance_monitoring():
     print("\n📈 性能监控功能演示")
     print("=" * 50)
     
-    chatbot = ChatbotSystem(api_key="your-api-key-here")
+    chatbot = ChatbotSystem(api_key="your-deepseek-key")
     
     # 模拟高并发场景
     print("🔄 模拟高并发消息处理...")

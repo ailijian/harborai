@@ -82,8 +82,7 @@ if __name__ == "__main__":
 
 ### 环境变量
 - `DEEPSEEK_API_KEY`: DeepSeek API密钥
-- `OPENAI_API_KEY`: OpenAI API密钥（可选）
-- `ANTHROPIC_API_KEY`: Anthropic API密钥（可选）
+- `DEEPSEEK_BASE_URL`: DeepSeek API基础URL（可选，默认为官方地址）
 - `HARBORAI_LOG_LEVEL`: 日志级别 (DEBUG/INFO/WARNING/ERROR)
 - `HARBORAI_COST_TRACKING`: 是否启用成本追踪 (true/false)
 
@@ -91,9 +90,7 @@ if __name__ == "__main__":
 ```python
 # 支持的模型列表
 SUPPORTED_MODELS = {
-    "deepseek": ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
-    "openai": ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
-    "anthropic": ["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]
+    "deepseek": ["deepseek-chat", "deepseek-reasoner"]
 }
 ```
 

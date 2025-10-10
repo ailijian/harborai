@@ -29,8 +29,8 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -146,11 +146,11 @@ class FaultTolerantClient:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  retry_config: Optional[RetryConfig] = None,
                  circuit_config: Optional[CircuitBreakerConfig] = None):
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
-        self.async_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
+        self.async_client = HarborAI(api_key=api_key, base_url=base_url)
         self.retry_config = retry_config or RetryConfig()
         self.circuit_breaker = CircuitBreaker(circuit_config or CircuitBreakerConfig())
         self.error_stats = ErrorStats()
@@ -314,7 +314,7 @@ async def demo_basic_retry():
     
     # 创建容错客户端
     client = FaultTolerantClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=3, base_delay=0.5)
     )
     
@@ -376,7 +376,7 @@ async def demo_error_classification():
     print("=" * 50)
     
     client = FaultTolerantClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2)
     )
     
@@ -413,7 +413,7 @@ async def demo_health_monitoring():
     print("=" * 50)
     
     client = FaultTolerantClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2)
     )
     
@@ -448,11 +448,11 @@ async def demo_performance_comparison():
     print("=" * 50)
     
     # 普通客户端
-    normal_client = OpenAI(api_key="your-api-key-here", base_url="https://api.harborai.com/v1")
+    normal_client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
     
     # 容错客户端
     fault_tolerant_client = FaultTolerantClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2, base_delay=0.1)
     )
     

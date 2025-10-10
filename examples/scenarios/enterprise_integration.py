@@ -45,8 +45,8 @@ from concurrent.futures import ThreadPoolExecutor
 import ssl
 import certifi
 
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置结构化日志
 structlog.configure(
@@ -572,12 +572,12 @@ class EnterpriseAIGateway:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  redis_url: str = "redis://localhost:6379",
                  db_path: str = "enterprise_gateway.db"):
         
         # 初始化组件
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
         self.redis_client = redis.from_url(redis_url)
         
         # 初始化管理器
@@ -955,7 +955,7 @@ async def demo_enterprise_setup():
     print("\n🏢 企业级AI网关设置演示")
     print("=" * 50)
     
-    async with EnterpriseAIGateway(api_key="your-api-key-here") as gateway:
+    async with EnterpriseAIGateway(api_key="your-deepseek-key") as gateway:
         
         # 创建租户和用户
         print("👥 创建企业用户...")
@@ -1072,7 +1072,7 @@ async def demo_ai_requests():
     print("\n🤖 AI请求处理演示")
     print("=" * 50)
     
-    async with EnterpriseAIGateway(api_key="your-api-key-here") as gateway:
+    async with EnterpriseAIGateway(api_key="your-deepseek-key") as gateway:
         
         # 创建测试用户
         user = gateway.create_user(
@@ -1162,7 +1162,7 @@ async def demo_monitoring_alerts():
     print("\n📈 监控和告警演示")
     print("=" * 50)
     
-    async with EnterpriseAIGateway(api_key="your-api-key-here") as gateway:
+    async with EnterpriseAIGateway(api_key="your-deepseek-key") as gateway:
         
         print("📊 记录监控指标...")
         
@@ -1216,7 +1216,7 @@ async def demo_integration_calls():
     print("\n🔗 系统集成调用演示")
     print("=" * 50)
     
-    async with EnterpriseAIGateway(api_key="your-api-key-here") as gateway:
+    async with EnterpriseAIGateway(api_key="your-deepseek-key") as gateway:
         
         # 注册模拟集成端点
         print("🔧 注册集成端点...")

@@ -32,8 +32,8 @@ import json
 import psutil
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -143,9 +143,9 @@ class BatchProcessor:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  config: Optional[BatchConfig] = None):
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
         self.config = config or BatchConfig()
         self.memory_monitor = MemoryMonitor(self.config.memory_limit_mb)
         
@@ -342,7 +342,7 @@ async def demo_basic_batch_processing():
     
     # 创建批量处理器
     processor = BatchProcessor(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         config=BatchConfig(
             batch_size=5,
             max_concurrent_batches=2,
@@ -408,7 +408,7 @@ async def demo_performance_comparison():
     
     # 1. 顺序处理
     print("🔄 顺序处理测试...")
-    client = AsyncOpenAI(api_key="your-api-key-here", base_url="https://api.harborai.com/v1")
+    client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
     
     sequential_start = time.time()
     sequential_results = []
@@ -431,7 +431,7 @@ async def demo_performance_comparison():
     # 2. 批量处理
     print("🔄 批量处理测试...")
     processor = BatchProcessor(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         config=BatchConfig(
             batch_size=5,
             max_concurrent_batches=3
@@ -482,7 +482,7 @@ async def demo_memory_management():
     
     # 创建批量处理器（较小的批次大小）
     processor = BatchProcessor(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         config=BatchConfig(
             batch_size=3,
             max_concurrent_batches=2,
@@ -515,7 +515,7 @@ async def demo_priority_processing():
     print("=" * 50)
     
     processor = BatchProcessor(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         config=BatchConfig(batch_size=3, max_concurrent_batches=1)
     )
     
@@ -553,7 +553,7 @@ async def demo_large_scale_processing():
     
     # 创建大规模处理器
     processor = BatchProcessor(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
         config=BatchConfig(
             batch_size=10,
             max_concurrent_batches=5,

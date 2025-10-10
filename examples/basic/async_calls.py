@@ -293,30 +293,23 @@ async def performance_comparison(client: HarborAI):
 
 async def concurrent_different_models(client: HarborAI):
     """
-    并发调用不同模型
+    并发调用不同 DeepSeek 模型
     
     Args:
         client: HarborAI客户端
     """
     print("\n" + "="*60)
-    print("🔄 并发调用不同模型示例")
+    print("🔄 并发调用不同 DeepSeek 模型示例")
     print("="*60)
     
     question = "请简单介绍一下人工智能的发展历程"
     
-    # 准备不同的客户端和模型
+    # 准备不同的 DeepSeek 模型
     tasks = []
     
-    # DeepSeek模型
+    # 测试不同 DeepSeek 模型
     tasks.append(async_chat_single(client, question, "deepseek-chat"))
-    
-    # 如果配置了其他模型，也可以并发调用
-    if os.getenv("OPENAI_API_KEY"):
-        openai_client = HarborAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        )
-        tasks.append(async_chat_single(openai_client, question, "gpt-3.5-turbo"))
+    tasks.append(async_chat_single(client, question, "deepseek-reasoner"))
     
     # 并发执行
     start_time = time.time()

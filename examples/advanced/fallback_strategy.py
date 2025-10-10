@@ -29,8 +29,8 @@ from typing import Dict, List, Optional, Callable, Any, Union
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -118,7 +118,7 @@ class ServiceHealthChecker:
     
     def __init__(self, config: ServiceConfig):
         self.config = config
-        self.client = AsyncOpenAI(api_key=config.api_key, base_url=config.base_url)
+        self.client = HarborAI(api_key=config.api_key, base_url=config.base_url)
         self.metrics = ServiceMetrics()
         self.status = ServiceStatus.HEALTHY
         
@@ -341,25 +341,25 @@ async def demo_basic_fallback():
     # 配置多个服务
     services = [
         ServiceConfig(
-            name="primary-gpt4",
-            model="gpt-4",
+            name="primary-deepseek-reasoner",
+            model="deepseek-reasoner",
             tier=ServiceTier.PRIMARY,
-            api_key="your-openai-key",
-            cost_per_token=0.03,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0002,
             expected_latency=3.0,
             quality_score=1.0
         ),
         ServiceConfig(
-            name="secondary-gpt35",
-            model="gpt-3.5-turbo",
+            name="secondary-deepseek-chat",
+            model="deepseek-chat",
             tier=ServiceTier.SECONDARY,
-            api_key="your-openai-key",
-            cost_per_token=0.002,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0001,
             expected_latency=2.0,
             quality_score=0.8
         ),
         ServiceConfig(
-            name="fallback-deepseek",
+            name="fallback-deepseek-chat",
             model="deepseek-chat",
             tier=ServiceTier.FALLBACK,
             api_key="your-deepseek-key",
@@ -409,8 +409,8 @@ async def demo_service_monitoring():
             expected_latency=2.0
         ),
         ServiceConfig(
-            name="fallback-deepseek-r1",
-            model="deepseek-r1",
+            name="fallback-deepseek-reasoner",
+            model="deepseek-reasoner",
             tier=ServiceTier.FALLBACK,
             api_key="your-deepseek-key",
             cost_per_token=0.0002,
@@ -477,18 +477,18 @@ async def demo_cost_optimization():
     services = [
         ServiceConfig(
             name="premium-service",
-            model="gpt-4",
+            model="deepseek-reasoner",
             tier=ServiceTier.PRIMARY,
-            api_key="your-openai-key",
-            cost_per_token=0.03,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0002,
             quality_score=1.0
         ),
         ServiceConfig(
             name="standard-service",
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             tier=ServiceTier.SECONDARY,
-            api_key="your-openai-key",
-            cost_per_token=0.002,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0001,
             quality_score=0.8
         ),
         ServiceConfig(
@@ -551,7 +551,7 @@ async def demo_cost_optimization():
     print(f"   - 平均成本: ${total_cost/len(results):.6f}")
     
     # 如果全部使用最贵服务的成本对比
-    premium_cost = sum(len(r["type"]) * 0.03 for r in results)  # 简化计算
+    premium_cost = sum(len(r["type"]) * 0.0002 for r in results)  # 简化计算，使用deepseek-reasoner成本
     savings = premium_cost - total_cost
     print(f"   - 如果全用高端服务: ${premium_cost:.6f}")
     print(f"   - 节省成本: ${savings:.6f} ({savings/premium_cost*100:.1f}%)")
@@ -607,18 +607,18 @@ async def demo_intelligent_routing():
     services = [
         ServiceConfig(
             name="high-quality",
-            model="gpt-4",
+            model="deepseek-reasoner",
             tier=ServiceTier.PRIMARY,
-            api_key="your-openai-key",
-            cost_per_token=0.03,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0002,
             quality_score=1.0
         ),
         ServiceConfig(
             name="balanced",
-            model="gpt-3.5-turbo",
+            model="deepseek-chat",
             tier=ServiceTier.SECONDARY,
-            api_key="your-openai-key",
-            cost_per_token=0.002,
+            api_key="your-deepseek-key",
+            cost_per_token=0.0001,
             quality_score=0.8
         ),
         ServiceConfig(

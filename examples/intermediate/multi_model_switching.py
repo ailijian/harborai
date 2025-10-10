@@ -50,9 +50,6 @@ class TaskType(Enum):
 class ModelProvider(Enum):
     """模型提供商枚举"""
     DEEPSEEK = "deepseek"
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    DOUBAO = "doubao"
 
 
 @dataclass
@@ -94,19 +91,8 @@ class ModelRouter:
                 default_base_url="https://api.deepseek.com",
                 cost_per_1k_tokens=0.0014,
                 max_tokens=4096,
-                strengths=[TaskType.CHAT, TaskType.REASONING, TaskType.ANALYSIS],
-                description="DeepSeek通用聊天模型，性价比高"
-            ),
-            "deepseek-coder": ModelConfig(
-                name="deepseek-coder",
-                provider=ModelProvider.DEEPSEEK,
-                api_key_env="DEEPSEEK_API_KEY",
-                base_url_env="DEEPSEEK_BASE_URL",
-                default_base_url="https://api.deepseek.com",
-                cost_per_1k_tokens=0.0014,
-                max_tokens=4096,
-                strengths=[TaskType.CODE],
-                description="DeepSeek代码专用模型"
+                strengths=[TaskType.CHAT, TaskType.CODE, TaskType.CREATIVE, TaskType.ANALYSIS, TaskType.TRANSLATION],
+                description="DeepSeek通用模型，适用于对话、代码生成、内容创作等多种任务"
             ),
             "deepseek-reasoner": ModelConfig(
                 name="deepseek-reasoner",
@@ -117,40 +103,7 @@ class ModelRouter:
                 cost_per_1k_tokens=0.0055,
                 max_tokens=4096,
                 strengths=[TaskType.REASONING],
-                description="DeepSeek推理专用模型"
-            ),
-            "gpt-3.5-turbo": ModelConfig(
-                name="gpt-3.5-turbo",
-                provider=ModelProvider.OPENAI,
-                api_key_env="OPENAI_API_KEY",
-                base_url_env="OPENAI_BASE_URL",
-                default_base_url="https://api.openai.com/v1",
-                cost_per_1k_tokens=0.002,
-                max_tokens=4096,
-                strengths=[TaskType.CHAT, TaskType.CREATIVE],
-                description="OpenAI GPT-3.5 Turbo模型"
-            ),
-            "gpt-4": ModelConfig(
-                name="gpt-4",
-                provider=ModelProvider.OPENAI,
-                api_key_env="OPENAI_API_KEY",
-                base_url_env="OPENAI_BASE_URL",
-                default_base_url="https://api.openai.com/v1",
-                cost_per_1k_tokens=0.03,
-                max_tokens=8192,
-                strengths=[TaskType.REASONING, TaskType.ANALYSIS, TaskType.CREATIVE],
-                description="OpenAI GPT-4模型，能力最强"
-            ),
-            "claude-3-haiku": ModelConfig(
-                name="claude-3-haiku",
-                provider=ModelProvider.ANTHROPIC,
-                api_key_env="ANTHROPIC_API_KEY",
-                base_url_env="ANTHROPIC_BASE_URL",
-                default_base_url="https://api.anthropic.com",
-                cost_per_1k_tokens=0.00025,
-                max_tokens=4096,
-                strengths=[TaskType.CHAT, TaskType.TRANSLATION],
-                description="Anthropic Claude 3 Haiku，速度快成本低"
+                description="DeepSeek推理专用模型，适用于复杂推理、数学计算、逻辑分析"
             )
         }
         

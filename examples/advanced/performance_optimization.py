@@ -35,8 +35,8 @@ import threading
 from collections import OrderedDict, defaultdict
 import psutil
 import aiohttp
-from openai import OpenAI, AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -347,7 +347,7 @@ class PerformanceOptimizedClient:
                  enable_prediction: bool = True):
         
         # 基础客户端
-        self.async_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.async_client = HarborAI(api_key=api_key, base_url=base_url)
         
         # 性能优化组件
         self.cache = IntelligentCache(max_size=cache_size, default_ttl=cache_ttl)
@@ -527,7 +527,8 @@ async def demo_cache_performance():
     
     # 创建优化客户端
     client = PerformanceOptimizedClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
+        base_url="https://api.deepseek.com/v1",
         cache_size=100,
         cache_ttl=300  # 5分钟
     )
@@ -573,11 +574,12 @@ async def demo_connection_pool():
     # 创建不同配置的客户端进行对比
     
     # 1. 无连接池优化的客户端
-    normal_client = AsyncOpenAI(api_key="your-api-key-here", base_url="https://api.harborai.com/v1")
+    normal_client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
     
     # 2. 连接池优化的客户端
     optimized_client = PerformanceOptimizedClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
+        base_url="https://api.deepseek.com/v1",
         max_connections=10,
         cache_size=0  # 禁用缓存以测试纯连接池性能
     )
@@ -645,7 +647,8 @@ async def demo_request_prediction():
     print("=" * 50)
     
     client = PerformanceOptimizedClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
+        base_url="https://api.deepseek.com/v1",
         enable_prediction=True
     )
     
@@ -717,15 +720,17 @@ async def demo_comprehensive_optimization():
     
     # 创建不同配置的客户端
     clients = {
-        "基础客户端": AsyncOpenAI(api_key="your-api-key-here", base_url="https://api.harborai.com/v1"),
+        "基础客户端": HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1"),
         "缓存优化": PerformanceOptimizedClient(
-            api_key="your-api-key-here",
+            api_key="your-deepseek-key",
+            base_url="https://api.deepseek.com/v1",
             cache_size=100,
             max_connections=5,
             enable_prediction=False
         ),
         "全面优化": PerformanceOptimizedClient(
-            api_key="your-api-key-here",
+            api_key="your-deepseek-key",
+            base_url="https://api.deepseek.com/v1",
             cache_size=100,
             max_connections=10,
             enable_prediction=True
@@ -817,7 +822,8 @@ async def demo_memory_optimization():
     
     # 创建大缓存客户端
     client = PerformanceOptimizedClient(
-        api_key="your-api-key-here",
+        api_key="your-deepseek-key",
+        base_url="https://api.deepseek.com/v1",
         cache_size=500,  # 较大的缓存
         cache_ttl=3600
     )

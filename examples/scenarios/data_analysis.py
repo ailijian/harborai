@@ -47,8 +47,8 @@ from sklearn.ensemble import IsolationForest
 import warnings
 warnings.filterwarnings('ignore')
 
-from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from harborai import HarborAI
+from harborai.types.chat import ChatCompletion
 
 # 配置日志
 logging.basicConfig(
@@ -631,7 +631,7 @@ class VisualizationGenerator:
 class InsightGenerator:
     """洞察生成器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
     
     async def generate_insights(self, df: pd.DataFrame, 
@@ -765,7 +765,7 @@ class InsightGenerator:
 class QueryProcessor:
     """查询处理器"""
     
-    def __init__(self, client: AsyncOpenAI):
+    def __init__(self, client: HarborAI):
         self.client = client
     
     async def parse_query(self, query: str, data_summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -827,11 +827,11 @@ class DataAnalysisAssistant:
     
     def __init__(self, 
                  api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 base_url: str = "https://api.deepseek.com/v1",
                  db_path: str = "analysis_assistant.db"):
         
         # 初始化组件
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI(api_key=api_key, base_url=base_url)
         self.data_processor = DataProcessor()
         self.statistical_analyzer = StatisticalAnalyzer()
         self.visualization_generator = VisualizationGenerator()
@@ -1119,7 +1119,7 @@ async def demo_basic_analysis():
     print("=" * 50)
     
     # 创建数据分析助手
-    assistant = DataAnalysisAssistant(api_key="your-api-key-here")
+    assistant = DataAnalysisAssistant(api_key="your-deepseek-key")
     
     # 注册数据源
     data_source = DataSource(
@@ -1180,7 +1180,7 @@ async def demo_natural_language_query():
     print("\n🗣️ 自然语言查询演示")
     print("=" * 50)
     
-    assistant = DataAnalysisAssistant(api_key="your-api-key-here")
+    assistant = DataAnalysisAssistant(api_key="your-deepseek-key")
     
     # 注册时间序列数据源
     data_source = DataSource(
@@ -1229,7 +1229,7 @@ async def demo_advanced_analytics():
     print("\n🔬 高级分析功能演示")
     print("=" * 50)
     
-    assistant = DataAnalysisAssistant(api_key="your-api-key-here")
+    assistant = DataAnalysisAssistant(api_key="your-deepseek-key")
     
     # 注册复杂数据源
     data_source = DataSource(
@@ -1291,7 +1291,7 @@ async def demo_interactive_analysis():
     print("\n🎯 交互式分析演示")
     print("=" * 50)
     
-    assistant = DataAnalysisAssistant(api_key="your-api-key-here")
+    assistant = DataAnalysisAssistant(api_key="your-deepseek-key")
     
     # 注册数据源
     data_source = DataSource(

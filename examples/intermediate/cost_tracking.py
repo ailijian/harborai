@@ -112,53 +112,11 @@ class CostTracker:
                 input_cost_per_1k=0.0014,
                 output_cost_per_1k=0.0028
             ),
-            "deepseek-coder": ModelPricing(
-                model_name="deepseek-coder",
-                provider="DeepSeek",
-                input_cost_per_1k=0.0014,
-                output_cost_per_1k=0.0028
-            ),
             "deepseek-reasoner": ModelPricing(
                 model_name="deepseek-reasoner",
                 provider="DeepSeek",
                 input_cost_per_1k=0.0055,
                 output_cost_per_1k=0.0220
-            ),
-            "gpt-3.5-turbo": ModelPricing(
-                model_name="gpt-3.5-turbo",
-                provider="OpenAI",
-                input_cost_per_1k=0.0015,
-                output_cost_per_1k=0.002
-            ),
-            "gpt-4": ModelPricing(
-                model_name="gpt-4",
-                provider="OpenAI",
-                input_cost_per_1k=0.03,
-                output_cost_per_1k=0.06
-            ),
-            "gpt-4-turbo": ModelPricing(
-                model_name="gpt-4-turbo",
-                provider="OpenAI",
-                input_cost_per_1k=0.01,
-                output_cost_per_1k=0.03
-            ),
-            "claude-3-haiku": ModelPricing(
-                model_name="claude-3-haiku",
-                provider="Anthropic",
-                input_cost_per_1k=0.00025,
-                output_cost_per_1k=0.00125
-            ),
-            "claude-3-sonnet": ModelPricing(
-                model_name="claude-3-sonnet",
-                provider="Anthropic",
-                input_cost_per_1k=0.003,
-                output_cost_per_1k=0.015
-            ),
-            "claude-3-opus": ModelPricing(
-                model_name="claude-3-opus",
-                provider="Anthropic",
-                input_cost_per_1k=0.015,
-                output_cost_per_1k=0.075
             )
         }
         return pricing

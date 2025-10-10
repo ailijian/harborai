@@ -1,6 +1,6 @@
 # 基础功能使用案例
 
-本目录包含HarborAI的基础功能使用案例，适合初学者快速上手。所有案例都展示了与OpenAI SDK完全一致的调用方式。
+本目录包含HarborAI的基础功能使用案例，适合初学者快速上手。所有案例都展示了统一的DeepSeek模型调用方式。
 
 ## 📋 案例列表
 
@@ -8,9 +8,9 @@
 **场景描述**: 最基本的模型调用方式，展示如何使用HarborAI进行简单的对话。
 
 **功能特点**:
-- OpenAI兼容的接口调用
+- 统一的DeepSeek模型接口调用
 - 基础错误处理
-- 多种模型支持
+- 多种DeepSeek模型支持
 
 **应用价值**: 
 - 快速验证API连接
@@ -107,9 +107,8 @@ HARBORAI_ENABLE_COST_TRACKING=true
 
 ### 模型选择
 案例中使用的模型：
-- `deepseek-chat`: 通用对话模型
-- `deepseek-reasoner`: 推理模型
-- `gpt-3.5-turbo`: OpenAI模型（需要相应API密钥）
+- `deepseek-chat`: 通用对话模型，适用于普通对话、代码生成、内容创作
+- `deepseek-reasoner`: 推理模型，适用于复杂推理、数学计算、逻辑分析
 
 ## 📊 预期输出示例
 
@@ -147,7 +146,7 @@ HARBORAI_ENABLE_COST_TRACKING=true
 
 通过这些基础案例，你将学会：
 1. HarborAI的基本使用方法
-2. 与OpenAI SDK的兼容性
+2. DeepSeek模型的统一调用方式
 3. 异步编程的性能优势
 4. 流式输出的实现方式
 5. 推理模型的特殊处理

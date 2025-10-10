@@ -124,35 +124,25 @@ def simple_chat_example(client: HarborAI, question: str, model: str = "deepseek-
 
 def multi_model_comparison(client: HarborAI, question: str):
     """
-    多模型对比示例
+    多模型对比示例 - 对比 DeepSeek 不同模型
     
     Args:
         client: HarborAI客户端
         question: 测试问题
     """
     print("\n" + "="*60)
-    print("🔄 多模型对比测试")
+    print("🔄 DeepSeek 多模型对比测试")
     print("="*60)
     
-    # 测试不同模型
-    models = ["deepseek-chat"]
-    
-    # 如果配置了OpenAI，也可以测试
-    if os.getenv("OPENAI_API_KEY"):
-        models.append("gpt-3.5-turbo")
+    # 测试不同的 DeepSeek 模型
+    models = ["deepseek-chat", "deepseek-reasoner"]
     
     results = []
     
     for model in models:
         try:
-            # 为不同模型创建相应的客户端
-            if model.startswith("gpt"):
-                test_client = HarborAI(
-                    api_key=os.getenv("OPENAI_API_KEY"),
-                    base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-                )
-            else:
-                test_client = client
+            # 统一使用 DeepSeek 客户端
+            test_client = client
                 
             result = simple_chat_example(test_client, question, model)
             results.append({"model": model, **result})
