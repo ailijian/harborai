@@ -141,82 +141,22 @@ class DoubaoPlugin(BaseLLMPlugin):
         if max_tokens is not None and max_tokens <= 0:
             raise ValidationError("max_tokens must be positive")
     
-    def _extract_thinking_content(self, response: Any) -> Optional[str]:
-        """提取思考内容（豆包1.6版本支持推理模型）。"""
-        if isinstance(response, dict):
-            # 检查是否有思考内容字段
-            if 'reasoning' in response:
-                return response['reasoning']
-            if 'thinking' in response:
-                return response['thinking']
-            # 检查choices中的思考内容
-            choices = response.get('choices', [])
-            if choices and len(choices) > 0:
-                message = choices[0].get('message', {})
-                if 'reasoning_content' in message:
-                    return message['reasoning_content']
-                if 'thinking_content' in message:
-                    return message['thinking_content']
-        return None
-    
-    def _prepare_doubao_request(self, model: str, messages: List[ChatMessage], **kwargs) -> Dict[str, Any]:
-        """准备豆包API请求。"""
-        # 转换消息格式
-        doubao_messages = []
-        for msg in messages:
-            doubao_msg = {
-                "role": msg.role,
-                "content": msg.content
-            }
-            if msg.name:
-                doubao_msg["name"] = msg.name
-            if msg.tool_calls:
-                doubao_msg["tool_calls"] = msg.tool_calls
-            if msg.tool_call_id:
-                doubao_msg["tool_call_id"] = msg.tool_call_id
-            doubao_messages.append(doubao_msg)
-        
-        # 构建请求参数
-        request_data = {
-            "model": model,
-            "messages": doubao_messages
-        }
-        
-        # 检查结构化输出模式
-        structured_provider = kwargs.get('structured_provider', 'agently')
-        response_format = kwargs.get('response_format')
-        use_native_structured = response_format and structured_provider == 'native'
-        
-        # 添加可选参数
-        optional_params = [
-            "temperature", "top_p", "max_tokens", "stop", 
-            "frequency_penalty", "presence_penalty", "tools", "tool_choice"
-        ]
-        
-        # 只有在使用原生结构化输出时才添加response_format参数
-        if use_native_structured:
-            optional_params.append("response_format")
-        
-        for param in optional_params:
-            if param in kwargs and kwargs[param] is not None:
-                request_data[param] = kwargs[param]
-        
-        # 处理流式参数
-        if kwargs.get("stream", False):
-            request_data["stream"] = True
-        
-        return request_data
-    
     def _convert_to_harbor_response(self, response_data: Dict[str, Any], model: str) -> ChatCompletion:
         """将豆包响应转换为Harbor格式。"""
         from ..base_plugin import ChatChoice, Usage
+        
+        # 添加详细的响应数据日志
+        logger.info(f"豆包API原始响应数据: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
         
         choices = []
         for choice_data in response_data.get("choices", []):
             message_data = choice_data.get("message", {})
             
-            # 提取思考内容
-            reasoning_content = self._extract_thinking_content(response_data)
+            # 对于推理模型，提取思考内容
+            reasoning_content = None
+            if self.is_thinking_model(model):
+                reasoning_content = self._extract_thinking_content(response_data)
+                logger.info(f"推理模型 {model} 提取的推理内容: {reasoning_content}")
             
             message = ChatMessage(
                 role=message_data.get("role", "assistant"),
@@ -697,3 +637,102 @@ class DoubaoPlugin(BaseLLMPlugin):
             self.close()
         except:
             pass
+
+    def _extract_thinking_content(self, response: Any) -> Optional[str]:
+        """提取思考内容（豆包1.6版本支持推理模型）。"""
+        logger.debug(f"开始提取推理内容，响应类型: {type(response)}")
+        
+        if isinstance(response, dict):
+            # 记录所有可能的推理内容字段
+            logger.debug(f"响应字段: {list(response.keys())}")
+            
+            # 检查是否有思考内容字段
+            if 'reasoning' in response:
+                logger.info(f"从 'reasoning' 字段提取推理内容: {response['reasoning']}")
+                return response['reasoning']
+            if 'thinking' in response:
+                logger.info(f"从 'thinking' 字段提取推理内容: {response['thinking']}")
+                return response['thinking']
+            
+            # 检查choices中的思考内容
+            choices = response.get('choices', [])
+            if choices and len(choices) > 0:
+                message = choices[0].get('message', {})
+                logger.debug(f"消息字段: {list(message.keys())}")
+                
+                if 'reasoning_content' in message:
+                    logger.info(f"从 'message.reasoning_content' 字段提取推理内容: {message['reasoning_content']}")
+                    return message['reasoning_content']
+                if 'thinking_content' in message:
+                    logger.info(f"从 'message.thinking_content' 字段提取推理内容: {message['thinking_content']}")
+                    return message['thinking_content']
+                    
+                # 检查其他可能的字段名称
+                for field_name in ['reasoning', 'thinking', 'thought', 'analysis']:
+                    if field_name in message:
+                        logger.info(f"从 'message.{field_name}' 字段提取推理内容: {message[field_name]}")
+                        return message[field_name]
+        
+        logger.warning("未找到推理内容字段")
+        return None
+    
+    def _prepare_doubao_request(self, model: str, messages: List[ChatMessage], **kwargs) -> Dict[str, Any]:
+        """准备豆包API请求。"""
+        # 转换消息格式
+        doubao_messages = []
+        for msg in messages:
+            doubao_msg = {
+                "role": msg.role,
+                "content": msg.content
+            }
+            if msg.name:
+                doubao_msg["name"] = msg.name
+            if msg.tool_calls:
+                doubao_msg["tool_calls"] = msg.tool_calls
+            if msg.tool_call_id:
+                doubao_msg["tool_call_id"] = msg.tool_call_id
+            doubao_messages.append(doubao_msg)
+        
+        # 构建请求参数
+        request_data = {
+            "model": model,
+            "messages": doubao_messages
+        }
+        
+        # 检查结构化输出模式
+        structured_provider = kwargs.get('structured_provider', 'agently')
+        response_format = kwargs.get('response_format')
+        use_native_structured = response_format and structured_provider == 'native'
+        
+        # 添加可选参数
+        optional_params = [
+            "temperature", "top_p", "max_tokens", "stop", 
+            "frequency_penalty", "presence_penalty", "tools", "tool_choice"
+        ]
+        
+        # 只有在使用原生结构化输出时才添加response_format参数
+        if use_native_structured:
+            optional_params.append("response_format")
+        
+        for param in optional_params:
+            if param in kwargs and kwargs[param] is not None:
+                request_data[param] = kwargs[param]
+        
+        # 处理流式参数
+        if kwargs.get("stream", False):
+            request_data["stream"] = True
+        
+        # 处理 extra_body 参数（用于推理模式开关等扩展功能）
+        extra_body = kwargs.get('extra_body')
+        if extra_body and isinstance(extra_body, dict):
+            # 将 extra_body 中的参数合并到请求数据中
+            for key, value in extra_body.items():
+                if key not in request_data:  # 避免覆盖已有参数
+                    request_data[key] = value
+            
+            # 记录推理模式配置
+            if 'thinking' in extra_body:
+                thinking_config = extra_body['thinking']
+                logger.info(f"豆包推理模式配置: {thinking_config}")
+        
+        return request_data

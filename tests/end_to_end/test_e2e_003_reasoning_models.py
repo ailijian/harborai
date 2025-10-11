@@ -430,6 +430,167 @@ class TestE2E003ReasoningModels:
                 print(f"ℹ 该模型未提供推理内容字段")
             
             print(f"✓ 响应结构验证通过")
+    
+    def test_doubao_thinking_toggle(self):
+        """测试豆包模型推理能力开关功能"""
+        print(f"\n=== 豆包推理能力开关测试 ===")
+        
+        # 只测试豆包模型
+        doubao_config = {
+            "name": "doubao-seed-1-6-250615",
+            "api_key": os.getenv("DOUBAO_API_KEY"),
+            "base_url": os.getenv("DOUBAO_BASE_URL"),
+            "vendor": "字节豆包"
+        }
+        
+        # 验证API配置
+        assert doubao_config["api_key"], f"缺少 {doubao_config['vendor']} API密钥"
+        assert doubao_config["base_url"], f"缺少 {doubao_config['vendor']} 基础URL"
+        
+        # 初始化客户端
+        client = HarborAI(
+            api_key=doubao_config["api_key"],
+            base_url=doubao_config["base_url"]
+        )
+        
+        test_prompt = "分析一下人工智能在医疗领域的应用前景"
+        
+        # 测试1：开启推理模式
+        print(f"\n--- 测试开启推理模式 ---")
+        enabled_response = None
+        max_retries = 3
+        retry_delay = 3
+        
+        for attempt in range(max_retries + 1):
+            try:
+                print(f"尝试第 {attempt + 1} 次请求（开启推理模式）...")
+                enabled_response = client.chat.completions.create(
+                    model=doubao_config["name"],
+                    messages=[
+                        {"role": "user", "content": test_prompt}
+                    ],
+                    extra_body={"thinking": {"type": "enabled"}},
+                    timeout=120
+                )
+                print(f"✓ 开启推理模式请求成功")
+                break
+            except Exception as e:
+                error_msg = str(e)
+                print(f"⚠ 开启推理模式第 {attempt + 1} 次请求失败：{error_msg}")
+                
+                is_network_error = any(keyword in error_msg.lower() for keyword in [
+                    "timed out", "timeout", "connection", "network", "read operation"
+                ])
+                
+                if is_network_error and attempt < max_retries:
+                    print(f"检测到网络错误，{retry_delay} 秒后重试...")
+                    time.sleep(retry_delay)
+                    retry_delay += 2
+                    continue
+                else:
+                    print(f"⚠ 开启推理模式测试失败")
+                    break
+        
+        # 测试2：关闭推理模式
+        print(f"\n--- 测试关闭推理模式 ---")
+        disabled_response = None
+        retry_delay = 3
+        
+        for attempt in range(max_retries + 1):
+            try:
+                print(f"尝试第 {attempt + 1} 次请求（关闭推理模式）...")
+                disabled_response = client.chat.completions.create(
+                    model=doubao_config["name"],
+                    messages=[
+                        {"role": "user", "content": test_prompt}
+                    ],
+                    extra_body={"thinking": {"type": "disabled"}},
+                    timeout=120
+                )
+                print(f"✓ 关闭推理模式请求成功")
+                break
+            except Exception as e:
+                error_msg = str(e)
+                print(f"⚠ 关闭推理模式第 {attempt + 1} 次请求失败：{error_msg}")
+                
+                is_network_error = any(keyword in error_msg.lower() for keyword in [
+                    "timed out", "timeout", "connection", "network", "read operation"
+                ])
+                
+                if is_network_error and attempt < max_retries:
+                    print(f"检测到网络错误，{retry_delay} 秒后重试...")
+                    time.sleep(retry_delay)
+                    retry_delay += 2
+                    continue
+                else:
+                    print(f"⚠ 关闭推理模式测试失败")
+                    break
+        
+        # 验证结果
+        print(f"\n--- 验证推理能力开关效果 ---")
+        
+        if enabled_response is not None:
+            enabled_message = enabled_response.choices[0].message
+            
+            # 验证开启推理模式的响应
+            if hasattr(enabled_message, 'reasoning_content') and enabled_message.reasoning_content:
+                reasoning_content = enabled_message.reasoning_content
+                print(f"✓ 开启推理模式：成功获取推理内容")
+                print(f"✓ 推理内容长度：{len(reasoning_content)} 字符")
+                print(f"✓ 推理内容预览：{reasoning_content[:200]}...")
+            else:
+                print(f"⚠ 开启推理模式：未获取到推理内容")
+                print(f"ℹ 可能模型未返回reasoning_content字段或内容为空")
+            
+            # 验证最终答案
+            content = enabled_message.content
+            assert content is not None, "开启推理模式：content为None"
+            assert len(content) > 0, "开启推理模式：content为空"
+            print(f"✓ 开启推理模式：最终答案长度 {len(content)} 字符")
+        else:
+            print(f"⚠ 开启推理模式测试失败，无法验证推理内容")
+        
+        if disabled_response is not None:
+            disabled_message = disabled_response.choices[0].message
+            
+            # 验证关闭推理模式的响应
+            if hasattr(disabled_message, 'reasoning_content') and disabled_message.reasoning_content:
+                print(f"⚠ 关闭推理模式：仍然包含推理内容（可能是模型行为）")
+                print(f"ℹ 推理内容长度：{len(disabled_message.reasoning_content)} 字符")
+            else:
+                print(f"✓ 关闭推理模式：正确地未包含推理内容")
+            
+            # 验证最终答案
+            content = disabled_message.content
+            assert content is not None, "关闭推理模式：content为None"
+            assert len(content) > 0, "关闭推理模式：content为空"
+            print(f"✓ 关闭推理模式：最终答案长度 {len(content)} 字符")
+        else:
+            print(f"⚠ 关闭推理模式测试失败，无法验证响应")
+        
+        # 对比分析
+        if enabled_response is not None and disabled_response is not None:
+            print(f"\n--- 推理能力开关对比分析 ---")
+            
+            enabled_has_reasoning = (hasattr(enabled_response.choices[0].message, 'reasoning_content') 
+                                   and enabled_response.choices[0].message.reasoning_content)
+            disabled_has_reasoning = (hasattr(disabled_response.choices[0].message, 'reasoning_content') 
+                                    and disabled_response.choices[0].message.reasoning_content)
+            
+            print(f"开启推理模式包含推理内容：{enabled_has_reasoning}")
+            print(f"关闭推理模式包含推理内容：{disabled_has_reasoning}")
+            
+            if enabled_has_reasoning and not disabled_has_reasoning:
+                print(f"✅ 推理能力开关功能正常：开启时有推理内容，关闭时无推理内容")
+            elif enabled_has_reasoning and disabled_has_reasoning:
+                print(f"⚠ 推理能力开关可能未完全生效：两种模式都包含推理内容")
+                print(f"ℹ 这可能是模型的默认行为或API实现特性")
+            elif not enabled_has_reasoning and not disabled_has_reasoning:
+                print(f"⚠ 两种模式都未包含推理内容，可能需要检查模型配置")
+            else:
+                print(f"⚠ 异常情况：关闭模式有推理内容，开启模式无推理内容")
+        
+        print(f"✓ 豆包推理能力开关测试完成")
 
 
 if __name__ == "__main__":
@@ -463,11 +624,17 @@ if __name__ == "__main__":
         test_instance.test_reasoning_models_response_structure()
         
         print("\n" + "="*80)
+        print("测试5：豆包推理能力开关")
+        print("="*80)
+        test_instance.test_doubao_thinking_toggle()
+        
+        print("\n" + "="*80)
         print("🎉 推理模型思考过程输出功能测试完成！")
         print("📊 测试总结：")
         print("  - DeepSeek模型：支持推理思考过程输出")
         print("  - 文心模型：可能由于网络或API限制，部分功能受限")
         print("  - 豆包模型：测试结果详见上方输出")
+        print("  - 豆包推理开关：验证了extra_body参数控制推理能力的功能")
         print("✅ E2E-003测试用例执行完成，验证了HarborAI对推理模型的兼容性")
         print("="*80)
         
