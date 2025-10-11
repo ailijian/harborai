@@ -129,15 +129,41 @@ class ClientManager:
                     # 合并客户端配置和插件配置
                     merged_config = plugin_config.copy()
                     
-                    # 只有当插件没有配置api_key时，才使用客户端的api_key
-                    if ('api_key' not in merged_config or merged_config['api_key'] is None) and \
-                       'api_key' in self.client_config and self.client_config['api_key'] is not None:
-                        merged_config['api_key'] = self.client_config['api_key']
+                    # 智能配置合并策略：
+                    # 1. 如果插件已有完整配置（api_key和base_url都存在），则不覆盖
+                    # 2. 如果插件缺少配置且客户端配置与插件类型匹配，则使用客户端配置
+                    # 3. 否则保持插件原有配置
                     
-                    # 只有当插件没有配置base_url时，才使用客户端的base_url
-                    if ('base_url' not in merged_config or merged_config['base_url'] is None) and \
-                       'base_url' in self.client_config and self.client_config['base_url'] is not None:
+                    plugin_has_api_key = 'api_key' in merged_config and merged_config['api_key'] is not None
+                    plugin_has_base_url = 'base_url' in merged_config and merged_config['base_url'] is not None
+                    client_has_api_key = 'api_key' in self.client_config and self.client_config['api_key'] is not None
+                    client_has_base_url = 'base_url' in self.client_config and self.client_config['base_url'] is not None
+                    
+                    # 检查客户端配置是否与当前插件类型匹配
+                    def is_config_compatible(plugin_name: str, base_url: str) -> bool:
+                        """检查base_url是否与插件类型匹配"""
+                        if not base_url:
+                            return False
+                        base_url_lower = base_url.lower()
+                        if plugin_name == 'doubao' and 'volcengine' in base_url_lower:
+                            return True
+                        elif plugin_name == 'deepseek' and 'deepseek' in base_url_lower:
+                            return True
+                        elif plugin_name == 'wenxin' and ('baidu' in base_url_lower or 'wenxin' in base_url_lower):
+                            return True
+                        elif plugin_name == 'openai' and 'openai' in base_url_lower:
+                            return True
+                        return False
+                    
+                    # 只有在插件缺少配置且客户端配置兼容时才合并
+                    if not plugin_has_api_key and client_has_api_key and \
+                       not plugin_has_base_url and client_has_base_url and \
+                       is_config_compatible(plugin_name, self.client_config['base_url']):
+                        merged_config['api_key'] = self.client_config['api_key']
                         merged_config['base_url'] = self.client_config['base_url']
+                        self.logger.info(
+                            f"Applied compatible client config to plugin [trace_id={get_current_trace_id()}] plugin={plugin_name}"
+                        )
                     
                     # 调试日志：显示配置内容
                     self.logger.info(
