@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional, Union, AsyncGenerator, Generator
 
 from ..base_plugin import BaseLLMPlugin, ModelInfo, ChatMessage, ChatCompletion, ChatCompletionChunk
 from ...utils.logger import get_logger
-from ...utils.exceptions import PluginError, ValidationError
+from ...utils.exceptions import PluginError, ValidationError, TimeoutError
+from ...utils.tracer import get_current_trace_id
 
 logger = get_logger(__name__)
 
@@ -283,10 +284,38 @@ class DoubaoPlugin(BaseLLMPlugin):
                     return harbor_response
                 
         except Exception as e:
-            logger.error(f"Doubao API error: {e}")
-            error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, 0)
-            return error_response
+            # 计算延迟
+            latency_ms = (time.time() - start_time) * 1000
+            
+            # 处理不同类型的错误
+            try:
+                import httpx
+                if isinstance(e, httpx.ReadTimeout):
+                    logger.error(f"Doubao API 读取超时: {e}")
+                    logger.error(f"Doubao请求超时 [trace_id={get_current_trace_id()}] model={model} error=ReadTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 读取超时: {str(e)}")
+                elif isinstance(e, httpx.ConnectTimeout):
+                    logger.error(f"Doubao API 连接超时: {e}")
+                    logger.error(f"Doubao连接超时 [trace_id={get_current_trace_id()}] model={model} error=ConnectTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 连接超时: {str(e)}")
+                elif isinstance(e, httpx.TimeoutException):
+                    logger.error(f"Doubao API 超时: {e}")
+                    logger.error(f"Doubao请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 超时: {str(e)}")
+                else:
+                    logger.error(f"Doubao API error: {e}")
+                    logger.error(f"Doubao请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("doubao", f"Doubao API 请求失败: {str(e)}")
+            except ImportError:
+                # 如果 httpx 不可用，使用通用错误处理
+                if "read operation timed out" in str(e).lower() or "timeout" in str(e).lower():
+                    logger.error(f"Doubao API 超时: {e}")
+                    logger.error(f"Doubao请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 超时: {str(e)}")
+                else:
+                    logger.error(f"Doubao API error: {e}")
+                    logger.error(f"Doubao请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("doubao", f"Doubao API 请求失败: {str(e)}")
     
     def _handle_native_structured_output(self, model: str, messages: List[ChatMessage], stream: bool = False, **kwargs):
         """处理豆包原生结构化输出。
@@ -532,10 +561,38 @@ class DoubaoPlugin(BaseLLMPlugin):
                     return harbor_response
                 
         except Exception as e:
-            logger.error(f"Doubao API error: {e}")
-            error_response = self.create_error_response(str(e), model)
-            self.log_response(error_response, 0)
-            return error_response
+            # 计算延迟
+            latency_ms = (time.time() - start_time) * 1000
+            
+            # 处理不同类型的错误
+            try:
+                import httpx
+                if isinstance(e, httpx.ReadTimeout):
+                    logger.error(f"Doubao API 读取超时: {e}")
+                    logger.error(f"Doubao异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=ReadTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 读取超时: {str(e)}")
+                elif isinstance(e, httpx.ConnectTimeout):
+                    logger.error(f"Doubao API 连接超时: {e}")
+                    logger.error(f"Doubao异步连接超时 [trace_id={get_current_trace_id()}] model={model} error=ConnectTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 连接超时: {str(e)}")
+                elif isinstance(e, httpx.TimeoutException):
+                    logger.error(f"Doubao API 超时: {e}")
+                    logger.error(f"Doubao异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 超时: {str(e)}")
+                else:
+                    logger.error(f"Doubao API error: {e}")
+                    logger.error(f"Doubao异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("doubao", f"Doubao API 请求失败: {str(e)}")
+            except ImportError:
+                # 如果 httpx 不可用，使用通用错误处理
+                if "read operation timed out" in str(e).lower() or "timeout" in str(e).lower():
+                    logger.error(f"Doubao API 超时: {e}")
+                    logger.error(f"Doubao异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"Doubao API 超时: {str(e)}")
+                else:
+                    logger.error(f"Doubao API error: {e}")
+                    logger.error(f"Doubao异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("doubao", f"Doubao API 请求失败: {str(e)}")
     
     def _handle_stream_request(self, client, url_path: str, request_data: dict, headers: dict, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式请求。"""
