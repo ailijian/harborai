@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """
-HarborAI 容错与重试机制演示
+容错与重试机制演示
 
-场景描述:
-在生产环境中，网络不稳定、API服务偶发故障是常见问题。本示例展示如何构建
-健壮的容错机制，包括智能重试、断路器模式、超时处理等，确保系统稳定性。
-
-应用价值:
-- 提升系统稳定性和可靠性
-- 减少因临时故障导致的失败
-- 自动恢复机制，减少人工干预
-- 生产环境必备的容错保障
-
-核心功能:
+这个示例展示了 HarborAI 的容错与重试机制，包括：
 1. 指数退避重试策略
 2. 断路器模式实现
 3. 请求超时处理
 4. 错误分类与统计
 5. 健康检查机制
+
+场景：
+- 网络不稳定、API服务偶发故障的生产环境
+- 需要自动恢复和容错保障的关键业务
+- 提升系统稳定性和可靠性
+
+价值：
+- 提升系统稳定性和可靠性
+- 减少因临时故障导致的失败
+- 自动恢复机制，减少人工干预
+- 生产环境必备的容错保障
 """
 
 import asyncio
@@ -29,18 +30,16 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import json
-import os
 
-# 添加本地源码路径
+# 导入配置助手
+from config_helper import get_model_configs, get_primary_model_config, print_available_models
+
+# 导入 HarborAI
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-try:
-    from harborai import HarborAI
-    from harborai.types.chat import ChatCompletion
-except ImportError:
-    print("❌ 无法导入 HarborAI，请检查路径配置")
-    exit(1)
+from harborai import HarborAI
 
 # 配置日志
 logging.basicConfig(
@@ -71,7 +70,7 @@ class RetryConfig:
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter: bool = True
-    timeout: float = 30.0
+    timeout: float = 90.0
 
 @dataclass
 class CircuitBreakerConfig:
@@ -155,12 +154,11 @@ class FaultTolerantClient:
     """容错客户端"""
     
     def __init__(self, 
-                 api_key: str,
-                 base_url: str = "https://api.deepseek.com/v1",
+                 model_name: Optional[str] = None,
                  retry_config: Optional[RetryConfig] = None,
                  circuit_config: Optional[CircuitBreakerConfig] = None):
-        self.client = HarborAI(api_key=api_key, base_url=base_url)
-        self.async_client = HarborAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI()
+        self.model_name = model_name or get_primary_model_config().model
         self.retry_config = retry_config or RetryConfig()
         self.circuit_breaker = CircuitBreaker(circuit_config or CircuitBreakerConfig())
         self.error_stats = ErrorStats()
@@ -168,7 +166,7 @@ class FaultTolerantClient:
     def _classify_error(self, error: Exception) -> ErrorType:
         """分类错误类型"""
         error_str = str(error).lower()
-        if "timeout" in error_str:
+        if "timeout" in error_str or "read operation timed out" in error_str:
             return ErrorType.TIMEOUT_ERROR
         elif "rate limit" in error_str or "429" in error_str:
             return ErrorType.RATE_LIMIT_ERROR
@@ -196,7 +194,7 @@ class FaultTolerantClient:
         for attempt in range(1, self.retry_config.max_attempts + 1):
             # 检查断路器状态
             if not self.circuit_breaker.can_execute():
-                raise Exception("Circuit breaker is OPEN - service unavailable")
+                raise Exception("断路器已打开 - 服务不可用")
             
             try:
                 # 执行请求
@@ -216,7 +214,7 @@ class FaultTolerantClient:
                 self.circuit_breaker.record_failure()
                 self.error_stats.add_error(error_type)
                 
-                logger.warning(f"Attempt {attempt} failed: {error_type.value} - {str(e)}")
+                logger.warning(f"尝试 {attempt} 失败: {error_type.value} - {str(e)}")
                 
                 # 如果是最后一次尝试，直接抛出异常
                 if attempt == self.retry_config.max_attempts:
@@ -224,17 +222,21 @@ class FaultTolerantClient:
                 
                 # 计算延迟并等待
                 delay = self._calculate_delay(attempt)
-                logger.info(f"Retrying in {delay:.2f} seconds...")
+                logger.info(f"将在 {delay:.2f} 秒后重试...")
                 await asyncio.sleep(delay)
         
         # 所有重试都失败了
         raise last_error
     
-    async def chat_completion(self, messages: List[Dict], model: str = "deepseek-chat", **kwargs) -> ChatCompletion:
+    async def chat_completion(self, messages: List[Dict], model: Optional[str] = None, **kwargs) -> Any:
         """容错的聊天完成"""
+        # 使用传入的模型或默认模型
+        model_to_use = model or self.model_name
+        
         async def _chat():
-            return await self.async_client.chat.completions.create(
-                model=model,
+            return await asyncio.to_thread(
+                self.client.chat.completions.create,
+                model=model_to_use,
                 messages=messages,
                 timeout=self.retry_config.timeout,
                 **kwargs
@@ -265,14 +267,14 @@ class HealthChecker:
     async def start_monitoring(self):
         """开始健康监控"""
         self.is_running = True
-        logger.info("Health monitoring started")
+        logger.info("健康监控已启动")
         
         while self.is_running:
             try:
                 # 执行健康检查
                 start_time = time.time()
                 await self.client.chat_completion([
-                    {"role": "user", "content": "Health check"}
+                    {"role": "user", "content": "健康检查"}
                 ])
                 response_time = time.time() - start_time
                 
@@ -287,17 +289,17 @@ class HealthChecker:
                 if len(self.health_history) > 100:
                     self.health_history = self.health_history[-100:]
                 
-                logger.info(f"Health check completed - Response time: {response_time:.2f}s")
+                logger.info(f"健康检查完成 - 响应时间: {response_time:.2f}s")
                 
             except Exception as e:
-                logger.error(f"Health check failed: {str(e)}")
+                logger.error(f"健康检查失败: {str(e)}")
             
             await asyncio.sleep(self.check_interval)
     
     def stop_monitoring(self):
         """停止健康监控"""
         self.is_running = False
-        logger.info("Health monitoring stopped")
+        logger.info("健康监控已停止")
     
     def get_health_summary(self) -> Dict:
         """获取健康摘要"""
@@ -324,12 +326,11 @@ async def demo_basic_retry():
     
     # 创建容错客户端
     client = FaultTolerantClient(
-        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=3, base_delay=0.5)
     )
     
     test_messages = [
-        {"role": "user", "content": "什么是人工智能？"}
+        {"role": "user", "content": "用一句话解释人工智能"}
     ]
     
     try:
@@ -356,7 +357,6 @@ async def demo_circuit_breaker():
     
     # 创建容错客户端（较低的失败阈值用于演示）
     client = FaultTolerantClient(
-        api_key="invalid-key",  # 故意使用无效密钥
         circuit_config=CircuitBreakerConfig(failure_threshold=2, recovery_timeout=5.0)
     )
     
@@ -364,11 +364,15 @@ async def demo_circuit_breaker():
         {"role": "user", "content": "测试断路器"}
     ]
     
-    # 模拟多次失败请求
-    for i in range(5):
+    print("🔄 发送正常请求测试断路器...")
+    
+    # 发送几个正常请求
+    for i in range(3):
         try:
             print(f"🔄 尝试请求 {i+1}")
-            await client.chat_completion(test_messages)
+            response = await client.chat_completion(test_messages)
+            health = client.get_health_status()
+            print(f"✅ 请求成功 - 断路器状态: {health['circuit_breaker_state']}")
         except Exception as e:
             health = client.get_health_status()
             print(f"❌ 请求失败: {str(e)[:50]}...")
@@ -379,6 +383,13 @@ async def demo_circuit_breaker():
                 break
         
         await asyncio.sleep(1)
+    
+    # 显示最终状态
+    health = client.get_health_status()
+    print(f"\n📊 最终状态:")
+    print(f"   断路器状态: {health['circuit_breaker_state']}")
+    print(f"   成功率: {health['success_rate']:.1%}")
+    print(f"   总请求数: {health['total_requests']}")
 
 async def demo_error_classification():
     """演示错误分类和统计"""
@@ -386,36 +397,31 @@ async def demo_error_classification():
     print("=" * 50)
     
     client = FaultTolerantClient(
-        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2)
     )
     
-    # 模拟不同类型的错误（在实际环境中这些会是真实的错误）
-    error_scenarios = [
-        ("网络错误", "Connection timeout"),
-        ("API错误", "Invalid request format"),
-        ("限流错误", "Rate limit exceeded"),
-    ]
+    # 模拟不同类型的错误统计
+    print("📝 模拟错误分类统计...")
     
-    for scenario_name, error_msg in error_scenarios:
-        try:
-            # 这里我们手动添加错误统计（在实际使用中错误会自动分类）
-            if "timeout" in error_msg.lower():
-                client.error_stats.add_error(ErrorType.TIMEOUT_ERROR)
-            elif "rate limit" in error_msg.lower():
-                client.error_stats.add_error(ErrorType.RATE_LIMIT_ERROR)
-            elif "invalid" in error_msg.lower():
-                client.error_stats.add_error(ErrorType.API_ERROR)
-            
-            print(f"📝 模拟 {scenario_name}: {error_msg}")
-        except Exception as e:
-            print(f"❌ {scenario_name}: {str(e)}")
+    # 手动添加一些错误统计用于演示
+    client.error_stats.add_error(ErrorType.TIMEOUT_ERROR)
+    client.error_stats.add_error(ErrorType.RATE_LIMIT_ERROR)
+    client.error_stats.add_error(ErrorType.API_ERROR)
+    client.error_stats.add_error(ErrorType.NETWORK_ERROR)
+    
+    # 添加一些成功记录
+    for _ in range(5):
+        client.error_stats.add_success()
     
     # 显示错误统计
     health = client.get_health_status()
     print(f"\n📊 错误统计:")
+    print(f"   总请求数: {health['total_requests']}")
+    print(f"   总失败数: {health['total_failures']}")
+    print(f"   成功率: {health['success_rate']:.1%}")
+    print(f"   错误分类:")
     for error_type, count in health['error_breakdown'].items():
-        print(f"   - {error_type}: {count}次")
+        print(f"     - {error_type}: {count}次")
 
 async def demo_health_monitoring():
     """演示健康监控"""
@@ -423,7 +429,6 @@ async def demo_health_monitoring():
     print("=" * 50)
     
     client = FaultTolerantClient(
-        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2)
     )
     
@@ -434,8 +439,8 @@ async def demo_health_monitoring():
     
     try:
         # 运行一段时间的监控
-        print("🔄 开始健康监控（10秒）...")
-        await asyncio.sleep(10)
+        print("🔄 开始健康监控（8秒）...")
+        await asyncio.sleep(8)
         
         # 停止监控
         health_checker.stop_monitoring()
@@ -444,10 +449,11 @@ async def demo_health_monitoring():
         # 显示健康摘要
         summary = health_checker.get_health_summary()
         print(f"\n📊 健康摘要:")
-        print(f"   - 状态: {summary.get('status', 'unknown')}")
-        print(f"   - 平均响应时间: {summary.get('average_response_time', 0):.2f}s")
-        print(f"   - 平均成功率: {summary.get('average_success_rate', 0):.1%}")
-        print(f"   - 总检查次数: {summary.get('total_checks', 0)}")
+        print(f"   状态: {summary.get('status', 'unknown')}")
+        print(f"   平均响应时间: {summary.get('average_response_time', 0):.2f}s")
+        print(f"   平均成功率: {summary.get('average_success_rate', 0):.1%}")
+        print(f"   总检查次数: {summary.get('total_checks', 0)}")
+        print(f"   断路器状态: {summary.get('circuit_breaker_state', 'unknown')}")
         
     except asyncio.CancelledError:
         pass
@@ -458,11 +464,10 @@ async def demo_performance_comparison():
     print("=" * 50)
     
     # 普通客户端
-    normal_client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
+    normal_client = HarborAI()
     
     # 容错客户端
     fault_tolerant_client = FaultTolerantClient(
-        api_key="your-deepseek-key",
         retry_config=RetryConfig(max_attempts=2, base_delay=0.1)
     )
     
@@ -476,17 +481,19 @@ async def demo_performance_comparison():
     for i in range(3):
         try:
             start_time = time.time()
-            await normal_client.chat.completions.create(
-                model="deepseek-chat",
+            await asyncio.to_thread(
+                normal_client.chat.completions.create,
+                model=fault_tolerant_client.model_name,
                 messages=test_messages
             )
             end_time = time.time()
             normal_times.append(end_time - start_time)
+            print(f"   请求 {i+1}: {end_time - start_time:.2f}s")
         except Exception as e:
-            print(f"❌ 普通客户端失败: {str(e)[:50]}...")
+            print(f"❌ 普通客户端请求 {i+1} 失败: {str(e)[:50]}...")
     
     # 测试容错客户端
-    print("🔄 测试容错客户端...")
+    print("\n🔄 测试容错客户端...")
     fault_tolerant_times = []
     for i in range(3):
         try:
@@ -494,8 +501,9 @@ async def demo_performance_comparison():
             await fault_tolerant_client.chat_completion(test_messages)
             end_time = time.time()
             fault_tolerant_times.append(end_time - start_time)
+            print(f"   请求 {i+1}: {end_time - start_time:.2f}s")
         except Exception as e:
-            print(f"❌ 容错客户端失败: {str(e)[:50]}...")
+            print(f"❌ 容错客户端请求 {i+1} 失败: {str(e)[:50]}...")
     
     # 性能对比
     if normal_times and fault_tolerant_times:
@@ -503,18 +511,60 @@ async def demo_performance_comparison():
         avg_fault_tolerant = sum(fault_tolerant_times) / len(fault_tolerant_times)
         
         print(f"\n📊 性能对比:")
-        print(f"   - 普通客户端平均响应时间: {avg_normal:.2f}s")
-        print(f"   - 容错客户端平均响应时间: {avg_fault_tolerant:.2f}s")
-        print(f"   - 性能开销: {((avg_fault_tolerant - avg_normal) / avg_normal * 100):.1f}%")
+        print(f"   普通客户端平均响应时间: {avg_normal:.2f}s")
+        print(f"   容错客户端平均响应时间: {avg_fault_tolerant:.2f}s")
+        
+        if avg_normal > 0:
+            overhead = ((avg_fault_tolerant - avg_normal) / avg_normal * 100)
+            print(f"   性能开销: {overhead:.1f}%")
     
     # 显示容错统计
     health = fault_tolerant_client.get_health_status()
-    print(f"   - 容错客户端成功率: {health['success_rate']:.1%}")
+    print(f"   容错客户端成功率: {health['success_rate']:.1%}")
+
+async def demo_advanced_retry_strategies():
+    """演示高级重试策略"""
+    print("\n🚀 高级重试策略演示")
+    print("=" * 50)
+    
+    # 不同的重试配置
+    strategies = [
+        ("快速重试", RetryConfig(max_attempts=3, base_delay=0.1, max_delay=1.0)),
+        ("标准重试", RetryConfig(max_attempts=3, base_delay=1.0, max_delay=10.0)),
+        ("保守重试", RetryConfig(max_attempts=5, base_delay=2.0, max_delay=30.0))
+    ]
+    
+    test_messages = [{"role": "user", "content": "测试重试策略"}]
+    
+    for strategy_name, config in strategies:
+        print(f"\n🔄 测试 {strategy_name}:")
+        print(f"   最大尝试次数: {config.max_attempts}")
+        print(f"   基础延迟: {config.base_delay}s")
+        print(f"   最大延迟: {config.max_delay}s")
+        
+        client = FaultTolerantClient(retry_config=config)
+        
+        try:
+            start_time = time.time()
+            response = await client.chat_completion(test_messages)
+            end_time = time.time()
+            
+            print(f"   ✅ 成功 - 总时间: {end_time - start_time:.2f}s")
+            
+        except Exception as e:
+            print(f"   ❌ 失败: {str(e)[:50]}...")
+        
+        # 显示健康状态
+        health = client.get_health_status()
+        print(f"   📊 成功率: {health['success_rate']:.1%}")
 
 async def main():
     """主演示函数"""
     print("🔄 HarborAI 容错与重试机制演示")
     print("=" * 60)
+    
+    # 显示可用模型配置
+    print_available_models()
     
     try:
         # 基础重试演示
@@ -532,6 +582,9 @@ async def main():
         # 性能对比演示
         await demo_performance_comparison()
         
+        # 高级重试策略演示
+        await demo_advanced_retry_strategies()
+        
         print("\n✅ 所有演示完成！")
         print("\n💡 生产环境建议:")
         print("   1. 根据实际网络环境调整重试参数")
@@ -539,6 +592,7 @@ async def main():
         print("   3. 集成监控和告警系统")
         print("   4. 定期分析错误统计数据")
         print("   5. 建立故障恢复流程")
+        print("   6. 使用90秒超时配置应对网络延迟")
         
     except Exception as e:
         print(f"❌ 演示过程中出现错误: {str(e)}")

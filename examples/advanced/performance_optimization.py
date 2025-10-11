@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-HarborAI 性能优化演示
+性能优化演示
 
-场景描述:
-在高并发、大流量的生产环境中，通过智能缓存、连接池管理、请求预测等
-多种优化技术，显著提升系统响应速度和资源利用效率。
-
-应用价值:
-- 显著提升响应速度和用户体验
-- 减少资源消耗和运营成本
-- 提高系统并发处理能力
-- 优化API调用效率
-
-核心功能:
+这个示例展示了 HarborAI 的性能优化技术，包括：
 1. 智能缓存策略
 2. 连接池管理
 3. 请求预测与预加载
 4. 性能基准测试
 5. 资源监控与调优
+
+场景：
+- 高并发、大流量的生产环境
+- 需要快速响应的实时应用
+- 资源敏感的成本优化场景
+
+价值：
+- 显著提升响应速度和用户体验
+- 减少资源消耗和运营成本
+- 提高系统并发处理能力
+- 优化API调用效率
 """
 
 import asyncio
 import time
 import hashlib
-import pickle
 import random
 import logging
 from datetime import datetime, timedelta
@@ -33,22 +33,16 @@ from enum import Enum
 import json
 import threading
 from collections import OrderedDict, defaultdict
-import psutil
-import aiohttp
-import os
 
-# 添加本地源码路径
+# 导入配置助手
+from config_helper import get_model_configs, get_primary_model_config, print_available_models
+
+# 导入 HarborAI
 import sys
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, project_root)
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-try:
-    from harborai import HarborAI
-    from harborai.core.base_plugin import ChatCompletion
-    print(f"[OK] 成功导入 HarborAI，项目路径: {project_root}")
-except ImportError as e:
-    print(f"[ERROR] 无法导入 HarborAI: {e}")
-    exit(1)
+from harborai import HarborAI
 
 # 配置日志
 logging.basicConfig(
@@ -117,7 +111,7 @@ class IntelligentCache:
         cache_str = json.dumps(cache_data, sort_keys=True, ensure_ascii=False)
         return hashlib.md5(cache_str.encode()).hexdigest()
     
-    def get(self, messages: List[Dict], model: str, **kwargs) -> Optional[ChatCompletion]:
+    def get(self, messages: List[Dict], model: str, **kwargs) -> Optional[Any]:
         """获取缓存"""
         key = self._generate_key(messages, model, **kwargs)
         
@@ -147,7 +141,7 @@ class IntelligentCache:
             self.stats["misses"] += 1
             return None
     
-    def put(self, messages: List[Dict], model: str, response: ChatCompletion, **kwargs):
+    def put(self, messages: List[Dict], model: str, response: Any, **kwargs):
         """存储缓存"""
         key = self._generate_key(messages, model, **kwargs)
         
@@ -236,57 +230,6 @@ class IntelligentCache:
                 "total_requests": 0
             }
 
-class ConnectionPool:
-    """连接池管理"""
-    
-    def __init__(self, 
-                 max_connections: int = 20,
-                 max_keepalive_connections: int = 10,
-                 keepalive_expiry: float = 30.0):
-        self.max_connections = max_connections
-        self.max_keepalive_connections = max_keepalive_connections
-        self.keepalive_expiry = keepalive_expiry
-        
-        # 连接池统计
-        self.stats = {
-            "total_connections": 0,
-            "active_connections": 0,
-            "reused_connections": 0,
-            "connection_errors": 0
-        }
-        
-        # 创建连接器
-        self.connector = aiohttp.TCPConnector(
-            limit=max_connections,
-            limit_per_host=max_connections,
-            keepalive_timeout=keepalive_expiry,
-            enable_cleanup_closed=True
-        )
-    
-    async def get_session(self) -> aiohttp.ClientSession:
-        """获取HTTP会话"""
-        self.stats["active_connections"] += 1
-        
-        return aiohttp.ClientSession(
-            connector=self.connector,
-            timeout=aiohttp.ClientTimeout(total=30)
-        )
-    
-    def get_stats(self) -> Dict:
-        """获取连接池统计"""
-        return {
-            **self.stats,
-            "max_connections": self.max_connections,
-            "connector_stats": {
-                "total_connections": len(self.connector._conns),
-                "available_connections": sum(len(conns) for conns in self.connector._conns.values())
-            }
-        }
-    
-    async def close(self):
-        """关闭连接池"""
-        await self.connector.close()
-
 class RequestPredictor:
     """请求预测器"""
     
@@ -351,19 +294,17 @@ class PerformanceOptimizedClient:
     """性能优化客户端"""
     
     def __init__(self,
-                 api_key: str,
-                 base_url: str = "https://api.harborai.com/v1",
+                 model_name: Optional[str] = None,
                  cache_size: int = 1000,
                  cache_ttl: float = 3600,
-                 max_connections: int = 20,
                  enable_prediction: bool = True):
         
         # 基础客户端
-        self.async_client = HarborAI(api_key=api_key, base_url=base_url)
+        self.client = HarborAI()
+        self.model_name = model_name or get_primary_model_config().model
         
         # 性能优化组件
         self.cache = IntelligentCache(max_size=cache_size, default_ttl=cache_ttl)
-        self.connection_pool = ConnectionPool(max_connections=max_connections)
         self.predictor = RequestPredictor() if enable_prediction else None
         
         # 性能统计
@@ -381,17 +322,20 @@ class PerformanceOptimizedClient:
     
     async def chat_completion(self, 
                             messages: List[Dict], 
-                            model: str = "deepseek-chat",
+                            model: Optional[str] = None,
                             use_cache: bool = True,
                             enable_preload: bool = True,
-                            **kwargs) -> ChatCompletion:
+                            **kwargs) -> Any:
         """优化的聊天完成"""
+        # 使用传入的模型或默认模型
+        model_to_use = model or self.model_name
+        
         start_time = time.time()
         self.stats["total_requests"] += 1
         
         # 1. 尝试从缓存获取
         if use_cache:
-            cached_response = self.cache.get(messages, model, **kwargs)
+            cached_response = self.cache.get(messages, model_to_use, **kwargs)
             if cached_response:
                 self.stats["cache_hits"] += 1
                 response_time = time.time() - start_time
@@ -401,19 +345,21 @@ class PerformanceOptimizedClient:
                 
                 # 记录请求用于预测
                 if self.predictor:
-                    self.predictor.record_request(messages, model)
+                    self.predictor.record_request(messages, model_to_use)
                 
                 # 触发预加载
                 if enable_preload:
-                    await self._trigger_preload(messages, model, **kwargs)
+                    await self._trigger_preload(messages, model_to_use, **kwargs)
                 
                 return cached_response
         
         # 2. 发送实际请求
         try:
-            response = await self.async_client.chat.completions.create(
-                model=model,
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
+                model=model_to_use,
                 messages=messages,
+                timeout=90.0,  # 使用90秒超时
                 **kwargs
             )
             
@@ -425,15 +371,15 @@ class PerformanceOptimizedClient:
             
             # 3. 存储到缓存
             if use_cache:
-                self.cache.put(messages, model, response, **kwargs)
+                self.cache.put(messages, model_to_use, response, **kwargs)
             
             # 4. 记录请求用于预测
             if self.predictor:
-                self.predictor.record_request(messages, model)
+                self.predictor.record_request(messages, model_to_use)
             
             # 5. 触发预加载
             if enable_preload:
-                await self._trigger_preload(messages, model, **kwargs)
+                await self._trigger_preload(messages, model_to_use, **kwargs)
             
             return response
             
@@ -471,9 +417,11 @@ class PerformanceOptimizedClient:
         try:
             logger.debug(f"Preloading request: {key[:8]}...")
             
-            response = await self.async_client.chat.completions.create(
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create,
                 model=model,
                 messages=messages,
+                timeout=90.0,
                 **kwargs
             )
             
@@ -490,420 +438,374 @@ class PerformanceOptimizedClient:
             if key in self.preload_tasks:
                 del self.preload_tasks[key]
     
+    def get_average_response_time(self) -> float:
+        """获取平均响应时间"""
+        if self.stats["total_requests"] == 0:
+            return 0.0
+        return self.stats["total_response_time"] / self.stats["total_requests"]
+    
     def get_performance_stats(self) -> Dict:
         """获取性能统计"""
-        avg_response_time = 0.0
-        if self.stats["total_requests"] > 0:
-            avg_response_time = self.stats["total_response_time"] / self.stats["total_requests"]
+        cache_stats = self.cache.get_stats()
         
         return {
             "requests": self.stats,
-            "cache": self.cache.get_stats(),
-            "connection_pool": self.connection_pool.get_stats(),
-            "average_response_time": avg_response_time,
-            "active_preload_tasks": len(self.preload_tasks)
+            "cache": cache_stats,
+            "performance": {
+                "average_response_time": self.get_average_response_time(),
+                "cache_hit_rate": cache_stats["hit_rate"],
+                "preload_efficiency": self.stats["preloaded_requests"] / max(self.stats["total_requests"], 1)
+            }
         }
+
+class PerformanceBenchmark:
+    """性能基准测试"""
     
-    async def warmup_cache(self, warmup_requests: List[Tuple[List[Dict], str]]):
-        """预热缓存"""
-        logger.info(f"Warming up cache with {len(warmup_requests)} requests...")
-        
-        tasks = []
-        for messages, model in warmup_requests:
-            task = asyncio.create_task(self.chat_completion(messages, model, enable_preload=False))
-            tasks.append(task)
-        
-        # 并发执行预热请求
-        await asyncio.gather(*tasks, return_exceptions=True)
-        
-        logger.info("Cache warmup completed")
+    def __init__(self):
+        self.results: List[Dict] = []
     
-    async def close(self):
-        """关闭客户端"""
-        # 取消所有预加载任务
-        for task in self.preload_tasks.values():
-            task.cancel()
+    async def run_benchmark(self, 
+                          client: PerformanceOptimizedClient,
+                          test_messages: List[List[Dict]],
+                          iterations: int = 10) -> Dict:
+        """运行基准测试"""
+        print(f"🔄 开始性能基准测试 ({iterations} 次迭代)")
         
-        # 等待任务完成
-        if self.preload_tasks:
-            await asyncio.gather(*self.preload_tasks.values(), return_exceptions=True)
+        start_time = time.time()
+        response_times = []
         
-        # 关闭连接池
-        await self.connection_pool.close()
+        for i in range(iterations):
+            for j, messages in enumerate(test_messages):
+                iter_start = time.time()
+                
+                try:
+                    await client.chat_completion(messages)
+                    iter_time = time.time() - iter_start
+                    response_times.append(iter_time)
+                    
+                    print(f"   迭代 {i+1}/{iterations}, 消息 {j+1}/{len(test_messages)}: {iter_time:.3f}s")
+                    
+                except Exception as e:
+                    print(f"   ❌ 迭代 {i+1}/{iterations}, 消息 {j+1} 失败: {str(e)}")
+        
+        total_time = time.time() - start_time
+        
+        # 计算统计数据
+        if response_times:
+            avg_response_time = sum(response_times) / len(response_times)
+            min_response_time = min(response_times)
+            max_response_time = max(response_times)
+            
+            # 计算百分位数
+            sorted_times = sorted(response_times)
+            p50 = sorted_times[len(sorted_times) // 2]
+            p95 = sorted_times[int(len(sorted_times) * 0.95)]
+            p99 = sorted_times[int(len(sorted_times) * 0.99)]
+        else:
+            avg_response_time = min_response_time = max_response_time = 0
+            p50 = p95 = p99 = 0
+        
+        # 获取客户端性能统计
+        perf_stats = client.get_performance_stats()
+        
+        benchmark_result = {
+            "test_config": {
+                "iterations": iterations,
+                "total_messages": len(test_messages),
+                "total_requests": iterations * len(test_messages)
+            },
+            "timing": {
+                "total_time": total_time,
+                "average_response_time": avg_response_time,
+                "min_response_time": min_response_time,
+                "max_response_time": max_response_time,
+                "p50_response_time": p50,
+                "p95_response_time": p95,
+                "p99_response_time": p99
+            },
+            "performance": perf_stats,
+            "throughput": {
+                "requests_per_second": len(response_times) / total_time if total_time > 0 else 0
+            }
+        }
+        
+        self.results.append(benchmark_result)
+        return benchmark_result
 
 # 演示函数
-async def demo_cache_performance():
-    """演示缓存性能"""
-    print("\n🚀 缓存性能演示")
+async def demo_intelligent_cache():
+    """演示智能缓存"""
+    print("\n🧠 智能缓存演示")
     print("=" * 50)
     
     # 创建优化客户端
-    client = PerformanceOptimizedClient(
-        api_key="your-deepseek-key",
-        base_url="https://api.deepseek.com/v1",
-        cache_size=100,
-        cache_ttl=300  # 5分钟
-    )
+    client = PerformanceOptimizedClient(cache_size=100, cache_ttl=300)
     
-    # 测试请求
-    test_requests = [
+    # 测试消息
+    test_messages = [
         [{"role": "user", "content": "什么是人工智能？"}],
         [{"role": "user", "content": "解释机器学习"}],
         [{"role": "user", "content": "什么是深度学习？"}],
         [{"role": "user", "content": "什么是人工智能？"}],  # 重复请求
-        [{"role": "user", "content": "解释机器学习"}],     # 重复请求
     ]
     
-    print("🔄 执行测试请求...")
+    print("🔄 发送测试请求...")
     
-    for i, messages in enumerate(test_requests):
+    for i, messages in enumerate(test_messages):
+        start_time = time.time()
+        
         try:
-            start_time = time.time()
             response = await client.chat_completion(messages)
-            end_time = time.time()
+            response_time = time.time() - start_time
             
-            print(f"✅ 请求 {i+1}: {end_time - start_time:.3f}s")
+            cache_stats = client.cache.get_stats()
+            print(f"   请求 {i+1}: {response_time:.3f}s (缓存命中率: {cache_stats['hit_rate']:.1%})")
             
         except Exception as e:
-            print(f"❌ 请求 {i+1} 失败: {str(e)}")
+            print(f"   ❌ 请求 {i+1} 失败: {str(e)}")
     
-    # 显示性能统计
-    stats = client.get_performance_stats()
-    print(f"\n📊 缓存性能统计:")
-    print(f"   - 总请求数: {stats['requests']['total_requests']}")
-    print(f"   - 缓存命中: {stats['requests']['cache_hits']}")
-    print(f"   - 缓存未命中: {stats['requests']['cache_misses']}")
-    print(f"   - 缓存命中率: {stats['cache']['hit_rate']:.1%}")
-    print(f"   - 平均响应时间: {stats['average_response_time']:.3f}s")
-    
-    await client.close()
-
-async def demo_connection_pool():
-    """演示连接池优化"""
-    print("\n🔗 连接池优化演示")
-    print("=" * 50)
-    
-    # 创建不同配置的客户端进行对比
-    
-    # 1. 无连接池优化的客户端
-    normal_client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
-    
-    # 2. 连接池优化的客户端
-    optimized_client = PerformanceOptimizedClient(
-        api_key="your-deepseek-key",
-        base_url="https://api.deepseek.com/v1",
-        max_connections=10,
-        cache_size=0  # 禁用缓存以测试纯连接池性能
-    )
-    
-    test_messages = [{"role": "user", "content": f"测试请求 {i}"} for i in range(5)]
-    
-    # 测试普通客户端
-    print("🔄 测试普通客户端...")
-    normal_start = time.time()
-    normal_tasks = []
-    
-    for messages in test_messages:
-        task = asyncio.create_task(normal_client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[messages],
-            max_tokens=50
-        ))
-        normal_tasks.append(task)
-    
-    try:
-        await asyncio.gather(*normal_tasks)
-        normal_time = time.time() - normal_start
-        print(f"✅ 普通客户端完成时间: {normal_time:.3f}s")
-    except Exception as e:
-        print(f"❌ 普通客户端测试失败: {str(e)}")
-        normal_time = float('inf')
-    
-    # 测试优化客户端
-    print("🔄 测试连接池优化客户端...")
-    optimized_start = time.time()
-    optimized_tasks = []
-    
-    for messages in test_messages:
-        task = asyncio.create_task(optimized_client.chat_completion(
-            [messages],
-            model="deepseek-chat",
-            max_tokens=50,
-            use_cache=False
-        ))
-        optimized_tasks.append(task)
-    
-    try:
-        await asyncio.gather(*optimized_tasks)
-        optimized_time = time.time() - optimized_start
-        print(f"✅ 优化客户端完成时间: {optimized_time:.3f}s")
-        
-        # 显示连接池统计
-        stats = optimized_client.get_performance_stats()
-        print(f"📊 连接池统计:")
-        print(f"   - 最大连接数: {stats['connection_pool']['max_connections']}")
-        print(f"   - 活跃连接数: {stats['connection_pool']['active_connections']}")
-        
-        if normal_time != float('inf') and optimized_time > 0:
-            improvement = (normal_time - optimized_time) / normal_time * 100
-            print(f"   - 性能提升: {improvement:.1f}%")
-        
-    except Exception as e:
-        print(f"❌ 优化客户端测试失败: {str(e)}")
-    
-    await optimized_client.close()
+    # 显示缓存统计
+    cache_stats = client.cache.get_stats()
+    print(f"\n📊 缓存统计:")
+    print(f"   总请求数: {cache_stats['total_requests']}")
+    print(f"   缓存命中: {cache_stats['hits']}")
+    print(f"   缓存未命中: {cache_stats['misses']}")
+    print(f"   命中率: {cache_stats['hit_rate']:.1%}")
+    print(f"   缓存大小: {cache_stats['cache_size']}/{cache_stats['max_size']}")
 
 async def demo_request_prediction():
     """演示请求预测"""
-    print("\n🧠 请求预测演示")
+    print("\n🔮 请求预测演示")
     print("=" * 50)
     
-    client = PerformanceOptimizedClient(
-        api_key="your-deepseek-key",
-        base_url="https://api.deepseek.com/v1",
-        enable_prediction=True
-    )
+    client = PerformanceOptimizedClient(enable_prediction=True)
     
     # 模拟用户对话模式
     conversation_patterns = [
-        # 模式1：AI基础问题序列
-        [
-            [{"role": "user", "content": "什么是人工智能？"}],
-            [{"role": "user", "content": "AI有哪些应用领域？"}],
-            [{"role": "user", "content": "AI的发展前景如何？"}]
-        ],
-        # 模式2：技术深入序列
-        [
-            [{"role": "user", "content": "什么是机器学习？"}],
-            [{"role": "user", "content": "监督学习和无监督学习的区别？"}],
-            [{"role": "user", "content": "如何选择机器学习算法？"}]
-        ]
+        [{"role": "user", "content": "你好"}],
+        [{"role": "user", "content": "我想了解AI"}],
+        [{"role": "user", "content": "谢谢"}],
+        [{"role": "user", "content": "你好"}],  # 重复模式开始
+        [{"role": "user", "content": "我想了解机器学习"}],  # 类似但不同的后续
     ]
     
-    # 训练预测模型
-    print("🔄 训练预测模型...")
-    for pattern in conversation_patterns:
-        for messages in pattern:
-            try:
-                await client.chat_completion(messages, enable_preload=False)
-                await asyncio.sleep(0.1)  # 模拟用户思考时间
-            except Exception as e:
-                print(f"❌ 训练请求失败: {str(e)}")
+    print("🔄 建立对话模式...")
     
-    # 测试预测效果
-    print("\n🔄 测试预测效果...")
+    for i, messages in enumerate(conversation_patterns):
+        try:
+            start_time = time.time()
+            response = await client.chat_completion(messages, enable_preload=True)
+            response_time = time.time() - start_time
+            
+            print(f"   对话 {i+1}: {response_time:.3f}s")
+            
+            # 显示预测结果
+            if client.predictor:
+                predictions = client.predictor.predict_next_requests(messages, limit=2)
+                if predictions:
+                    print(f"     预测下一步: {len(predictions)} 个可能的请求")
+            
+        except Exception as e:
+            print(f"   ❌ 对话 {i+1} 失败: {str(e)}")
+        
+        await asyncio.sleep(0.5)  # 模拟用户思考时间
     
-    # 发送第一个请求，应该触发预测和预加载
-    test_messages = [{"role": "user", "content": "什么是人工智能？"}]
-    
-    start_time = time.time()
-    response1 = await client.chat_completion(test_messages)
-    time1 = time.time() - start_time
-    print(f"✅ 第一个请求: {time1:.3f}s")
-    
-    # 等待预加载完成
-    await asyncio.sleep(2)
-    
-    # 发送预测的下一个请求
-    predicted_messages = [{"role": "user", "content": "AI有哪些应用领域？"}]
-    
-    start_time = time.time()
-    response2 = await client.chat_completion(predicted_messages)
-    time2 = time.time() - start_time
-    print(f"✅ 预测请求: {time2:.3f}s")
-    
-    # 显示预测统计
-    stats = client.get_performance_stats()
+    # 显示预加载统计
+    perf_stats = client.get_performance_stats()
     print(f"\n📊 预测统计:")
-    print(f"   - 预加载请求数: {stats['requests']['preloaded_requests']}")
-    print(f"   - 活跃预加载任务: {stats['active_preload_tasks']}")
-    print(f"   - 缓存命中率: {stats['cache']['hit_rate']:.1%}")
-    
-    if time2 < time1:
-        speedup = (time1 - time2) / time1 * 100
-        print(f"   - 预测加速: {speedup:.1f}%")
-    
-    await client.close()
+    print(f"   预加载请求数: {client.stats['preloaded_requests']}")
+    print(f"   预加载效率: {perf_stats['performance']['preload_efficiency']:.1%}")
 
-async def demo_comprehensive_optimization():
-    """演示综合优化效果"""
-    print("\n⚡ 综合优化效果演示")
+async def demo_performance_comparison():
+    """演示性能对比"""
+    print("\n⚡ 性能对比演示")
     print("=" * 50)
     
-    # 创建不同配置的客户端
-    clients = {
-        "基础客户端": HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1"),
-        "缓存优化": PerformanceOptimizedClient(
-            api_key="your-deepseek-key",
-            base_url="https://api.deepseek.com/v1",
-            cache_size=100,
-            max_connections=5,
-            enable_prediction=False
-        ),
-        "全面优化": PerformanceOptimizedClient(
-            api_key="your-deepseek-key",
-            base_url="https://api.deepseek.com/v1",
-            cache_size=100,
-            max_connections=10,
-            enable_prediction=True
-        )
-    }
+    # 普通客户端
+    normal_client = HarborAI()
     
-    # 测试场景：重复请求和相关请求
-    test_scenarios = [
-        [{"role": "user", "content": "什么是人工智能？"}],
-        [{"role": "user", "content": "什么是机器学习？"}],
-        [{"role": "user", "content": "什么是人工智能？"}],  # 重复
-        [{"role": "user", "content": "AI的应用有哪些？"}],
-        [{"role": "user", "content": "什么是机器学习？"}],  # 重复
-    ]
-    
-    results = {}
-    
-    for client_name, client in clients.items():
-        print(f"\n🔄 测试 {client_name}...")
-        
-        start_time = time.time()
-        successful_requests = 0
-        
-        for i, messages in enumerate(test_scenarios):
-            try:
-                if client_name == "基础客户端":
-                    await client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=messages,
-                        max_tokens=100
-                    )
-                else:
-                    await client.chat_completion(
-                        messages,
-                        model="deepseek-chat",
-                        max_tokens=100
-                    )
-                successful_requests += 1
-                
-            except Exception as e:
-                print(f"❌ 请求 {i+1} 失败: {str(e)}")
-        
-        total_time = time.time() - start_time
-        
-        results[client_name] = {
-            "total_time": total_time,
-            "successful_requests": successful_requests,
-            "avg_time_per_request": total_time / successful_requests if successful_requests > 0 else 0
-        }
-        
-        print(f"✅ {client_name} 完成:")
-        print(f"   - 总时间: {total_time:.3f}s")
-        print(f"   - 成功请求: {successful_requests}")
-        print(f"   - 平均时间: {results[client_name]['avg_time_per_request']:.3f}s/req")
-        
-        # 显示优化客户端的详细统计
-        if hasattr(client, 'get_performance_stats'):
-            stats = client.get_performance_stats()
-            print(f"   - 缓存命中率: {stats['cache']['hit_rate']:.1%}")
-            if stats['requests']['preloaded_requests'] > 0:
-                print(f"   - 预加载请求: {stats['requests']['preloaded_requests']}")
-    
-    # 性能对比
-    print(f"\n📊 性能对比:")
-    baseline = results["基础客户端"]["avg_time_per_request"]
-    
-    for client_name, result in results.items():
-        if client_name != "基础客户端" and baseline > 0:
-            improvement = (baseline - result["avg_time_per_request"]) / baseline * 100
-            print(f"   - {client_name}: {improvement:.1f}% 提升")
-    
-    # 关闭优化客户端
-    for client_name, client in clients.items():
-        if hasattr(client, 'close'):
-            await client.close()
-
-async def demo_memory_optimization():
-    """演示内存优化"""
-    print("\n🧠 内存优化演示")
-    print("=" * 50)
-    
-    # 监控内存使用
-    def get_memory_usage():
-        process = psutil.Process()
-        return process.memory_info().rss / 1024 / 1024  # MB
-    
-    initial_memory = get_memory_usage()
-    print(f"📊 初始内存使用: {initial_memory:.1f}MB")
-    
-    # 创建大缓存客户端
-    client = PerformanceOptimizedClient(
-        api_key="your-deepseek-key",
-        base_url="https://api.deepseek.com/v1",
-        cache_size=500,  # 较大的缓存
-        cache_ttl=3600
+    # 优化客户端
+    optimized_client = PerformanceOptimizedClient(
+        cache_size=50,
+        cache_ttl=300,
+        enable_prediction=True
     )
     
-    # 生成大量不同的请求
-    print("🔄 生成大量缓存数据...")
-    for i in range(50):
-        messages = [{"role": "user", "content": f"测试问题 {i}: 请解释概念{i}"}]
+    # 测试消息
+    test_messages = [
+        [{"role": "user", "content": "简单测试1"}],
+        [{"role": "user", "content": "简单测试2"}],
+        [{"role": "user", "content": "简单测试1"}],  # 重复
+        [{"role": "user", "content": "简单测试3"}],
+    ]
+    
+    # 测试普通客户端
+    print("🔄 测试普通客户端...")
+    normal_times = []
+    normal_start = time.time()
+    
+    for i, messages in enumerate(test_messages):
         try:
-            await client.chat_completion(messages, max_tokens=50)
+            start_time = time.time()
+            await asyncio.to_thread(
+                normal_client.chat.completions.create,
+                model=optimized_client.model_name,
+                messages=messages
+            )
+            response_time = time.time() - start_time
+            normal_times.append(response_time)
+            print(f"   请求 {i+1}: {response_time:.3f}s")
         except Exception as e:
-            print(f"❌ 请求 {i} 失败: {str(e)}")
+            print(f"   ❌ 请求 {i+1} 失败: {str(e)}")
+    
+    normal_total = time.time() - normal_start
+    
+    # 测试优化客户端
+    print("\n🔄 测试优化客户端...")
+    optimized_times = []
+    optimized_start = time.time()
+    
+    for i, messages in enumerate(test_messages):
+        try:
+            start_time = time.time()
+            await optimized_client.chat_completion(messages)
+            response_time = time.time() - start_time
+            optimized_times.append(response_time)
+            print(f"   请求 {i+1}: {response_time:.3f}s")
+        except Exception as e:
+            print(f"   ❌ 请求 {i+1} 失败: {str(e)}")
+    
+    optimized_total = time.time() - optimized_start
+    
+    # 性能对比
+    if normal_times and optimized_times:
+        avg_normal = sum(normal_times) / len(normal_times)
+        avg_optimized = sum(optimized_times) / len(optimized_times)
         
-        # 每10个请求检查一次内存
-        if i % 10 == 0:
-            current_memory = get_memory_usage()
-            print(f"   请求 {i}: 内存使用 {current_memory:.1f}MB (+{current_memory - initial_memory:.1f}MB)")
+        print(f"\n📊 性能对比:")
+        print(f"   普通客户端:")
+        print(f"     平均响应时间: {avg_normal:.3f}s")
+        print(f"     总时间: {normal_total:.3f}s")
+        
+        print(f"   优化客户端:")
+        print(f"     平均响应时间: {avg_optimized:.3f}s")
+        print(f"     总时间: {optimized_total:.3f}s")
+        
+        if avg_normal > 0:
+            improvement = ((avg_normal - avg_optimized) / avg_normal * 100)
+            print(f"     性能提升: {improvement:.1f}%")
+        
+        # 显示优化统计
+        perf_stats = optimized_client.get_performance_stats()
+        print(f"     缓存命中率: {perf_stats['cache']['hit_rate']:.1%}")
+
+async def demo_benchmark_test():
+    """演示基准测试"""
+    print("\n📊 基准测试演示")
+    print("=" * 50)
     
-    # 最终内存统计
-    final_memory = get_memory_usage()
-    cache_stats = client.get_performance_stats()["cache"]
+    # 创建基准测试器
+    benchmark = PerformanceBenchmark()
     
-    print(f"\n📊 内存优化统计:")
-    print(f"   - 初始内存: {initial_memory:.1f}MB")
-    print(f"   - 最终内存: {final_memory:.1f}MB")
-    print(f"   - 内存增长: {final_memory - initial_memory:.1f}MB")
-    print(f"   - 缓存大小: {cache_stats['cache_size']}")
-    print(f"   - 缓存命中率: {cache_stats['hit_rate']:.1%}")
-    print(f"   - 缓存淘汰次数: {cache_stats['evictions']}")
+    # 创建优化客户端
+    client = PerformanceOptimizedClient(
+        cache_size=100,
+        cache_ttl=600,
+        enable_prediction=True
+    )
     
-    # 清理缓存并检查内存释放
-    client.cache.clear()
-    await asyncio.sleep(1)  # 等待垃圾回收
+    # 测试消息集
+    test_messages = [
+        [{"role": "user", "content": "测试消息1"}],
+        [{"role": "user", "content": "测试消息2"}],
+        [{"role": "user", "content": "测试消息3"}],
+    ]
     
-    cleared_memory = get_memory_usage()
-    print(f"   - 清理后内存: {cleared_memory:.1f}MB")
-    print(f"   - 释放内存: {final_memory - cleared_memory:.1f}MB")
+    # 运行基准测试
+    result = await benchmark.run_benchmark(
+        client=client,
+        test_messages=test_messages,
+        iterations=3  # 减少迭代次数以节省时间
+    )
     
-    await client.close()
+    # 显示结果
+    print(f"\n📊 基准测试结果:")
+    print(f"   总请求数: {result['test_config']['total_requests']}")
+    print(f"   总时间: {result['timing']['total_time']:.3f}s")
+    print(f"   平均响应时间: {result['timing']['average_response_time']:.3f}s")
+    print(f"   P95响应时间: {result['timing']['p95_response_time']:.3f}s")
+    print(f"   吞吐量: {result['throughput']['requests_per_second']:.1f} req/s")
+    print(f"   缓存命中率: {result['performance']['cache']['hit_rate']:.1%}")
+
+async def demo_cache_strategies():
+    """演示不同缓存策略"""
+    print("\n🎯 缓存策略对比演示")
+    print("=" * 50)
+    
+    strategies = [
+        ("LRU", CacheStrategy.LRU),
+        ("LFU", CacheStrategy.LFU),
+        ("自适应", CacheStrategy.ADAPTIVE)
+    ]
+    
+    test_messages = [
+        [{"role": "user", "content": f"测试消息{i}"}] for i in range(1, 6)
+    ]
+    
+    for strategy_name, strategy in strategies:
+        print(f"\n🔄 测试 {strategy_name} 策略:")
+        
+        # 创建使用特定策略的缓存
+        cache = IntelligentCache(max_size=3, strategy=strategy)
+        client = PerformanceOptimizedClient(cache_size=3)
+        client.cache = cache
+        
+        # 发送请求以填充缓存
+        for i, messages in enumerate(test_messages):
+            try:
+                await client.chat_completion(messages)
+                stats = cache.get_stats()
+                print(f"   请求 {i+1}: 缓存大小 {stats['cache_size']}, 命中率 {stats['hit_rate']:.1%}")
+            except Exception as e:
+                print(f"   ❌ 请求 {i+1} 失败: {str(e)}")
+        
+        # 显示最终统计
+        final_stats = cache.get_stats()
+        print(f"   最终命中率: {final_stats['hit_rate']:.1%}")
+        print(f"   淘汰次数: {final_stats['evictions']}")
 
 async def main():
     """主演示函数"""
     print("⚡ HarborAI 性能优化演示")
     print("=" * 60)
     
+    # 显示可用模型配置
+    print_available_models()
+    
     try:
-        # 缓存性能演示
-        await demo_cache_performance()
-        
-        # 连接池优化演示
-        await demo_connection_pool()
+        # 智能缓存演示
+        await demo_intelligent_cache()
         
         # 请求预测演示
         await demo_request_prediction()
         
-        # 综合优化效果演示
-        await demo_comprehensive_optimization()
+        # 性能对比演示
+        await demo_performance_comparison()
         
-        # 内存优化演示
-        await demo_memory_optimization()
+        # 基准测试演示
+        await demo_benchmark_test()
+        
+        # 缓存策略对比演示
+        await demo_cache_strategies()
         
         print("\n✅ 所有演示完成！")
         print("\n💡 生产环境建议:")
-        print("   1. 根据业务特点调整缓存策略和大小")
-        print("   2. 监控缓存命中率和内存使用情况")
-        print("   3. 合理配置连接池参数")
-        print("   4. 利用请求模式进行智能预加载")
-        print("   5. 定期清理过期缓存和监控性能指标")
+        print("   1. 根据业务特点调整缓存大小和TTL")
+        print("   2. 监控缓存命中率并优化策略")
+        print("   3. 使用请求预测减少延迟")
+        print("   4. 定期进行性能基准测试")
+        print("   5. 结合业务指标优化性能参数")
+        print("   6. 使用90秒超时配置应对网络延迟")
         
     except Exception as e:
         print(f"❌ 演示过程中出现错误: {str(e)}")

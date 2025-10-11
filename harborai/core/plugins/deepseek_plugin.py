@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union, AsyncGenerator, Generator
 
 from ..base_plugin import BaseLLMPlugin, ModelInfo, ChatMessage, ChatCompletion, ChatCompletionChunk, ChatChoice, Usage
 from ...utils.logger import get_logger
-from ...utils.exceptions import PluginError, ValidationError
+from ...utils.exceptions import PluginError, ValidationError, TimeoutError
 from ...utils.tracer import get_current_trace_id
 
 logger = get_logger(__name__)
@@ -25,7 +25,11 @@ class DeepSeekPlugin(BaseLLMPlugin):
         super().__init__(name, **config)
         self.api_key = config.get("api_key")
         self.base_url = config.get("base_url", "https://api.deepseek.com")
-        self.timeout = config.get("timeout", 60)
+        
+        # 优先从环境变量读取超时配置，然后从config，最后使用默认值
+        import os
+        self.timeout = int(os.getenv("REQUEST_TIMEOUT", config.get("timeout", 90)))
+        self.connect_timeout = int(os.getenv("CONNECT_TIMEOUT", config.get("connect_timeout", 30)))
         self.max_retries = config.get("max_retries", 3)
         
         # 设置支持的模型列表
@@ -71,10 +75,19 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 # 调试信息：显示配置
                 masked_key = f"{self.api_key[:6]}...{self.api_key[-4:]}" if self.api_key and len(self.api_key) > 10 else "无效密钥"
                 self.logger.info(f"DeepSeek 插件配置 - Base URL: {self.base_url}, API Key: {masked_key}")
+                self.logger.info(f"DeepSeek 超时配置 - 读取超时: {self.timeout}s, 连接超时: {self.connect_timeout}s")
+                
+                # 使用细粒度超时配置
+                timeout_config = httpx.Timeout(
+                    connect=self.connect_timeout,  # 连接超时
+                    read=self.timeout,             # 读取超时
+                    write=self.connect_timeout,    # 写入超时
+                    pool=self.connect_timeout      # 连接池超时
+                )
                 
                 self._client = httpx.Client(
                     base_url=self.base_url,
-                    timeout=self.timeout,
+                    timeout=timeout_config,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
@@ -96,9 +109,17 @@ class DeepSeekPlugin(BaseLLMPlugin):
         if self._async_client is None:
             try:
                 import httpx
+                # 使用细粒度超时配置
+                timeout_config = httpx.Timeout(
+                    connect=self.connect_timeout,  # 连接超时
+                    read=self.timeout,             # 读取超时
+                    write=self.connect_timeout,    # 写入超时
+                    pool=self.connect_timeout      # 连接池超时
+                )
+                
                 self._async_client = httpx.AsyncClient(
                     base_url=self.base_url,
-                    timeout=self.timeout,
+                    timeout=timeout_config,
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
@@ -520,13 +541,38 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 return harbor_response
                 
         except Exception as e:
-            self.logger.error(f"DeepSeek API error: {e}")
             # 计算延迟
             latency_ms = (time.time() - start_time) * 1000
-            # 记录错误信息
-            self.logger.error(f"DeepSeek同步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
-            # 抛出异常而不是返回错误响应，让上层处理
-            raise
+            
+            # 处理不同类型的错误
+            try:
+                import httpx
+                if isinstance(e, httpx.ReadTimeout):
+                    self.logger.error(f"DeepSeek API 读取超时: {e}")
+                    self.logger.error(f"DeepSeek同步请求超时 [trace_id={get_current_trace_id()}] model={model} error=ReadTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 读取超时: {str(e)}")
+                elif isinstance(e, httpx.ConnectTimeout):
+                    self.logger.error(f"DeepSeek API 连接超时: {e}")
+                    self.logger.error(f"DeepSeek同步连接超时 [trace_id={get_current_trace_id()}] model={model} error=ConnectTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 连接超时: {str(e)}")
+                elif isinstance(e, httpx.TimeoutException):
+                    self.logger.error(f"DeepSeek API 超时: {e}")
+                    self.logger.error(f"DeepSeek同步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 超时: {str(e)}")
+                else:
+                    self.logger.error(f"DeepSeek API error: {e}")
+                    self.logger.error(f"DeepSeek同步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("deepseek", f"DeepSeek API 请求失败: {str(e)}")
+            except ImportError:
+                # 如果 httpx 不可用，使用通用错误处理
+                if "read operation timed out" in str(e).lower() or "timeout" in str(e).lower():
+                    self.logger.error(f"DeepSeek API 超时: {e}")
+                    self.logger.error(f"DeepSeek同步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 超时: {str(e)}")
+                else:
+                    self.logger.error(f"DeepSeek API error: {e}")
+                    self.logger.error(f"DeepSeek同步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("deepseek", f"DeepSeek API 请求失败: {str(e)}")
 
     def _handle_stream_request(self, client, url_path: str, request_data: dict, headers: dict, model: str) -> Generator[ChatCompletionChunk, None, None]:
         """处理同步流式请求。"""
@@ -638,13 +684,38 @@ class DeepSeekPlugin(BaseLLMPlugin):
                 return harbor_response
                 
         except Exception as e:
-            self.logger.error(f"DeepSeek API error: {e}")
             # 计算延迟
             latency_ms = (time.time() - start_time) * 1000
-            # 记录错误信息
-            self.logger.error(f"DeepSeek异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
-            # 抛出异常而不是返回错误响应，让上层处理
-            raise
+            
+            # 处理不同类型的错误
+            try:
+                import httpx
+                if isinstance(e, httpx.ReadTimeout):
+                    self.logger.error(f"DeepSeek API 读取超时: {e}")
+                    self.logger.error(f"DeepSeek异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=ReadTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 读取超时: {str(e)}")
+                elif isinstance(e, httpx.ConnectTimeout):
+                    self.logger.error(f"DeepSeek API 连接超时: {e}")
+                    self.logger.error(f"DeepSeek异步连接超时 [trace_id={get_current_trace_id()}] model={model} error=ConnectTimeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 连接超时: {str(e)}")
+                elif isinstance(e, httpx.TimeoutException):
+                    self.logger.error(f"DeepSeek API 超时: {e}")
+                    self.logger.error(f"DeepSeek异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 超时: {str(e)}")
+                else:
+                    self.logger.error(f"DeepSeek API error: {e}")
+                    self.logger.error(f"DeepSeek异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("deepseek", f"DeepSeek API 请求失败: {str(e)}")
+            except ImportError:
+                # 如果 httpx 不可用，使用通用错误处理
+                if "read operation timed out" in str(e).lower() or "timeout" in str(e).lower():
+                    self.logger.error(f"DeepSeek API 超时: {e}")
+                    self.logger.error(f"DeepSeek异步请求超时 [trace_id={get_current_trace_id()}] model={model} error=Timeout latency_ms={latency_ms}")
+                    raise TimeoutError(f"DeepSeek API 超时: {str(e)}")
+                else:
+                    self.logger.error(f"DeepSeek API error: {e}")
+                    self.logger.error(f"DeepSeek异步请求失败 [trace_id={get_current_trace_id()}] model={model} error={str(e)} latency_ms={latency_ms}")
+                    raise PluginError("deepseek", f"DeepSeek API 请求失败: {str(e)}")
     
     async def _handle_async_stream_request(self, client, url_path: str, request_data: dict, headers: dict, model: str) -> AsyncGenerator[ChatCompletionChunk, None]:
         """处理异步流式请求。"""

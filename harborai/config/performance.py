@@ -245,19 +245,21 @@ class PerformanceConfig:
         
         实现性能分析报告中的快速路径优化建议，
         为简单请求绕过复杂的中间件处理链路。
+        
+        快速路径和性能模式是正交的：
+        - feature_flags.enable_fast_path 控制快速路径的总开关
+        - 性能模式控制功能的启用程度，但不强制禁用快速路径
+        - 只有在 FAST 模式下才强制启用快速路径
         """
         if not self.feature_flags.enable_fast_path:
             return False
         
-        # FAST模式下，所有请求都使用快速路径
+        # FAST 模式：强制启用快速路径（最大化性能）
         if self.mode == PerformanceMode.FAST:
             return True
         
-        # FULL模式下，不使用快速路径
-        if self.mode == PerformanceMode.FULL:
-            return False
-        
-        # BALANCED模式下的判断逻辑
+        # BALANCED 和 FULL 模式：委托给 settings 的判断逻辑
+        # FULL 模式不再强制禁用快速路径，允许用户通过 HARBORAI_FAST_PATH 控制
         return self.settings.is_fast_path_enabled(model, max_tokens)
     
     def get_performance_summary(self) -> Dict[str, Any]:

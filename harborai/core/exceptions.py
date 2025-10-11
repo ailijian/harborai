@@ -142,8 +142,8 @@ class NetworkError(HarborAIError):
     pass
 
 
-class TimeoutError(HarborAIError):
-    """超时错误异常"""
+class TimeoutError(RetryableError):
+    """超时错误异常 - 可重试"""
     pass
 
 

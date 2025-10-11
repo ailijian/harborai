@@ -1,52 +1,47 @@
 #!/usr/bin/env python3
 """
-HarborAI 批量处理优化演示
+批量处理优化演示
 
-场景描述:
-在需要处理大量AI请求的场景中，如批量文档分析、大规模数据处理等，
-通过智能批量聚合、并发控制等技术，显著提升处理效率和资源利用率。
+这个示例展示了 HarborAI 的批量处理优化功能，包括：
+1. 批量请求聚合
+2. 并发控制
+3. 内存优化
+4. 进度跟踪
+5. 结果分发
 
-应用价值:
-- 大幅提升处理效率和吞吐量
+场景：
+- 大量文本需要批量处理（翻译、摘要、分析等）
+- 需要控制并发数量避免API限制
+- 需要监控内存使用避免OOM
+- 需要实时跟踪处理进度
+
+价值：
+- 提高处理效率（批量+并发）
 - 降低API调用成本
-- 优化资源利用率
-- 支持大规模数据处理场景
-
-核心功能:
-1. 智能批量聚合
-2. 并发控制与限流
-3. 内存管理优化
-4. 进度追踪与监控
-5. 结果分发机制
+- 提供可靠的错误恢复机制
+- 实时监控和进度反馈
 """
 
 import asyncio
 import time
-import random
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any, Union, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
-import json
 import psutil
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-# 添加本地源码路径
+import json
+from datetime import datetime
+from enum import Enum
+from dataclasses import dataclass, asdict
+from typing import List, Dict, Any, Optional, Callable, Union
+from concurrent.futures import ThreadPoolExecutor
+import logging
+
+# 导入配置助手
+from config_helper import get_primary_model_config, get_fallback_models, print_available_models
+
+# 导入 HarborAI
 import sys
 import os
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-sys.path.insert(0, project_root)
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-try:
-    from harborai import HarborAI
-    from harborai.core.base_plugin import ChatCompletion
-    print(f"[OK] 成功导入 HarborAI，项目路径: {project_root}")
-except ImportError as e:
-    print(f"[ERROR] 无法导入 HarborAI: {e}")
-    print(f"项目路径: {project_root}")
-    print(f"Python路径: {sys.path[:3]}")
-    exit(1)
+from harborai import HarborAI
 
 # 配置日志
 logging.basicConfig(
@@ -61,290 +56,288 @@ class BatchStatus(Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 class ProcessingMode(Enum):
     """处理模式"""
-    SEQUENTIAL = "sequential"    # 顺序处理
-    CONCURRENT = "concurrent"    # 并发处理
-    BATCH = "batch"             # 批量处理
+    SEQUENTIAL = "sequential"  # 顺序处理
+    CONCURRENT = "concurrent"  # 并发处理
+    ADAPTIVE = "adaptive"      # 自适应处理
 
 @dataclass
 class BatchConfig:
     """批量处理配置"""
-    batch_size: int = 10
-    max_concurrent_batches: int = 5
-    max_wait_time: float = 5.0
-    memory_limit_mb: int = 1024
-    retry_attempts: int = 3
-    timeout_per_request: float = 30.0
+    batch_size: int = 10           # 批次大小
+    max_concurrent: int = 5        # 最大并发数
+    memory_limit_mb: int = 1024    # 内存限制（MB）
+    timeout_seconds: int = 90      # 请求超时时间
+    retry_attempts: int = 3        # 重试次数
+    processing_mode: ProcessingMode = ProcessingMode.CONCURRENT
+    enable_progress_callback: bool = True
 
 @dataclass
 class RequestItem:
     """请求项"""
     id: str
-    messages: List[Dict]
-    model: str = "deepseek-chat"
-    kwargs: Dict = field(default_factory=dict)
-    priority: int = 0
-    created_at: datetime = field(default_factory=datetime.now)
-    
+    prompt: str
+    model: Optional[str] = None
+    temperature: Optional[float] = None
+    metadata: Optional[Dict[str, Any]] = None
+
 @dataclass
 class BatchResult:
     """批次结果"""
-    batch_id: str
-    status: BatchStatus
-    items: List[RequestItem]
-    results: List[Optional[ChatCompletion]] = field(default_factory=list)
-    errors: List[Optional[Exception]] = field(default_factory=list)
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
-    total_cost: float = 0.0
-    
-    def get_processing_time(self) -> float:
-        """获取处理时间"""
-        if self.start_time and self.end_time:
-            return (self.end_time - self.start_time).total_seconds()
-        return 0.0
-    
-    def get_success_rate(self) -> float:
-        """获取成功率"""
-        if not self.results:
-            return 0.0
-        successful = sum(1 for result in self.results if result is not None)
-        return successful / len(self.results)
+    request_id: str
+    success: bool
+    response: Optional[str] = None
+    error: Optional[str] = None
+    processing_time: float = 0.0
+    model_used: Optional[str] = None
+    tokens_used: Optional[int] = None
 
 class MemoryMonitor:
     """内存监控器"""
     
     def __init__(self, limit_mb: int = 1024):
         self.limit_mb = limit_mb
-        self.limit_bytes = limit_mb * 1024 * 1024
-        
-    def get_memory_usage(self) -> Dict:
-        """获取内存使用情况"""
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        
+        self.process = psutil.Process()
+    
+    def get_memory_usage_mb(self) -> float:
+        """获取当前内存使用量（MB）"""
+        return self.process.memory_info().rss / 1024 / 1024
+    
+    def is_memory_available(self, required_mb: float = 100) -> bool:
+        """检查是否有足够内存"""
+        current_usage = self.get_memory_usage_mb()
+        return (current_usage + required_mb) <= self.limit_mb
+    
+    def get_memory_stats(self) -> Dict[str, float]:
+        """获取内存统计"""
+        current = self.get_memory_usage_mb()
         return {
-            "rss_mb": memory_info.rss / 1024 / 1024,
-            "vms_mb": memory_info.vms / 1024 / 1024,
-            "percent": process.memory_percent(),
-            "available_mb": psutil.virtual_memory().available / 1024 / 1024
+            "current_mb": current,
+            "limit_mb": self.limit_mb,
+            "usage_percent": (current / self.limit_mb) * 100,
+            "available_mb": self.limit_mb - current
         }
-    
-    def is_memory_available(self, estimated_usage_mb: float = 0) -> bool:
-        """检查内存是否可用"""
-        current_usage = self.get_memory_usage()
-        projected_usage = current_usage["rss_mb"] + estimated_usage_mb
-        return projected_usage < self.limit_mb
-    
-    def wait_for_memory(self, required_mb: float = 100, timeout: float = 60.0):
-        """等待内存可用"""
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            if self.is_memory_available(required_mb):
-                return True
-            
-            logger.info(f"Waiting for memory... Current usage: {self.get_memory_usage()['rss_mb']:.1f}MB")
-            time.sleep(1.0)
-        
-        return False
 
 class BatchProcessor:
     """批量处理器"""
     
-    def __init__(self, 
-                 api_key: str,
-                 base_url: str = "https://api.deepseek.com/v1",
-                 config: Optional[BatchConfig] = None):
-        self.client = HarborAI(api_key=api_key, base_url=base_url)
-        self.config = config or BatchConfig()
-        self.memory_monitor = MemoryMonitor(self.config.memory_limit_mb)
+    def __init__(self, config: BatchConfig):
+        self.config = config
+        self.memory_monitor = MemoryMonitor(config.memory_limit_mb)
+        self.results: List[BatchResult] = []
+        self.failed_requests: List[RequestItem] = []
+        self.processing_stats = {
+            "total_requests": 0,
+            "completed_requests": 0,
+            "failed_requests": 0,
+            "total_processing_time": 0.0,
+            "average_processing_time": 0.0,
+            "memory_peak_mb": 0.0
+        }
         
-        # 批次管理
-        self.pending_requests: List[RequestItem] = []
-        self.active_batches: Dict[str, BatchResult] = {}
-        self.completed_batches: List[BatchResult] = []
+        # 初始化 HarborAI 客户端
+        model_config = get_primary_model_config()
+        if not model_config:
+            raise ValueError("没有找到可用的模型配置，请检查环境变量设置")
         
-        # 统计信息
-        self.total_processed = 0
-        self.total_cost = 0.0
-        self.start_time = datetime.now()
+        self.client = HarborAI()
+        self.primary_model = model_config.model
+        self.fallback_models = get_fallback_models()
         
-        # 并发控制
-        self.semaphore = asyncio.Semaphore(self.config.max_concurrent_batches)
-        self.batch_counter = 0
-        
-    def add_request(self, messages: List[Dict], model: str = "deepseek-chat", priority: int = 0, **kwargs) -> str:
-        """添加请求到队列"""
-        request_id = f"req_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
-        
-        request_item = RequestItem(
-            id=request_id,
-            messages=messages,
-            model=model,
-            priority=priority,
-            kwargs=kwargs
-        )
-        
-        self.pending_requests.append(request_item)
-        logger.info(f"Added request {request_id} to queue (queue size: {len(self.pending_requests)})")
-        
-        return request_id
+        logger.info(f"✅ 批量处理器初始化完成")
+        logger.info(f"   主要模型: {self.primary_model}")
+        logger.info(f"   降级模型: {', '.join(self.fallback_models[1:]) if len(self.fallback_models) > 1 else '无'}")
+        logger.info(f"   批次大小: {config.batch_size}")
+        logger.info(f"   最大并发: {config.max_concurrent}")
+        logger.info(f"   内存限制: {config.memory_limit_mb}MB")
     
-    def _create_batch(self) -> Optional[BatchResult]:
+    def add_request(self, request: RequestItem) -> None:
+        """添加请求到处理队列"""
+        if not request.model:
+            request.model = self.primary_model
+        
+        self.processing_stats["total_requests"] += 1
+        logger.debug(f"添加请求: {request.id}")
+    
+    def _create_batch(self, requests: List[RequestItem]) -> List[List[RequestItem]]:
         """创建批次"""
-        if not self.pending_requests:
-            return None
+        batches = []
+        for i in range(0, len(requests), self.config.batch_size):
+            batch = requests[i:i + self.config.batch_size]
+            batches.append(batch)
         
-        # 按优先级排序
-        self.pending_requests.sort(key=lambda x: x.priority, reverse=True)
+        logger.info(f"创建了 {len(batches)} 个批次，总共 {len(requests)} 个请求")
+        return batches
+    
+    async def _process_batch(self, batch: List[RequestItem], batch_index: int) -> List[BatchResult]:
+        """处理单个批次"""
+        logger.info(f"开始处理批次 {batch_index + 1}，包含 {len(batch)} 个请求")
         
-        # 取出一批请求
-        batch_size = min(self.config.batch_size, len(self.pending_requests))
-        batch_items = self.pending_requests[:batch_size]
-        self.pending_requests = self.pending_requests[batch_size:]
+        # 检查内存
+        if not self.memory_monitor.is_memory_available():
+            logger.warning(f"内存不足，跳过批次 {batch_index + 1}")
+            return [
+                BatchResult(
+                    request_id=req.id,
+                    success=False,
+                    error="内存不足",
+                    processing_time=0.0
+                ) for req in batch
+            ]
+        
+        # 并发处理批次中的请求
+        if self.config.processing_mode == ProcessingMode.CONCURRENT:
+            semaphore = asyncio.Semaphore(self.config.max_concurrent)
+            tasks = [
+                self._process_single_request(request, semaphore)
+                for request in batch
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            # 顺序处理
+            results = []
+            for request in batch:
+                result = await self._process_single_request(request)
+                results.append(result)
+        
+        # 处理异常结果
+        batch_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                batch_results.append(BatchResult(
+                    request_id=batch[i].id,
+                    success=False,
+                    error=str(result),
+                    processing_time=0.0
+                ))
+            else:
+                batch_results.append(result)
+        
+        # 更新内存峰值
+        current_memory = self.memory_monitor.get_memory_usage_mb()
+        if current_memory > self.processing_stats["memory_peak_mb"]:
+            self.processing_stats["memory_peak_mb"] = current_memory
+        
+        logger.info(f"批次 {batch_index + 1} 处理完成")
+        return batch_results
+    
+    async def _process_single_request(self, request: RequestItem, semaphore: Optional[asyncio.Semaphore] = None) -> BatchResult:
+        """处理单个请求"""
+        if semaphore:
+            async with semaphore:
+                return await self._do_process_request(request)
+        else:
+            return await self._do_process_request(request)
+    
+    async def _do_process_request(self, request: RequestItem) -> BatchResult:
+        """执行单个请求处理"""
+        start_time = time.time()
+        
+        try:
+            # 构建请求参数
+            request_params = {
+                "model": request.model or self.primary_model,
+                "messages": [{"role": "user", "content": request.prompt}],
+                "temperature": request.temperature or 0.7,
+                "timeout": self.config.timeout_seconds
+            }
+            
+            # 发送请求（在线程池中运行同步方法）
+            response = await asyncio.to_thread(
+                self.client.chat.completions.create, 
+                **request_params
+            )
+            
+            processing_time = time.time() - start_time
+            
+            # 提取响应内容
+            content = response.choices[0].message.content if response.choices else "无响应内容"
+            tokens_used = response.usage.total_tokens if hasattr(response, 'usage') and response.usage else 0
+            
+            result = BatchResult(
+                request_id=request.id,
+                success=True,
+                response=content,
+                processing_time=processing_time,
+                model_used=request_params["model"],
+                tokens_used=tokens_used
+            )
+            
+            self.processing_stats["completed_requests"] += 1
+            self.processing_stats["total_processing_time"] += processing_time
+            
+            logger.debug(f"请求 {request.id} 处理成功，耗时 {processing_time:.2f}s")
+            return result
+            
+        except Exception as e:
+            processing_time = time.time() - start_time
+            error_msg = str(e)
+            
+            result = BatchResult(
+                request_id=request.id,
+                success=False,
+                error=error_msg,
+                processing_time=processing_time,
+                model_used=request.model
+            )
+            
+            self.processing_stats["failed_requests"] += 1
+            self.failed_requests.append(request)
+            
+            logger.error(f"请求 {request.id} 处理失败: {error_msg}")
+            return result
+    
+    async def process_all(self, requests: List[RequestItem], 
+                         progress_callback: Optional[Callable[[int, int], None]] = None) -> List[BatchResult]:
+        """处理所有请求"""
+        logger.info(f"开始批量处理 {len(requests)} 个请求")
+        start_time = time.time()
         
         # 创建批次
-        self.batch_counter += 1
-        batch_id = f"batch_{self.batch_counter}_{int(time.time())}"
+        batches = self._create_batch(requests)
+        all_results = []
         
-        batch = BatchResult(
-            batch_id=batch_id,
-            status=BatchStatus.PENDING,
-            items=batch_items,
-            results=[None] * len(batch_items),
-            errors=[None] * len(batch_items)
-        )
+        # 处理每个批次
+        for i, batch in enumerate(batches):
+            batch_results = await self._process_batch(batch, i)
+            all_results.extend(batch_results)
+            
+            # 进度回调
+            if progress_callback and self.config.enable_progress_callback:
+                completed = (i + 1) * self.config.batch_size
+                total = len(requests)
+                progress_callback(min(completed, total), total)
         
-        logger.info(f"Created batch {batch_id} with {len(batch_items)} items")
-        return batch
+        # 更新统计信息
+        total_time = time.time() - start_time
+        if self.processing_stats["completed_requests"] > 0:
+            self.processing_stats["average_processing_time"] = (
+                self.processing_stats["total_processing_time"] / 
+                self.processing_stats["completed_requests"]
+            )
+        
+        logger.info(f"批量处理完成，总耗时 {total_time:.2f}s")
+        logger.info(f"成功: {self.processing_stats['completed_requests']}, "
+                   f"失败: {self.processing_stats['failed_requests']}")
+        
+        self.results = all_results
+        return all_results
     
-    async def _process_batch(self, batch: BatchResult) -> BatchResult:
-        """处理单个批次"""
-        async with self.semaphore:
-            batch.status = BatchStatus.PROCESSING
-            batch.start_time = datetime.now()
-            
-            logger.info(f"Processing batch {batch.batch_id}...")
-            
-            # 检查内存
-            if not self.memory_monitor.is_memory_available(100):  # 预估100MB
-                logger.warning("Memory limit reached, waiting...")
-                if not self.memory_monitor.wait_for_memory(100, 30.0):
-                    batch.status = BatchStatus.FAILED
-                    return batch
-            
-            # 并发处理批次中的所有请求
-            tasks = []
-            for i, item in enumerate(batch.items):
-                task = self._process_single_request(item, i, batch.batch_id)
-                tasks.append(task)
-            
-            # 等待所有任务完成
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # 处理结果
-            total_cost = 0.0
-            for i, result in enumerate(results):
-                if isinstance(result, Exception):
-                    batch.errors[i] = result
-                    logger.error(f"Request {batch.items[i].id} failed: {str(result)}")
-                else:
-                    batch.results[i] = result
-                    # 估算成本
-                    if result and hasattr(result, 'usage') and result.usage:
-                        total_cost += result.usage.total_tokens * 0.0001  # 简化成本计算
-            
-            batch.total_cost = total_cost
-            batch.end_time = datetime.now()
-            batch.status = BatchStatus.COMPLETED
-            
-            # 更新统计
-            self.total_processed += len(batch.items)
-            self.total_cost += total_cost
-            
-            logger.info(f"Batch {batch.batch_id} completed in {batch.get_processing_time():.2f}s")
-            logger.info(f"Success rate: {batch.get_success_rate():.1%}, Cost: ${batch.total_cost:.6f}")
-            
-            return batch
-    
-    async def _process_single_request(self, item: RequestItem, index: int, batch_id: str) -> ChatCompletion:
-        """处理单个请求"""
-        for attempt in range(self.config.retry_attempts):
-            try:
-                response = await self.client.chat.completions.create(
-                    model=item.model,
-                    messages=item.messages,
-                    timeout=self.config.timeout_per_request,
-                    **item.kwargs
-                )
-                
-                logger.debug(f"Request {item.id} in batch {batch_id} completed (attempt {attempt + 1})")
-                return response
-                
-            except Exception as e:
-                logger.warning(f"Request {item.id} attempt {attempt + 1} failed: {str(e)}")
-                if attempt == self.config.retry_attempts - 1:
-                    raise e
-                await asyncio.sleep(2 ** attempt)  # 指数退避
-    
-    async def process_all(self, progress_callback: Optional[Callable] = None) -> List[BatchResult]:
-        """处理所有待处理请求"""
-        logger.info(f"Starting batch processing of {len(self.pending_requests)} requests...")
-        
-        all_batches = []
-        
-        while self.pending_requests or self.active_batches:
-            # 创建新批次
-            while len(self.active_batches) < self.config.max_concurrent_batches and self.pending_requests:
-                batch = self._create_batch()
-                if batch:
-                    self.active_batches[batch.batch_id] = batch
-                    
-                    # 启动批次处理任务
-                    task = asyncio.create_task(self._process_batch(batch))
-                    
-                    # 添加完成回调
-                    def batch_completed(batch_id):
-                        def callback(task):
-                            completed_batch = task.result()
-                            if batch_id in self.active_batches:
-                                del self.active_batches[batch_id]
-                            self.completed_batches.append(completed_batch)
-                            all_batches.append(completed_batch)
-                            
-                            if progress_callback:
-                                progress_callback(completed_batch)
-                        return callback
-                    
-                    task.add_done_callback(batch_completed(batch.batch_id))
-            
-            # 等待一段时间
-            await asyncio.sleep(0.1)
-        
-        # 等待所有活跃批次完成
-        while self.active_batches:
-            await asyncio.sleep(0.1)
-        
-        logger.info(f"All batches completed. Total processed: {self.total_processed}")
-        return all_batches
-    
-    def get_statistics(self) -> Dict:
-        """获取处理统计"""
-        total_time = (datetime.now() - self.start_time).total_seconds()
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取处理统计信息"""
+        memory_stats = self.memory_monitor.get_memory_stats()
         
         return {
-            "total_processed": self.total_processed,
-            "total_cost": self.total_cost,
-            "total_time": total_time,
-            "throughput": self.total_processed / total_time if total_time > 0 else 0,
-            "average_cost_per_request": self.total_cost / self.total_processed if self.total_processed > 0 else 0,
-            "completed_batches": len(self.completed_batches),
-            "active_batches": len(self.active_batches),
-            "pending_requests": len(self.pending_requests),
-            "memory_usage": self.memory_monitor.get_memory_usage()
+            "processing_stats": self.processing_stats,
+            "memory_stats": memory_stats,
+            "success_rate": (
+                self.processing_stats["completed_requests"] / 
+                max(self.processing_stats["total_requests"], 1)
+            ) * 100,
+            "failed_requests_count": len(self.failed_requests)
         }
 
 # 演示函数
@@ -354,296 +347,199 @@ async def demo_basic_batch_processing():
     print("=" * 50)
     
     # 创建批量处理器
-    processor = BatchProcessor(
-        api_key="your-deepseek-key",
-        config=BatchConfig(
-            batch_size=5,
-            max_concurrent_batches=2,
-            max_wait_time=3.0
-        )
+    config = BatchConfig(
+        batch_size=5,
+        max_concurrent=3,
+        timeout_seconds=90,
+        memory_limit_mb=512
     )
+    processor = BatchProcessor(config)
     
-    # 添加测试请求
-    test_questions = [
-        "什么是人工智能？",
-        "解释机器学习的基本概念",
-        "深度学习有哪些应用？",
-        "什么是自然语言处理？",
-        "计算机视觉的主要技术有哪些？",
-        "强化学习的原理是什么？",
-        "神经网络是如何工作的？",
-        "什么是大语言模型？",
-        "AI在医疗领域有哪些应用？",
-        "自动驾驶技术的核心是什么？"
+    # 准备测试请求
+    test_requests = [
+        RequestItem(id=f"req_{i+1}", prompt=f"用一句话解释{topic}（不超过20字）")
+        for i, topic in enumerate([
+            "人工智能", "机器学习", "深度学习", "自然语言处理", 
+            "计算机视觉", "强化学习", "神经网络", "大语言模型"
+        ])
     ]
     
-    # 添加请求到处理器
-    request_ids = []
-    for i, question in enumerate(test_questions):
-        messages = [{"role": "user", "content": question}]
-        request_id = processor.add_request(messages, priority=random.randint(1, 5))
-        request_ids.append(request_id)
-    
-    print(f"✅ 已添加 {len(request_ids)} 个请求到处理队列")
+    print(f"✅ 准备处理 {len(test_requests)} 个请求")
     
     # 进度回调函数
-    def progress_callback(batch: BatchResult):
-        print(f"🔄 批次 {batch.batch_id} 完成:")
-        print(f"   - 处理时间: {batch.get_processing_time():.2f}s")
-        print(f"   - 成功率: {batch.get_success_rate():.1%}")
-        print(f"   - 成本: ${batch.total_cost:.6f}")
+    def progress_callback(completed: int, total: int):
+        progress = completed / total * 100
+        print(f"🔄 处理进度: {progress:.1f}% ({completed}/{total})")
     
     # 开始处理
     start_time = time.time()
-    batches = await processor.process_all(progress_callback)
+    results = await processor.process_all(test_requests, progress_callback)
     end_time = time.time()
+    
+    # 显示结果
+    print(f"\n📊 处理结果:")
+    print(f"   - 总处理时间: {end_time - start_time:.2f}s")
+    print(f"   - 成功请求: {sum(1 for r in results if r.success)}")
+    print(f"   - 失败请求: {sum(1 for r in results if not r.success)}")
     
     # 显示统计信息
     stats = processor.get_statistics()
-    print(f"\n📊 处理统计:")
-    print(f"   - 总处理数量: {stats['total_processed']}")
-    print(f"   - 总处理时间: {end_time - start_time:.2f}s")
-    print(f"   - 吞吐量: {stats['throughput']:.2f} req/s")
-    print(f"   - 总成本: ${stats['total_cost']:.6f}")
-    print(f"   - 平均成本: ${stats['average_cost_per_request']:.6f}")
-    print(f"   - 内存使用: {stats['memory_usage']['rss_mb']:.1f}MB")
+    print(f"   - 成功率: {stats['success_rate']:.1f}%")
+    print(f"   - 平均处理时间: {stats['processing_stats']['average_processing_time']:.2f}s")
+    print(f"   - 内存峰值: {stats['memory_stats']['current_mb']:.1f}MB")
 
-async def demo_performance_comparison():
-    """演示性能对比"""
-    print("\n⚡ 性能对比演示")
+async def demo_concurrent_vs_sequential():
+    """演示并发与顺序处理的性能对比"""
+    print("\n⚡ 并发 vs 顺序处理对比")
     print("=" * 50)
     
     # 准备测试数据
-    test_questions = [
-        f"请解释概念{i}: 这是一个测试问题，用于性能对比。" 
-        for i in range(20)
+    test_requests = [
+        RequestItem(id=f"req_{i+1}", prompt=f"简单回答：什么是概念{i+1}？")
+        for i in range(6)
     ]
     
     # 1. 顺序处理
     print("🔄 顺序处理测试...")
-    client = HarborAI(api_key="your-deepseek-key", base_url="https://api.deepseek.com/v1")
+    sequential_config = BatchConfig(
+        batch_size=1,
+        max_concurrent=1,
+        processing_mode=ProcessingMode.SEQUENTIAL
+    )
+    sequential_processor = BatchProcessor(sequential_config)
     
     sequential_start = time.time()
-    sequential_results = []
-    
-    for question in test_questions[:5]:  # 只测试5个请求
-        try:
-            response = await client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": question}],
-                max_tokens=100
-            )
-            sequential_results.append(response)
-        except Exception as e:
-            print(f"❌ 顺序处理失败: {str(e)}")
-            sequential_results.append(None)
-    
+    sequential_results = await sequential_processor.process_all(test_requests[:3])
     sequential_time = time.time() - sequential_start
-    sequential_success = sum(1 for r in sequential_results if r is not None)
     
-    # 2. 批量处理
-    print("🔄 批量处理测试...")
-    processor = BatchProcessor(
-        api_key="your-deepseek-key",
-        config=BatchConfig(
-            batch_size=5,
-            max_concurrent_batches=3
-        )
+    # 2. 并发处理
+    print("🔄 并发处理测试...")
+    concurrent_config = BatchConfig(
+        batch_size=3,
+        max_concurrent=3,
+        processing_mode=ProcessingMode.CONCURRENT
     )
+    concurrent_processor = BatchProcessor(concurrent_config)
     
-    # 添加相同的请求
-    for question in test_questions[:5]:
-        messages = [{"role": "user", "content": question}]
-        processor.add_request(messages, max_tokens=100)
-    
-    batch_start = time.time()
-    batches = await processor.process_all()
-    batch_time = time.time() - batch_start
-    
-    batch_success = sum(batch.get_success_rate() * len(batch.items) for batch in batches)
+    concurrent_start = time.time()
+    concurrent_results = await concurrent_processor.process_all(test_requests[:3])
+    concurrent_time = time.time() - concurrent_start
     
     # 性能对比
     print(f"\n📊 性能对比结果:")
     print(f"   顺序处理:")
     print(f"     - 处理时间: {sequential_time:.2f}s")
-    print(f"     - 成功数量: {sequential_success}")
-    print(f"     - 吞吐量: {sequential_success/sequential_time:.2f} req/s")
+    print(f"     - 成功数量: {sum(1 for r in sequential_results if r.success)}")
     
-    print(f"   批量处理:")
-    print(f"     - 处理时间: {batch_time:.2f}s")
-    print(f"     - 成功数量: {int(batch_success)}")
-    print(f"     - 吞吐量: {batch_success/batch_time:.2f} req/s")
+    print(f"   并发处理:")
+    print(f"     - 处理时间: {concurrent_time:.2f}s")
+    print(f"     - 成功数量: {sum(1 for r in concurrent_results if r.success)}")
     
-    if sequential_time > 0 and batch_time > 0:
-        speedup = sequential_time / batch_time
+    if sequential_time > 0 and concurrent_time > 0:
+        speedup = sequential_time / concurrent_time
         print(f"   性能提升: {speedup:.2f}x")
 
-async def demo_memory_management():
-    """演示内存管理"""
-    print("\n🧠 内存管理演示")
+async def demo_memory_monitoring():
+    """演示内存监控"""
+    print("\n🧠 内存监控演示")
     print("=" * 50)
     
     # 创建内存监控器
-    memory_monitor = MemoryMonitor(limit_mb=512)  # 设置较低的限制用于演示
+    memory_monitor = MemoryMonitor(limit_mb=256)
     
     # 显示初始内存状态
-    initial_memory = memory_monitor.get_memory_usage()
+    initial_stats = memory_monitor.get_memory_stats()
     print(f"📊 初始内存状态:")
-    print(f"   - RSS: {initial_memory['rss_mb']:.1f}MB")
-    print(f"   - 可用内存: {initial_memory['available_mb']:.1f}MB")
-    print(f"   - 内存限制: {memory_monitor.limit_mb}MB")
+    print(f"   - 当前使用: {initial_stats['current_mb']:.1f}MB")
+    print(f"   - 内存限制: {initial_stats['limit_mb']:.1f}MB")
+    print(f"   - 使用率: {initial_stats['usage_percent']:.1f}%")
     
-    # 创建批量处理器（较小的批次大小）
-    processor = BatchProcessor(
-        api_key="your-deepseek-key",
-        config=BatchConfig(
-            batch_size=3,
-            max_concurrent_batches=2,
-            memory_limit_mb=512
-        )
+    # 创建处理器
+    config = BatchConfig(
+        batch_size=3,
+        max_concurrent=2,
+        memory_limit_mb=256
     )
+    processor = BatchProcessor(config)
     
-    # 添加一些请求
-    for i in range(10):
-        messages = [{"role": "user", "content": f"测试请求 {i+1}"}]
-        processor.add_request(messages)
-    
-    # 监控内存使用情况
-    def memory_progress_callback(batch: BatchResult):
-        current_memory = memory_monitor.get_memory_usage()
-        print(f"🔄 批次 {batch.batch_id} 完成 - 内存使用: {current_memory['rss_mb']:.1f}MB")
-    
-    # 处理请求
-    await processor.process_all(memory_progress_callback)
-    
-    # 显示最终内存状态
-    final_memory = memory_monitor.get_memory_usage()
-    print(f"\n📊 最终内存状态:")
-    print(f"   - RSS: {final_memory['rss_mb']:.1f}MB")
-    print(f"   - 内存增长: {final_memory['rss_mb'] - initial_memory['rss_mb']:.1f}MB")
-
-async def demo_priority_processing():
-    """演示优先级处理"""
-    print("\n🎯 优先级处理演示")
-    print("=" * 50)
-    
-    processor = BatchProcessor(
-        api_key="your-deepseek-key",
-        config=BatchConfig(batch_size=3, max_concurrent_batches=1)
-    )
-    
-    # 添加不同优先级的请求
-    requests_data = [
-        ("紧急问题", "这是一个紧急问题，需要立即处理", 10),
-        ("普通问题1", "这是一个普通问题", 5),
-        ("低优先级问题", "这是一个低优先级问题", 1),
-        ("高优先级问题", "这是一个高优先级问题", 8),
-        ("普通问题2", "这是另一个普通问题", 5),
-        ("最高优先级", "这是最高优先级问题", 15)
+    # 添加请求
+    test_requests = [
+        RequestItem(id=f"req_{i+1}", prompt=f"简短回答问题{i+1}")
+        for i in range(6)
     ]
     
-    # 随机顺序添加请求
-    import random
-    random.shuffle(requests_data)
+    # 处理并监控内存
+    await processor.process_all(test_requests)
     
-    for name, content, priority in requests_data:
-        messages = [{"role": "user", "content": content}]
-        request_id = processor.add_request(messages, priority=priority)
-        print(f"📝 添加请求: {name} (优先级: {priority})")
-    
-    # 处理请求并观察处理顺序
-    def priority_progress_callback(batch: BatchResult):
-        print(f"\n🔄 处理批次 {batch.batch_id}:")
-        for item in batch.items:
-            print(f"   - 请求内容: {item.messages[0]['content'][:20]}... (优先级: {item.priority})")
-    
-    await processor.process_all(priority_progress_callback)
+    # 显示最终内存状态
+    final_stats = processor.get_statistics()['memory_stats']
+    print(f"\n📊 最终内存状态:")
+    print(f"   - 当前使用: {final_stats['current_mb']:.1f}MB")
+    print(f"   - 内存峰值: {processor.processing_stats['memory_peak_mb']:.1f}MB")
 
-async def demo_large_scale_processing():
-    """演示大规模处理"""
-    print("\n🚀 大规模处理演示")
+async def demo_error_handling():
+    """演示错误处理"""
+    print("\n🛡️ 错误处理演示")
     print("=" * 50)
     
-    # 创建大规模处理器
-    processor = BatchProcessor(
-        api_key="your-deepseek-key",
-        config=BatchConfig(
-            batch_size=10,
-            max_concurrent_batches=5,
-            memory_limit_mb=1024
-        )
+    config = BatchConfig(
+        batch_size=3,
+        max_concurrent=2,
+        retry_attempts=2
     )
+    processor = BatchProcessor(config)
     
-    # 生成大量测试数据
-    print("📝 生成测试数据...")
-    categories = ["科技", "医疗", "教育", "金融", "环境"]
+    # 混合正常和可能出错的请求
+    test_requests = [
+        RequestItem(id="normal_1", prompt="什么是AI？"),
+        RequestItem(id="normal_2", prompt="什么是机器学习？"),
+        RequestItem(id="invalid_model", prompt="测试请求", model="invalid-model-name"),
+        RequestItem(id="normal_3", prompt="什么是深度学习？"),
+    ]
     
-    for i in range(50):  # 生成50个请求
-        category = random.choice(categories)
-        content = f"请分析{category}领域的发展趋势和挑战 - 问题{i+1}"
-        messages = [{"role": "user", "content": content}]
-        processor.add_request(messages, priority=random.randint(1, 10))
+    results = await processor.process_all(test_requests)
     
-    print(f"✅ 已生成 50 个测试请求")
+    # 分析结果
+    successful = [r for r in results if r.success]
+    failed = [r for r in results if not r.success]
     
-    # 处理统计
-    processed_count = 0
-    total_cost = 0.0
+    print(f"📊 错误处理结果:")
+    print(f"   - 成功请求: {len(successful)}")
+    print(f"   - 失败请求: {len(failed)}")
     
-    def large_scale_progress_callback(batch: BatchResult):
-        nonlocal processed_count, total_cost
-        processed_count += len(batch.items)
-        total_cost += batch.total_cost
-        
-        progress = processed_count / 50 * 100
-        print(f"🔄 进度: {progress:.1f}% ({processed_count}/50) - 批次成功率: {batch.get_success_rate():.1%}")
-    
-    # 开始大规模处理
-    start_time = time.time()
-    batches = await processor.process_all(large_scale_progress_callback)
-    end_time = time.time()
-    
-    # 最终统计
-    stats = processor.get_statistics()
-    print(f"\n📊 大规模处理统计:")
-    print(f"   - 总处理时间: {end_time - start_time:.2f}s")
-    print(f"   - 平均吞吐量: {stats['throughput']:.2f} req/s")
-    print(f"   - 总成本: ${stats['total_cost']:.6f}")
-    print(f"   - 内存峰值: {stats['memory_usage']['rss_mb']:.1f}MB")
-    print(f"   - 批次数量: {len(batches)}")
-    
-    # 成功率分析
-    overall_success_rate = sum(batch.get_success_rate() * len(batch.items) for batch in batches) / 50
-    print(f"   - 整体成功率: {overall_success_rate:.1%}")
+    if failed:
+        print(f"   失败详情:")
+        for result in failed:
+            print(f"     - {result.request_id}: {result.error}")
 
 async def main():
     """主演示函数"""
     print("📦 HarborAI 批量处理优化演示")
     print("=" * 60)
     
+    # 显示可用模型配置
+    print_available_models()
+    
     try:
         # 基础批量处理演示
         await demo_basic_batch_processing()
         
-        # 性能对比演示
-        await demo_performance_comparison()
+        # 并发 vs 顺序处理对比
+        await demo_concurrent_vs_sequential()
         
-        # 内存管理演示
-        await demo_memory_management()
+        # 内存监控演示
+        await demo_memory_monitoring()
         
-        # 优先级处理演示
-        await demo_priority_processing()
-        
-        # 大规模处理演示
-        await demo_large_scale_processing()
+        # 错误处理演示
+        await demo_error_handling()
         
         print("\n✅ 所有演示完成！")
         print("\n💡 生产环境建议:")
         print("   1. 根据系统资源调整批次大小和并发数")
         print("   2. 实施内存监控和限制机制")
-        print("   3. 使用优先级队列处理重要请求")
+        print("   3. 实现完善的错误处理和重试机制")
         print("   4. 监控处理性能和成本效益")
-        print("   5. 实现故障恢复和重试机制")
+        print("   5. 使用适当的超时配置（当前90秒）")
         
     except Exception as e:
         print(f"❌ 演示过程中出现错误: {str(e)}")

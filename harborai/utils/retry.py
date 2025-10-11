@@ -26,9 +26,10 @@ from .logger import get_logger
 from .exceptions import (
     APIError,
     RateLimitError,
-    TimeoutError,
     AuthenticationError,
 )
+# 导入核心异常模块中的 TimeoutError 和 RetryableError
+from ..core.exceptions import TimeoutError, RetryableError
 
 logger = get_logger("harborai.retry")
 
@@ -37,6 +38,7 @@ logger = get_logger("harborai.retry")
 RETRYABLE_EXCEPTIONS = (
     RateLimitError,
     TimeoutError,
+    RetryableError,  # 包含所有继承自 RetryableError 的异常
     ConnectionError,
     # 不包括 AuthenticationError，认证错误通常不应该重试
 )
@@ -44,6 +46,15 @@ RETRYABLE_EXCEPTIONS = (
 
 def should_retry_api_error(exception: Exception) -> bool:
     """判断 API 错误是否应该重试"""
+    # 首先检查是否是 RetryableError 或其子类
+    if isinstance(exception, RetryableError):
+        return True
+    
+    # 检查是否在可重试异常列表中
+    if isinstance(exception, RETRYABLE_EXCEPTIONS):
+        return True
+    
+    # 检查 API 错误的状态码
     if isinstance(exception, APIError):
         # 5xx 错误通常可以重试
         if exception.status_code and 500 <= exception.status_code < 600:
@@ -61,7 +72,7 @@ def should_retry_api_error(exception: Exception) -> bool:
         if exception.status_code in (502, 503, 504):
             return True
     
-    return isinstance(exception, RETRYABLE_EXCEPTIONS)
+    return False
 
 
 def calculate_backoff_delay(

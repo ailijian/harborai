@@ -7,11 +7,22 @@
 """
 
 import os
-from typing import Dict, List, Optional, Any
-from pydantic import Field
+import json
+from typing import Dict, List, Optional, Any, Union, Annotated
+from pydantic import Field, field_validator, BeforeValidator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from .performance import PerformanceMode, get_performance_config
+
+
+def parse_comma_separated_list(v: Union[str, List[str]]) -> List[str]:
+    """解析逗号分隔的字符串为列表"""
+    if isinstance(v, str):
+        return [item.strip() for item in v.split(',') if item.strip()]
+    elif isinstance(v, list):
+        return v
+    else:
+        return []
 
 
 class Settings(BaseSettings):
@@ -25,7 +36,10 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
-        env_prefix="HARBORAI_"
+        env_prefix="HARBORAI_",
+        env_parse_none_str="None",
+        env_parse_enums=False,
+        env_nested_delimiter=None
     )
     
     # 基础配置
@@ -36,6 +50,8 @@ class Settings(BaseSettings):
     api_key: Optional[str] = Field(default=None)
     base_url: Optional[str] = Field(default=None)
     default_timeout: int = Field(default=60, alias="HARBORAI_TIMEOUT", gt=0)
+    request_timeout: int = Field(default=90, alias="REQUEST_TIMEOUT", gt=0)
+    connect_timeout: int = Field(default=30, alias="CONNECT_TIMEOUT", gt=0)
     max_retries: int = Field(default=3, ge=0)
     retry_delay: float = Field(default=1.0, ge=0)
     
@@ -68,9 +84,16 @@ class Settings(BaseSettings):
     enable_detailed_tracing: bool = Field(default=True, alias="HARBORAI_DETAILED_TRACING")
     
     # 快速路径配置
-    fast_path_models: List[str] = Field(default_factory=lambda: ["gpt-3.5-turbo", "gpt-4o-mini"], alias="HARBORAI_FAST_PATH_MODELS")
     fast_path_max_tokens: Optional[int] = Field(default=None, alias="HARBORAI_FAST_PATH_MAX_TOKENS")  # None表示无限制，由模型厂商控制
     fast_path_skip_cost_tracking: bool = Field(default=False, alias="HARBORAI_FAST_PATH_SKIP_COST")
+    
+    @property
+    def fast_path_models(self) -> List[str]:
+        """获取快速路径模型列表"""
+        env_value = os.environ.get("HARBORAI_FAST_PATH_MODELS", "")
+        if env_value:
+            return parse_comma_separated_list(env_value)
+        return ["gpt-3.5-turbo", "gpt-4o-mini"]
     
     # 缓存配置
     enable_token_cache: bool = Field(default=True, alias="HARBORAI_TOKEN_CACHE")
@@ -88,6 +111,29 @@ class Settings(BaseSettings):
     
     # 模型映射配置
     model_mappings: Dict[str, str] = Field(default_factory=dict)
+    
+    # 降级策略配置
+    enable_fallback: bool = Field(default=True, alias="HARBORAI_ENABLE_FALLBACK")
+    # 临时注释掉 fallback_models 字段以解决解析问题
+    # fallback_models: List[str] = Field(
+    #     default_factory=lambda: ["deepseek-chat", "ernie-4.0-turbo-8k", "doubao-1-5-pro-32k-character-250715"], 
+    #     alias="HARBORAI_FALLBACK_MODELS"
+    # )
+    
+    # @field_validator('fallback_models', mode='before')
+    # @classmethod
+    # def parse_fallback_models(cls, v):
+    #     """解析降级模型列表"""
+    #     return parse_comma_separated_list(v)
+    
+    @property
+    def fallback_models(self) -> List[str]:
+        """获取降级模型列表"""
+        env_value = os.environ.get("HARBORAI_FALLBACK_MODELS", "")
+        if env_value:
+            return parse_comma_separated_list(env_value)
+        return ["deepseek-chat", "ernie-4.0-turbo-8k", "doubao-1-5-pro-32k-character-250715"]
+
     
     def get_postgres_url(self) -> Optional[str]:
         """获取 PostgreSQL 连接 URL"""
@@ -115,17 +161,23 @@ class Settings(BaseSettings):
         return config
     
     def is_fast_path_enabled(self, model: str, max_tokens: Optional[int] = None) -> bool:
-        """判断是否应该使用快速路径"""
+        """
+        判断是否应该使用快速路径
+        
+        快速路径和性能模式是正交的：
+        - enable_fast_path 控制快速路径的总开关
+        - performance_mode 控制功能的启用程度，但不影响快速路径
+        - FAST 模式强制启用快速路径（忽略 enable_fast_path 设置）
+        """
+        # FAST 模式：强制启用快速路径（最大化性能），忽略 enable_fast_path 设置
+        if self.performance_mode == "fast":
+            return True
+        
+        # BALANCED 和 FULL 模式：根据 enable_fast_path 和模型/token 限制判断
         if not self.enable_fast_path:
             return False
         
-        # 检查性能模式
-        if self.performance_mode == "fast":
-            return True
-        elif self.performance_mode == "full":
-            return False
-        
-        # balanced 模式下的判断逻辑
+        # FULL 模式不再强制禁用快速路径，允许用户通过 HARBORAI_FAST_PATH 控制
         if model in self.fast_path_models:
             # 如果 fast_path_max_tokens 为 None，表示无限制，允许快速路径
             if self.fast_path_max_tokens is None:
@@ -189,5 +241,8 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """获取全局配置实例（单例模式）"""
+    """获取全局配置实例"""
+    # 显式加载 .env 文件
+    from dotenv import load_dotenv
+    load_dotenv()
     return Settings()

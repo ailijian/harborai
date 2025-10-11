@@ -371,7 +371,13 @@ class ChatCompletions:
         if fallback_models is not None:
             fallback = fallback_models
         elif fallback is None:
-            fallback = []
+            # 使用settings中配置的默认降级模型
+            from ..config.settings import get_settings
+            settings = get_settings()
+            if settings.enable_fallback and settings.fallback_models:
+                fallback = settings.fallback_models
+            else:
+                fallback = []
         
         trace_id = get_or_create_trace_id()
         
@@ -755,7 +761,13 @@ class ChatCompletions:
         if fallback_models is not None:
             fallback = fallback_models
         elif fallback is None:
-            fallback = []
+            # 使用settings中配置的默认降级模型
+            from ..config.settings import get_settings
+            settings = get_settings()
+            if settings.enable_fallback and settings.fallback_models:
+                fallback = settings.fallback_models
+            else:
+                fallback = []
         
         trace_id = get_or_create_trace_id()
         
