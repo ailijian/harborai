@@ -7,7 +7,7 @@ HarborAI - 世界级多模型统一客户端
 支持推理模型、结构化输出、异步日志、容错降级等生产级功能。
 """
 
-__version__ = "1.0.0-beta.7"
+__version__ = "1.0.0-beta.8"
 __author__ = "HarborAI Team"
 __email__ = "team@harborai.com"
 __description__ = "世界级多模型统一客户端，提供与 OpenAI SDK 几乎一致的开发体验"
