@@ -470,17 +470,23 @@ class TestAsyncCalls:
         """测试异步错误处理"""
         print("\n--- 测试7：异步错误处理 ---")
         
-        async def test_invalid_model():
-            """测试无效模型的异步调用"""
+        async def test_invalid_model_fallback():
+            """测试无效模型的异步调用回退机制"""
             try:
-                await self.deepseek_client.chat.completions.acreate(
+                response = await self.deepseek_client.chat.completions.acreate(
                     model="invalid-model-name",
                     messages=self.test_messages
                 )
-                return False  # 不应该到达这里
+                # HarborAI 有回退机制，应该成功返回响应
+                if response and response.choices and response.choices[0].message.content:
+                    print(f"  ✓ 无效模型异步调用成功回退到有效模型")
+                    return True
+                else:
+                    print(f"  ✗ 无效模型异步调用回退失败")
+                    return False
             except Exception as e:
-                print(f"  ✓ 无效模型异步调用正确抛出异常：{type(e).__name__}")
-                return True
+                print(f"  ✗ 无效模型异步调用意外失败：{type(e).__name__}: {e}")
+                return False
         
         async def test_invalid_messages():
             """测试无效消息格式的异步调用"""
@@ -496,7 +502,7 @@ class TestAsyncCalls:
         
         # 执行错误处理测试
         error_tests = [
-            test_invalid_model(),
+            test_invalid_model_fallback(),
             test_invalid_messages()
         ]
         
