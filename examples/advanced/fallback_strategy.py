@@ -2,12 +2,12 @@
 """
 降级策略演示
 
-这个示例展示了 HarborAI 的降级策略功能，包括：
-1. 多层级降级策略
-2. 服务健康监控
-3. 自动故障转移
-4. 性能监控与告警
-5. 优雅降级处理
+这个示例展示了 HarborAI 的内置降级策略功能，包括：
+1. 内置多层级降级策略
+2. 自动故障转移
+3. 模型间切换
+4. 结构化输出的降级
+5. 推理模型的降级处理
 
 场景：
 - 主要AI服务不可用或性能下降时自动切换到备用方案
@@ -15,29 +15,20 @@
 - 在成本和性能之间找到平衡
 
 价值：
+- 使用 HarborAI 内置的降级机制，无需自己实现
 - 确保服务连续性和可用性
 - 优化用户体验，避免服务中断
-- 降低服务中断风险
 - 智能选择最优服务
 """
 
 import asyncio
 import time
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Callable, Any, Union
-from dataclasses import dataclass, field
-from enum import Enum
-import json
-
-# 导入配置助手
-from config_helper import get_model_configs, get_primary_model_config, print_available_models
-
-# 导入 HarborAI
-import sys
+from datetime import datetime
+from typing import Dict, List, Optional, Any
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+# 正确的 HarborAI 导入方式
 from harborai import HarborAI
 
 # 配置日志
@@ -47,522 +38,445 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class ServiceTier(Enum):
-    """服务层级"""
-    PRIMARY = 1      # 主要服务
-    SECONDARY = 2    # 次要服务
-    FALLBACK = 3     # 降级服务
-    EMERGENCY = 4    # 紧急服务
-
-class ServiceStatus(Enum):
-    """服务状态"""
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    OFFLINE = "offline"
-
-@dataclass
-class ServiceConfig:
-    """服务配置"""
-    name: str
-    model: str
-    vendor: str
-    tier: ServiceTier
-    api_key: str
-    base_url: str
-    temperature: float = 0.7
-    cost_per_token: float = 0.0001
-    expected_latency: float = 3.0
-    quality_score: float = 1.0
-    timeout: int = 90
-
-@dataclass
-class ServiceMetrics:
-    """服务指标"""
-    total_requests: int = 0
-    successful_requests: int = 0
-    failed_requests: int = 0
-    total_latency: float = 0.0
-    total_cost: float = 0.0
-    last_request_time: Optional[datetime] = None
-    last_error_time: Optional[datetime] = None
-    consecutive_failures: int = 0
-    
-    def add_success(self, latency: float, cost: float):
-        """添加成功记录"""
-        self.total_requests += 1
-        self.successful_requests += 1
-        self.total_latency += latency
-        self.total_cost += cost
-        self.last_request_time = datetime.now()
-        self.consecutive_failures = 0
-    
-    def add_failure(self):
-        """添加失败记录"""
-        self.total_requests += 1
-        self.failed_requests += 1
-        self.last_error_time = datetime.now()
-        self.consecutive_failures += 1
-    
-    def get_success_rate(self) -> float:
-        """获取成功率"""
-        if self.total_requests == 0:
-            return 0.0
-        return self.successful_requests / self.total_requests
-    
-    def get_average_latency(self) -> float:
-        """获取平均延迟"""
-        if self.successful_requests == 0:
-            return 0.0
-        return self.total_latency / self.successful_requests
-    
-    def get_average_cost(self) -> float:
-        """获取平均成本"""
-        if self.successful_requests == 0:
-            return 0.0
-        return self.total_cost / self.successful_requests
-
-class ServiceHealthChecker:
-    """服务健康检查器"""
-    
-    def __init__(self, config: ServiceConfig):
-        self.config = config
-        self.client = HarborAI()
-        self.metrics = ServiceMetrics()
-        self.status = ServiceStatus.HEALTHY
-        
-    async def health_check(self) -> bool:
-        """执行健康检查"""
-        try:
-            start_time = time.time()
-            
-            # 发送简单的健康检查请求
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.config.model,
-                messages=[{"role": "user", "content": "简单回答：你好"}],
-                timeout=10
-            )
-            
-            latency = time.time() - start_time
-            
-            # 估算成本
-            content_length = len(response.choices[0].message.content) if response.choices else 0
-            cost = content_length * self.config.cost_per_token
-            
-            self.metrics.add_success(latency, cost)
-            self._update_status()
-            
-            logger.info(f"✅ {self.config.name} 健康检查通过 - 延迟: {latency:.2f}s")
-            return True
-            
-        except Exception as e:
-            self.metrics.add_failure()
-            self._update_status()
-            
-            logger.warning(f"❌ {self.config.name} 健康检查失败: {str(e)}")
-            return False
-    
-    def _update_status(self):
-        """更新服务状态"""
-        success_rate = self.metrics.get_success_rate()
-        avg_latency = self.metrics.get_average_latency()
-        
-        if self.metrics.consecutive_failures >= 3:
-            self.status = ServiceStatus.OFFLINE
-        elif success_rate < 0.5:
-            self.status = ServiceStatus.UNHEALTHY
-        elif success_rate < 0.8 or avg_latency > self.config.expected_latency * 2:
-            self.status = ServiceStatus.DEGRADED
-        else:
-            self.status = ServiceStatus.HEALTHY
-    
-    async def make_request(self, messages: List[Dict], **kwargs) -> Any:
-        """发送请求"""
-        start_time = time.time()
-        
-        try:
-            # 构建请求参数
-            request_params = {
-                "model": self.config.model,
-                "messages": messages,
-                "temperature": self.config.temperature,
-                "timeout": self.config.timeout,
-                **kwargs
-            }
-            
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create, 
-                **request_params
-            )
-            
-            latency = time.time() - start_time
-            
-            # 估算成本
-            content_length = len(response.choices[0].message.content) if response.choices else 0
-            cost = content_length * self.config.cost_per_token
-            
-            self.metrics.add_success(latency, cost)
-            self._update_status()
-            
-            return response
-            
-        except Exception as e:
-            self.metrics.add_failure()
-            self._update_status()
-            raise e
-
-class FallbackStrategy:
-    """降级策略"""
-    
-    def __init__(self):
-        self.services: Dict[str, ServiceHealthChecker] = {}
-        self.service_order: List[ServiceConfig] = []
-        self.current_service: Optional[str] = None
-        self.fallback_history: List[Dict] = []
-        
-        # 初始化服务配置
-        self._initialize_services()
-        
-    def _initialize_services(self):
-        """初始化服务配置"""
-        model_configs = get_model_configs()
-        
-        if not model_configs:
-            raise ValueError("没有找到可用的模型配置，请检查环境变量设置")
-        
-        # 为每个模型创建服务配置
-        tier_mapping = {
-            'deepseek': ServiceTier.PRIMARY,
-            'ernie': ServiceTier.SECONDARY,
-            'doubao': ServiceTier.FALLBACK
+# 从环境变量获取配置
+def get_client_configs():
+    """获取多个客户端配置"""
+    return {
+        'deepseek': {
+            'api_key': os.getenv('DEEPSEEK_API_KEY'),
+            'base_url': os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
+        },
+        'ernie': {
+            'api_key': os.getenv('ERNIE_API_KEY'),
+            'base_url': os.getenv('ERNIE_BASE_URL', 'https://aip.baidubce.com')
+        },
+        'doubao': {
+            'api_key': os.getenv('DOUBAO_API_KEY'),
+            'base_url': os.getenv('DOUBAO_BASE_URL', 'https://ark.cn-beijing.volces.com')
         }
-        
-        for i, model_config in enumerate(model_configs):
-            tier = tier_mapping.get(model_config.vendor, ServiceTier.EMERGENCY)
-            
-            service_config = ServiceConfig(
-                name=f"{model_config.vendor}_{model_config.model}",
-                model=model_config.model,
-                vendor=model_config.vendor,
-                tier=tier,
-                api_key=model_config.api_key,
-                base_url=model_config.base_url,
-                expected_latency=2.0 if model_config.vendor == 'deepseek' else 3.0,
-                quality_score=1.0 if not model_config.is_reasoning else 1.2
-            )
-            
-            self.services[service_config.name] = ServiceHealthChecker(service_config)
-            self.service_order.append(service_config)
-        
-        # 按层级排序
-        self.service_order.sort(key=lambda x: x.tier.value)
-        
-        logger.info(f"✅ 初始化了 {len(self.services)} 个服务")
-        for config in self.service_order:
-            logger.info(f"   - {config.name} (层级: {config.tier.name})")
-        
-    async def initialize(self):
-        """初始化服务健康检查"""
-        logger.info("🔍 开始服务健康检查...")
-        
-        # 对所有服务进行健康检查
-        health_results = {}
-        for service_name, checker in self.services.items():
-            health_results[service_name] = await checker.health_check()
-        
-        # 选择最佳服务
-        self.current_service = self._select_best_service()
-        
-        if self.current_service:
-            logger.info(f"🎯 选择主要服务: {self.current_service}")
-        else:
-            logger.warning("⚠️ 没有找到可用的服务")
-    
-    def _select_best_service(self) -> Optional[str]:
-        """选择最佳服务"""
-        # 按优先级排序，选择健康的服务
-        for config in self.service_order:
-            checker = self.services[config.name]
-            if checker.status in [ServiceStatus.HEALTHY, ServiceStatus.DEGRADED]:
-                return config.name
-        
-        # 如果没有健康的服务，选择成功率最高的
-        available_services = [(name, checker) for name, checker in self.services.items()]
-        if available_services:
-            best_service = max(available_services, key=lambda x: x[1].metrics.get_success_rate())
-            return best_service[0]
-        
-        return None
-    
-    async def make_request(self, messages: List[Dict], **kwargs) -> Any:
-        """发送请求（带降级策略）"""
-        original_service = self.current_service
-        
-        # 尝试所有可用服务
-        for config in self.service_order:
-            service_name = config.name
-            checker = self.services[service_name]
-            
-            # 跳过离线服务
-            if checker.status == ServiceStatus.OFFLINE:
-                logger.debug(f"⏭️ 跳过离线服务: {service_name}")
-                continue
-            
-            try:
-                logger.info(f"🔄 尝试使用服务: {service_name}")
-                response = await checker.make_request(messages, **kwargs)
-                
-                # 如果使用了降级服务，记录降级事件
-                if service_name != original_service:
-                    self._record_fallback(original_service, service_name, "success")
-                    self.current_service = service_name
-                    logger.info(f"🔄 降级到服务: {service_name}")
-                
-                return response
-                
-            except Exception as e:
-                logger.warning(f"❌ 服务 {service_name} 请求失败: {str(e)}")
-                
-                # 记录降级事件
-                if service_name == original_service:
-                    self._record_fallback(original_service, None, "failure")
-                
-                continue
-        
-        # 所有服务都失败了
-        raise Exception("所有服务都不可用")
-    
-    def _record_fallback(self, from_service: Optional[str], to_service: Optional[str], reason: str):
-        """记录降级事件"""
-        event = {
-            "timestamp": datetime.now().isoformat(),
-            "from_service": from_service,
-            "to_service": to_service,
-            "reason": reason
-        }
-        self.fallback_history.append(event)
-        logger.info(f"📝 记录降级事件: {from_service} -> {to_service} ({reason})")
-    
-    def get_service_status(self) -> Dict[str, Any]:
-        """获取服务状态"""
-        status = {}
-        for name, checker in self.services.items():
-            status[name] = {
-                "status": checker.status.value,
-                "metrics": {
-                    "total_requests": checker.metrics.total_requests,
-                    "success_rate": checker.metrics.get_success_rate(),
-                    "average_latency": checker.metrics.get_average_latency(),
-                    "consecutive_failures": checker.metrics.consecutive_failures
-                }
-            }
-        return status
-    
-    def get_fallback_history(self) -> List[Dict]:
-        """获取降级历史"""
-        return self.fallback_history.copy()
+    }
 
-# 演示函数
+def get_primary_client():
+    """获取主要客户端"""
+    configs = get_client_configs()
+    
+    # 优先使用 DeepSeek
+    if configs['deepseek']['api_key']:
+        return HarborAI(
+            api_key=configs['deepseek']['api_key'],
+            base_url=configs['deepseek']['base_url']
+        ), "deepseek-chat"
+    
+    # 其次使用 Ernie
+    if configs['ernie']['api_key']:
+        return HarborAI(
+            api_key=configs['ernie']['api_key'],
+            base_url=configs['ernie']['base_url']
+        ), "ernie-3.5-8k"
+    
+    # 最后使用 Doubao
+    if configs['doubao']['api_key']:
+        return HarborAI(
+            api_key=configs['doubao']['api_key'],
+            base_url=configs['doubao']['base_url']
+        ), "doubao-1-5-pro-32k-character-250715"
+    
+    return None, None
+
 async def demo_basic_fallback():
-    """演示基础降级策略"""
-    print("\n🔄 基础降级策略演示")
+    """演示基本的降级策略"""
+    print("\n🔄 演示基本降级策略")
     print("=" * 50)
     
-    # 创建降级策略
-    strategy = FallbackStrategy()
-    await strategy.initialize()
+    client, primary_model = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key (DEEPSEEK_API_KEY, ERNIE_API_KEY, 或 DOUBAO_API_KEY)")
+        return
     
-    # 测试请求
-    test_messages = [
-        [{"role": "user", "content": "什么是人工智能？"}],
-        [{"role": "user", "content": "解释机器学习的概念"}],
-        [{"role": "user", "content": "深度学习有什么特点？"}]
+    messages = [
+        {"role": "user", "content": "请简单介绍一下机器学习"}
     ]
     
-    print(f"\n📝 发送 {len(test_messages)} 个测试请求...")
-    
-    for i, messages in enumerate(test_messages, 1):
-        try:
-            print(f"\n🔄 请求 {i}: {messages[0]['content']}")
-            response = await strategy.make_request(messages)
-            
-            if response and response.choices:
-                content = response.choices[0].message.content
-                print(f"✅ 响应: {content[:100]}...")
-            else:
-                print("✅ 请求成功，但无响应内容")
-                
-        except Exception as e:
-            print(f"❌ 请求失败: {str(e)}")
-    
-    # 显示服务状态
-    print(f"\n📊 服务状态:")
-    status = strategy.get_service_status()
-    for service_name, service_status in status.items():
-        print(f"   {service_name}:")
-        print(f"     状态: {service_status['status']}")
-        print(f"     成功率: {service_status['metrics']['success_rate']:.1%}")
-        print(f"     平均延迟: {service_status['metrics']['average_latency']:.2f}s")
-
-async def demo_service_failure_simulation():
-    """演示服务故障模拟"""
-    print("\n🚨 服务故障模拟演示")
-    print("=" * 50)
-    
-    strategy = FallbackStrategy()
-    await strategy.initialize()
-    
-    # 模拟主服务故障
-    if strategy.current_service:
-        current_checker = strategy.services[strategy.current_service]
-        print(f"🎯 当前主服务: {strategy.current_service}")
-        
-        # 人为增加失败次数来模拟故障
-        for _ in range(3):
-            current_checker.metrics.add_failure()
-        current_checker._update_status()
-        
-        print(f"💥 模拟 {strategy.current_service} 服务故障")
-        print(f"   状态变更为: {current_checker.status.value}")
-    
-    # 测试降级
-    test_message = [{"role": "user", "content": "在服务故障情况下，这个请求应该自动降级"}]
+    # 定义降级模型列表
+    fallback_models = ["deepseek-chat", "ernie-3.5-8k", "doubao-1-5-pro-32k-character-250715"]
     
     try:
-        print(f"\n🔄 发送测试请求...")
-        response = await strategy.make_request(test_message)
+        # 使用 HarborAI 内置的降级机制
+        response = await client.chat.completions.create(
+            model=primary_model,
+            messages=messages,
+            fallback=fallback_models,  # 内置降级策略
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 1.0,
+                "max_delay": 5.0
+            },
+            timeout=30.0
+        )
         
-        if response and response.choices:
-            print(f"✅ 降级成功，当前服务: {strategy.current_service}")
-            print(f"   响应: {response.choices[0].message.content[:100]}...")
+        print(f"✅ 调用成功")
+        print(f"🎯 使用模型: {primary_model}")
+        print(f"📝 响应: {response.choices[0].message.content[:100]}...")
+        print(f"🔢 Token 使用: {response.usage.total_tokens if response.usage else 'N/A'}")
         
     except Exception as e:
-        print(f"❌ 降级失败: {str(e)}")
-    
-    # 显示降级历史
-    history = strategy.get_fallback_history()
-    if history:
-        print(f"\n📝 降级历史:")
-        for event in history:
-            print(f"   {event['timestamp']}: {event['from_service']} -> {event['to_service']} ({event['reason']})")
+        print(f"❌ 所有降级选项都失败: {e}")
 
-async def demo_performance_monitoring():
-    """演示性能监控"""
-    print("\n📊 性能监控演示")
+async def demo_structured_output_fallback():
+    """演示结构化输出的降级策略"""
+    print("\n📊 演示结构化输出降级")
     print("=" * 50)
     
-    strategy = FallbackStrategy()
-    await strategy.initialize()
+    client, primary_model = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
     
-    # 发送多个请求来收集性能数据
-    test_requests = [
-        "什么是云计算？",
-        "解释区块链技术",
-        "人工智能的应用领域",
-        "机器学习算法分类",
-        "深度学习的优势"
+    messages = [
+        {"role": "user", "content": "分析一下特斯拉公司的商业模式"}
     ]
     
-    print(f"📝 发送 {len(test_requests)} 个请求收集性能数据...")
+    # 定义结构化输出 schema
+    schema = {
+        "type": "object",
+        "properties": {
+            "company": {"type": "string"},
+            "business_model": {"type": "string"},
+            "revenue_streams": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "competitive_advantages": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "risks": {
+                "type": "array",
+                "items": {"type": "string"}
+            }
+        },
+        "required": ["company", "business_model", "revenue_streams"],
+        "additionalProperties": False
+    }
     
-    for i, prompt in enumerate(test_requests, 1):
+    try:
+        response = await client.chat.completions.create(
+            model=primary_model,
+            messages=messages,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "BusinessAnalysis",
+                    "schema": schema,
+                    "strict": True
+                }
+            },
+            fallback=["deepseek-chat", "ernie-3.5-8k"],  # 降级策略
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 1.0,
+                "max_delay": 10.0
+            },
+            timeout=45.0
+        )
+        
+        print(f"✅ 结构化输出成功")
+        print(f"🎯 使用模型: {primary_model}")
+        print(f"📊 解析结果: {response.parsed}")
+        
+    except Exception as e:
+        print(f"❌ 结构化输出降级失败: {e}")
+
+async def demo_reasoning_model_fallback():
+    """演示推理模型的降级策略"""
+    print("\n🧠 演示推理模型降级")
+    print("=" * 50)
+    
+    client, _ = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
+    
+    messages = [
+        {"role": "user", "content": "请分析区块链技术的发展前景和挑战"}
+    ]
+    
+    try:
+        # 尝试使用推理模型，失败时降级到普通模型
+        response = await client.chat.completions.create(
+            model="deepseek-reasoner",  # 主要使用推理模型
+            messages=messages,
+            fallback=["deepseek-chat", "ernie-3.5-8k"],  # 降级到普通模型
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 2.0,
+                "max_delay": 15.0
+            },
+            timeout=90.0
+        )
+        
+        print(f"✅ 推理模型调用成功")
+        print(f"💭 最终答案: {response.choices[0].message.content[:150]}...")
+        
+        # 检查是否有思考过程
+        if hasattr(response.choices[0].message, 'reasoning_content'):
+            reasoning = response.choices[0].message.reasoning_content
+            print(f"🤔 思考过程: {reasoning[:100] if reasoning else 'N/A'}...")
+        else:
+            print("💡 使用了普通模型（无思考过程）")
+        
+    except Exception as e:
+        print(f"❌ 推理模型降级失败: {e}")
+
+async def demo_stream_fallback():
+    """演示流式调用的降级策略"""
+    print("\n🌊 演示流式调用降级")
+    print("=" * 50)
+    
+    client, primary_model = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
+    
+    messages = [
+        {"role": "user", "content": "请详细解释深度学习的工作原理"}
+    ]
+    
+    try:
+        print("📡 开始流式响应:")
+        
+        stream = await client.chat.completions.create(
+            model=primary_model,
+            messages=messages,
+            stream=True,
+            fallback=["deepseek-chat", "ernie-3.5-8k"],  # 流式调用也支持降级
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 1.0,
+                "max_delay": 8.0
+            },
+            timeout=60.0
+        )
+        
+        content_parts = []
+        async for chunk in stream:
+            if chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                content_parts.append(content)
+                print(content, end="", flush=True)
+        
+        print(f"\n✅ 流式调用完成，共接收 {len(content_parts)} 个片段")
+        print(f"🎯 使用模型: {primary_model}")
+        
+    except Exception as e:
+        print(f"❌ 流式调用降级失败: {e}")
+
+async def demo_cost_aware_fallback():
+    """演示成本感知的降级策略"""
+    print("\n💰 演示成本感知降级")
+    print("=" * 50)
+    
+    client, _ = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
+    
+    messages = [
+        {"role": "user", "content": "请写一首关于春天的诗"}
+    ]
+    
+    # 按成本从高到低排列的模型（示例）
+    cost_ordered_models = [
+        "ernie-4.0-turbo-8k",  # 高性能高成本
+        "deepseek-chat",       # 中等性能中等成本
+        "ernie-3.5-8k"         # 基础性能低成本
+    ]
+    
+    try:
+        start_time = time.time()
+        
+        response = await client.chat.completions.create(
+            model=cost_ordered_models[0],  # 优先使用高性能模型
+            messages=messages,
+            fallback=cost_ordered_models[1:],  # 按成本降级
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 1.0,
+                "max_delay": 8.0
+            },
+            timeout=30.0,
+            cost_tracking=True  # 启用成本追踪
+        )
+        
+        elapsed = time.time() - start_time
+        
+        print(f"✅ 成本感知调用成功")
+        print(f"⏱️ 响应时间: {elapsed:.2f}秒")
+        print(f"📝 响应: {response.choices[0].message.content[:100]}...")
+        print(f"🔢 Token 使用: {response.usage.total_tokens if response.usage else 'N/A'}")
+        
+    except Exception as e:
+        print(f"❌ 成本感知降级失败: {e}")
+
+async def demo_intelligent_fallback():
+    """演示智能降级策略"""
+    print("\n🤖 演示智能降级策略")
+    print("=" * 50)
+    
+    client, primary_model = get_primary_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
+    
+    # 不同类型的任务使用不同的降级策略
+    tasks = [
+        {
+            "name": "创意写作",
+            "messages": [{"role": "user", "content": "写一个科幻小说的开头"}],
+            "fallback": ["deepseek-chat", "ernie-4.0-turbo-8k"],  # 创意任务优先高质量模型
+            "timeout": 45.0
+        },
+        {
+            "name": "简单问答",
+            "messages": [{"role": "user", "content": "什么是人工智能？"}],
+            "fallback": ["ernie-3.5-8k", "deepseek-chat"],  # 简单任务优先低成本模型
+            "timeout": 20.0
+        },
+        {
+            "name": "技术分析",
+            "messages": [{"role": "user", "content": "分析Python和Java的性能差异"}],
+            "fallback": ["deepseek-chat", "ernie-4.0-turbo-8k"],  # 技术任务需要专业模型
+            "timeout": 60.0
+        }
+    ]
+    
+    for task in tasks:
+        print(f"\n🎯 任务: {task['name']}")
         try:
-            messages = [{"role": "user", "content": prompt}]
             start_time = time.time()
             
-            response = await strategy.make_request(messages)
+            response = await client.chat.completions.create(
+                model=primary_model,
+                messages=task['messages'],
+                fallback=task['fallback'],
+                retry_policy={
+                    "max_attempts": 2,
+                    "base_delay": 1.0,
+                    "max_delay": 10.0
+                },
+                timeout=task['timeout']
+            )
             
             elapsed = time.time() - start_time
-            print(f"   请求 {i}: {elapsed:.2f}s")
+            
+            print(f"   ✅ 成功 - 耗时: {elapsed:.2f}秒")
+            print(f"   📝 响应: {response.choices[0].message.content[:80]}...")
             
         except Exception as e:
-            print(f"   请求 {i}: 失败 - {str(e)}")
-        
-        # 短暂延迟
-        await asyncio.sleep(0.5)
-    
-    # 显示详细性能统计
-    print(f"\n📊 详细性能统计:")
-    status = strategy.get_service_status()
-    
-    for service_name, service_status in status.items():
-        metrics = service_status['metrics']
-        print(f"\n   {service_name}:")
-        print(f"     总请求数: {metrics['total_requests']}")
-        print(f"     成功率: {metrics['success_rate']:.1%}")
-        print(f"     平均延迟: {metrics['average_latency']:.2f}s")
-        print(f"     连续失败: {metrics['consecutive_failures']}")
+            print(f"   ❌ 失败: {str(e)[:50]}...")
 
-async def demo_adaptive_strategy():
-    """演示自适应策略"""
-    print("\n🧠 自适应策略演示")
+async def demo_fallback_with_different_providers():
+    """演示跨厂商降级策略"""
+    print("\n🌐 演示跨厂商降级")
     print("=" * 50)
     
-    strategy = FallbackStrategy()
-    await strategy.initialize()
+    configs = get_client_configs()
+    available_providers = []
     
-    print("🔄 测试自适应服务选择...")
+    # 检查可用的厂商
+    for provider, config in configs.items():
+        if config['api_key']:
+            available_providers.append(provider)
     
-    # 模拟不同类型的请求
-    request_types = [
-        ("简单问答", "什么是AI？"),
-        ("复杂分析", "分析人工智能对未来社会的影响，包括技术、经济、伦理等多个维度"),
-        ("创意生成", "写一首关于科技发展的诗"),
-        ("代码解释", "解释Python中的装饰器概念"),
-        ("翻译任务", "将'Hello World'翻译成中文")
+    if len(available_providers) < 2:
+        print("❌ 需要至少配置两个厂商的 API Key 才能演示跨厂商降级")
+        print("请设置 DEEPSEEK_API_KEY, ERNIE_API_KEY, 或 DOUBAO_API_KEY")
+        return
+    
+    print(f"🔍 检测到可用厂商: {', '.join(available_providers)}")
+    
+    # 使用第一个可用的厂商作为主要客户端
+    primary_config = configs[available_providers[0]]
+    client = HarborAI(
+        api_key=primary_config['api_key'],
+        base_url=primary_config['base_url']
+    )
+    
+    messages = [
+        {"role": "user", "content": "请解释云计算的基本概念"}
     ]
     
-    for request_type, prompt in request_types:
-        print(f"\n📝 {request_type}: {prompt}")
+    # 构建跨厂商降级策略
+    provider_models = {
+        'deepseek': 'deepseek-chat',
+        'ernie': 'ernie-3.5-8k',
+        'doubao': 'doubao-1-5-pro-32k-character-250715'
+    }
+    
+    fallback_models = [provider_models[provider] for provider in available_providers[1:]]
+    
+    try:
+        response = await client.chat.completions.create(
+            model=provider_models[available_providers[0]],
+            messages=messages,
+            fallback=fallback_models,  # 跨厂商降级
+            retry_policy={
+                "max_attempts": 2,
+                "base_delay": 1.0,
+                "max_delay": 8.0
+            },
+            timeout=30.0
+        )
         
-        try:
-            messages = [{"role": "user", "content": prompt}]
-            response = await strategy.make_request(messages)
-            
-            if response and response.choices:
-                print(f"✅ 使用服务: {strategy.current_service}")
-                print(f"   响应长度: {len(response.choices[0].message.content)} 字符")
-            
-        except Exception as e:
-            print(f"❌ 请求失败: {str(e)}")
+        print(f"✅ 跨厂商调用成功")
+        print(f"🎯 主要厂商: {available_providers[0]}")
+        print(f"🔄 降级选项: {', '.join(available_providers[1:])}")
+        print(f"📝 响应: {response.choices[0].message.content[:100]}...")
         
-        await asyncio.sleep(1)
+    except Exception as e:
+        print(f"❌ 跨厂商降级失败: {e}")
 
 async def main():
-    """主演示函数"""
+    """主函数"""
     print("🔄 HarborAI 降级策略演示")
     print("=" * 60)
     
-    # 显示可用模型配置
-    print_available_models()
+    # 检查环境变量
+    configs = get_client_configs()
+    available_keys = [k for k, v in configs.items() if v['api_key']]
     
-    try:
-        # 基础降级策略演示
-        await demo_basic_fallback()
-        
-        # 服务故障模拟演示
-        await demo_service_failure_simulation()
-        
-        # 性能监控演示
-        await demo_performance_monitoring()
-        
-        # 自适应策略演示
-        await demo_adaptive_strategy()
-        
-        print("\n✅ 所有演示完成！")
-        print("\n💡 生产环境建议:")
-        print("   1. 实施实时健康检查和监控")
-        print("   2. 配置合理的降级阈值")
-        print("   3. 建立告警机制")
-        print("   4. 定期评估服务性能")
-        print("   5. 实现智能路由策略")
-        
-    except Exception as e:
-        print(f"❌ 演示过程中出现错误: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    if not available_keys:
+        print("⚠️ 警告: 未设置任何 API Key")
+        print("请设置 DEEPSEEK_API_KEY, ERNIE_API_KEY, 或 DOUBAO_API_KEY")
+        return
+    
+    print(f"🔍 检测到可用配置: {', '.join(available_keys)}")
+    
+    demos = [
+        ("基本降级策略", demo_basic_fallback),
+        ("结构化输出降级", demo_structured_output_fallback),
+        ("推理模型降级", demo_reasoning_model_fallback),
+        ("流式调用降级", demo_stream_fallback),
+        ("成本感知降级", demo_cost_aware_fallback),
+        ("智能降级策略", demo_intelligent_fallback),
+        ("跨厂商降级", demo_fallback_with_different_providers)
+    ]
+    
+    for name, demo_func in demos:
+        try:
+            await demo_func()
+            await asyncio.sleep(1)  # 避免请求过于频繁
+        except Exception as e:
+            print(f"❌ {name} 演示失败: {e}")
+    
+    print("\n🎉 降级策略演示完成！")
+    print("\n💡 关键要点:")
+    print("1. 使用 fallback 参数配置降级模型列表")
+    print("2. 支持结构化输出和推理模型的降级")
+    print("3. 流式调用也支持降级机制")
+    print("4. 可以根据任务类型选择不同的降级策略")
+    print("5. 支持跨厂商的降级策略")
+    print("6. 结合 retry_policy 实现更强的容错能力")
 
 if __name__ == "__main__":
-    # 运行演示
     asyncio.run(main())

@@ -1,46 +1,37 @@
 #!/usr/bin/env python3
 """
-批量处理优化演示
+批处理优化演示
 
-这个示例展示了 HarborAI 的批量处理优化功能，包括：
-1. 批量请求聚合
-2. 并发控制
-3. 内存优化
-4. 进度跟踪
-5. 结果分发
+这个示例展示了 HarborAI 的批处理优化功能，包括：
+1. 原生异步批处理
+2. 并发控制和限流
+3. 结构化输出的批处理
+4. 推理模型的批处理
+5. 流式批处理
+6. 错误处理和重试
 
 场景：
-- 大量文本需要批量处理（翻译、摘要、分析等）
-- 需要控制并发数量避免API限制
-- 需要监控内存使用避免OOM
-- 需要实时跟踪处理进度
+- 需要处理大量文本数据
+- 批量生成结构化内容
+- 并发调用多个AI服务
+- 优化处理速度和资源使用
 
 价值：
-- 提高处理效率（批量+并发）
-- 降低API调用成本
-- 提供可靠的错误恢复机制
-- 实时监控和进度反馈
+- 使用 HarborAI 原生异步支持，性能更优
+- 智能并发控制，避免API限流
+- 统一的错误处理和重试机制
+- 支持多种输出格式的批处理
 """
 
 import asyncio
 import time
-import psutil
-import json
-from datetime import datetime
-from enum import Enum
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Any, Optional, Callable, Union
-from concurrent.futures import ThreadPoolExecutor
 import logging
-
-# 导入配置助手
-from config_helper import get_primary_model_config, get_fallback_models, print_available_models
-
-# 导入 HarborAI
-import sys
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
+import json
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+# 正确的 HarborAI 导入方式
 from harborai import HarborAI
 
 # 配置日志
@@ -50,502 +41,612 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class BatchStatus(Enum):
-    """批次状态"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-class ProcessingMode(Enum):
-    """处理模式"""
-    SEQUENTIAL = "sequential"  # 顺序处理
-    CONCURRENT = "concurrent"  # 并发处理
-    ADAPTIVE = "adaptive"      # 自适应处理
-
-@dataclass
-class BatchConfig:
-    """批量处理配置"""
-    batch_size: int = 10           # 批次大小
-    max_concurrent: int = 5        # 最大并发数
-    memory_limit_mb: int = 1024    # 内存限制（MB）
-    timeout_seconds: int = 90      # 请求超时时间
-    retry_attempts: int = 3        # 重试次数
-    processing_mode: ProcessingMode = ProcessingMode.CONCURRENT
-    enable_progress_callback: bool = True
-
-@dataclass
-class RequestItem:
-    """请求项"""
-    id: str
-    prompt: str
-    model: Optional[str] = None
-    temperature: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
-
-@dataclass
-class BatchResult:
-    """批次结果"""
-    request_id: str
-    success: bool
-    response: Optional[str] = None
-    error: Optional[str] = None
-    processing_time: float = 0.0
-    model_used: Optional[str] = None
-    tokens_used: Optional[int] = None
-
-class MemoryMonitor:
-    """内存监控器"""
+def get_client():
+    """获取 HarborAI 客户端"""
+    # 优先使用 DeepSeek
+    if os.getenv('DEEPSEEK_API_KEY'):
+        return HarborAI(
+            api_key=os.getenv('DEEPSEEK_API_KEY'),
+            base_url=os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com')
+        ), "deepseek-chat"
     
-    def __init__(self, limit_mb: int = 1024):
-        self.limit_mb = limit_mb
-        self.process = psutil.Process()
+    # 其次使用 Ernie
+    if os.getenv('ERNIE_API_KEY'):
+        return HarborAI(
+            api_key=os.getenv('ERNIE_API_KEY'),
+            base_url=os.getenv('ERNIE_BASE_URL', 'https://aip.baidubce.com')
+        ), "ernie-3.5-8k"
     
-    def get_memory_usage_mb(self) -> float:
-        """获取当前内存使用量（MB）"""
-        return self.process.memory_info().rss / 1024 / 1024
+    # 最后使用 Doubao
+    if os.getenv('DOUBAO_API_KEY'):
+        return HarborAI(
+            api_key=os.getenv('DOUBAO_API_KEY'),
+            base_url=os.getenv('DOUBAO_BASE_URL', 'https://ark.cn-beijing.volces.com')
+        ), "doubao-1-5-pro-32k-character-250715"
     
-    def is_memory_available(self, required_mb: float = 100) -> bool:
-        """检查是否有足够内存"""
-        current_usage = self.get_memory_usage_mb()
-        return (current_usage + required_mb) <= self.limit_mb
-    
-    def get_memory_stats(self) -> Dict[str, float]:
-        """获取内存统计"""
-        current = self.get_memory_usage_mb()
-        return {
-            "current_mb": current,
-            "limit_mb": self.limit_mb,
-            "usage_percent": (current / self.limit_mb) * 100,
-            "available_mb": self.limit_mb - current
-        }
+    return None, None
 
 class BatchProcessor:
-    """批量处理器"""
+    """批处理器"""
     
-    def __init__(self, config: BatchConfig):
-        self.config = config
-        self.memory_monitor = MemoryMonitor(config.memory_limit_mb)
-        self.results: List[BatchResult] = []
-        self.failed_requests: List[RequestItem] = []
-        self.processing_stats = {
-            "total_requests": 0,
-            "completed_requests": 0,
-            "failed_requests": 0,
-            "total_processing_time": 0.0,
-            "average_processing_time": 0.0,
-            "memory_peak_mb": 0.0
-        }
+    def __init__(self, max_concurrent: int = 5, delay_between_batches: float = 1.0):
+        self.client, self.model = get_client()
+        if not self.client:
+            raise ValueError("请至少设置一个 API Key (DEEPSEEK_API_KEY, ERNIE_API_KEY, 或 DOUBAO_API_KEY)")
         
-        # 初始化 HarborAI 客户端
-        model_config = get_primary_model_config()
-        if not model_config:
-            raise ValueError("没有找到可用的模型配置，请检查环境变量设置")
+        self.max_concurrent = max_concurrent
+        self.delay_between_batches = delay_between_batches
+        self.semaphore = asyncio.Semaphore(max_concurrent)
         
-        self.client = HarborAI()
-        self.primary_model = model_config.model
-        self.fallback_models = get_fallback_models()
-        
-        logger.info(f"✅ 批量处理器初始化完成")
-        logger.info(f"   主要模型: {self.primary_model}")
-        logger.info(f"   降级模型: {', '.join(self.fallback_models[1:]) if len(self.fallback_models) > 1 else '无'}")
-        logger.info(f"   批次大小: {config.batch_size}")
-        logger.info(f"   最大并发: {config.max_concurrent}")
-        logger.info(f"   内存限制: {config.memory_limit_mb}MB")
+        # 统计信息
+        self.total_requests = 0
+        self.successful_requests = 0
+        self.failed_requests = 0
+        self.total_tokens = 0
+        self.start_time = None
     
-    def add_request(self, request: RequestItem) -> None:
-        """添加请求到处理队列"""
-        if not request.model:
-            request.model = self.primary_model
-        
-        self.processing_stats["total_requests"] += 1
-        logger.debug(f"添加请求: {request.id}")
-    
-    def _create_batch(self, requests: List[RequestItem]) -> List[List[RequestItem]]:
-        """创建批次"""
-        batches = []
-        for i in range(0, len(requests), self.config.batch_size):
-            batch = requests[i:i + self.config.batch_size]
-            batches.append(batch)
-        
-        logger.info(f"创建了 {len(batches)} 个批次，总共 {len(requests)} 个请求")
-        return batches
-    
-    async def _process_batch(self, batch: List[RequestItem], batch_index: int) -> List[BatchResult]:
-        """处理单个批次"""
-        logger.info(f"开始处理批次 {batch_index + 1}，包含 {len(batch)} 个请求")
-        
-        # 检查内存
-        if not self.memory_monitor.is_memory_available():
-            logger.warning(f"内存不足，跳过批次 {batch_index + 1}")
-            return [
-                BatchResult(
-                    request_id=req.id,
-                    success=False,
-                    error="内存不足",
-                    processing_time=0.0
-                ) for req in batch
-            ]
-        
-        # 并发处理批次中的请求
-        if self.config.processing_mode == ProcessingMode.CONCURRENT:
-            semaphore = asyncio.Semaphore(self.config.max_concurrent)
-            tasks = [
-                self._process_single_request(request, semaphore)
-                for request in batch
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        else:
-            # 顺序处理
-            results = []
-            for request in batch:
-                result = await self._process_single_request(request)
-                results.append(result)
-        
-        # 处理异常结果
-        batch_results = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                batch_results.append(BatchResult(
-                    request_id=batch[i].id,
-                    success=False,
-                    error=str(result),
-                    processing_time=0.0
-                ))
-            else:
-                batch_results.append(result)
-        
-        # 更新内存峰值
-        current_memory = self.memory_monitor.get_memory_usage_mb()
-        if current_memory > self.processing_stats["memory_peak_mb"]:
-            self.processing_stats["memory_peak_mb"] = current_memory
-        
-        logger.info(f"批次 {batch_index + 1} 处理完成")
-        return batch_results
-    
-    async def _process_single_request(self, request: RequestItem, semaphore: Optional[asyncio.Semaphore] = None) -> BatchResult:
+    async def process_single_request(self, messages: List[Dict], **kwargs) -> Tuple[bool, Any, str]:
         """处理单个请求"""
-        if semaphore:
-            async with semaphore:
-                return await self._do_process_request(request)
-        else:
-            return await self._do_process_request(request)
+        async with self.semaphore:
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    fallback=["deepseek-chat", "ernie-3.5-8k"],
+                    retry_policy={
+                        "max_attempts": 2,
+                        "base_delay": 1.0,
+                        "max_delay": 5.0
+                    },
+                    timeout=30.0,
+                    **kwargs
+                )
+                
+                self.successful_requests += 1
+                if response.usage:
+                    self.total_tokens += response.usage.total_tokens
+                
+                return True, response, ""
+                
+            except Exception as e:
+                self.failed_requests += 1
+                error_msg = str(e)
+                logger.warning(f"请求失败: {error_msg}")
+                return False, None, error_msg
+            finally:
+                self.total_requests += 1
     
-    async def _do_process_request(self, request: RequestItem) -> BatchResult:
-        """执行单个请求处理"""
-        start_time = time.time()
+    async def process_batch(self, batch_data: List[Dict], **kwargs) -> List[Dict]:
+        """处理一批请求"""
+        if self.start_time is None:
+            self.start_time = time.time()
         
-        try:
-            # 构建请求参数
-            request_params = {
-                "model": request.model or self.primary_model,
-                "messages": [{"role": "user", "content": request.prompt}],
-                "temperature": request.temperature or 0.7,
-                "timeout": self.config.timeout_seconds
-            }
-            
-            # 发送请求（在线程池中运行同步方法）
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create, 
-                **request_params
-            )
-            
-            processing_time = time.time() - start_time
-            
-            # 提取响应内容
-            content = response.choices[0].message.content if response.choices else "无响应内容"
-            tokens_used = response.usage.total_tokens if hasattr(response, 'usage') and response.usage else 0
-            
-            result = BatchResult(
-                request_id=request.id,
-                success=True,
-                response=content,
-                processing_time=processing_time,
-                model_used=request_params["model"],
-                tokens_used=tokens_used
-            )
-            
-            self.processing_stats["completed_requests"] += 1
-            self.processing_stats["total_processing_time"] += processing_time
-            
-            logger.debug(f"请求 {request.id} 处理成功，耗时 {processing_time:.2f}s")
-            return result
-            
-        except Exception as e:
-            processing_time = time.time() - start_time
-            error_msg = str(e)
-            
-            result = BatchResult(
-                request_id=request.id,
-                success=False,
-                error=error_msg,
-                processing_time=processing_time,
-                model_used=request.model
-            )
-            
-            self.processing_stats["failed_requests"] += 1
-            self.failed_requests.append(request)
-            
-            logger.error(f"请求 {request.id} 处理失败: {error_msg}")
-            return result
-    
-    async def process_all(self, requests: List[RequestItem], 
-                         progress_callback: Optional[Callable[[int, int], None]] = None) -> List[BatchResult]:
-        """处理所有请求"""
-        logger.info(f"开始批量处理 {len(requests)} 个请求")
-        start_time = time.time()
+        # 创建异步任务
+        tasks = []
+        for item in batch_data:
+            messages = item.get('messages', [])
+            task = self.process_single_request(messages, **kwargs)
+            tasks.append(task)
         
-        # 创建批次
-        batches = self._create_batch(requests)
-        all_results = []
+        # 并发执行
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # 处理每个批次
-        for i, batch in enumerate(batches):
-            batch_results = await self._process_batch(batch, i)
-            all_results.extend(batch_results)
-            
-            # 进度回调
-            if progress_callback and self.config.enable_progress_callback:
-                completed = (i + 1) * self.config.batch_size
-                total = len(requests)
-                progress_callback(min(completed, total), total)
+        # 处理结果
+        processed_results = []
+        for i, (item, result) in enumerate(zip(batch_data, results)):
+            if isinstance(result, Exception):
+                processed_results.append({
+                    'index': i,
+                    'input': item,
+                    'success': False,
+                    'error': str(result),
+                    'response': None
+                })
+            else:
+                success, response, error = result
+                processed_results.append({
+                    'index': i,
+                    'input': item,
+                    'success': success,
+                    'error': error,
+                    'response': response
+                })
         
-        # 更新统计信息
-        total_time = time.time() - start_time
-        if self.processing_stats["completed_requests"] > 0:
-            self.processing_stats["average_processing_time"] = (
-                self.processing_stats["total_processing_time"] / 
-                self.processing_stats["completed_requests"]
-            )
-        
-        logger.info(f"批量处理完成，总耗时 {total_time:.2f}s")
-        logger.info(f"成功: {self.processing_stats['completed_requests']}, "
-                   f"失败: {self.processing_stats['failed_requests']}")
-        
-        self.results = all_results
-        return all_results
+        return processed_results
     
     def get_statistics(self) -> Dict[str, Any]:
-        """获取处理统计信息"""
-        memory_stats = self.memory_monitor.get_memory_stats()
+        """获取统计信息"""
+        elapsed = time.time() - self.start_time if self.start_time else 0
         
         return {
-            "processing_stats": self.processing_stats,
-            "memory_stats": memory_stats,
-            "success_rate": (
-                self.processing_stats["completed_requests"] / 
-                max(self.processing_stats["total_requests"], 1)
-            ) * 100,
-            "failed_requests_count": len(self.failed_requests)
+            'total_requests': self.total_requests,
+            'successful_requests': self.successful_requests,
+            'failed_requests': self.failed_requests,
+            'success_rate': self.successful_requests / max(self.total_requests, 1),
+            'total_tokens': self.total_tokens,
+            'elapsed_time': elapsed,
+            'requests_per_second': self.total_requests / max(elapsed, 1),
+            'tokens_per_second': self.total_tokens / max(elapsed, 1)
         }
 
-# 演示函数
 async def demo_basic_batch_processing():
-    """演示基础批量处理"""
-    print("\n📦 基础批量处理演示")
+    """演示基本批处理"""
+    print("\n🔄 演示基本批处理")
     print("=" * 50)
     
-    # 创建批量处理器
-    config = BatchConfig(
-        batch_size=5,
-        max_concurrent=3,
-        timeout_seconds=90,
-        memory_limit_mb=512
-    )
-    processor = BatchProcessor(config)
-    
-    # 准备测试请求
-    test_requests = [
-        RequestItem(id=f"req_{i+1}", prompt=f"用一句话解释{topic}（不超过20字）")
-        for i, topic in enumerate([
-            "人工智能", "机器学习", "深度学习", "自然语言处理", 
-            "计算机视觉", "强化学习", "神经网络", "大语言模型"
-        ])
+    # 准备批处理数据
+    batch_data = [
+        {'messages': [{'role': 'user', 'content': '什么是人工智能？'}]},
+        {'messages': [{'role': 'user', 'content': '解释机器学习的概念'}]},
+        {'messages': [{'role': 'user', 'content': '深度学习有什么特点？'}]},
+        {'messages': [{'role': 'user', 'content': '自然语言处理的应用'}]},
+        {'messages': [{'role': 'user', 'content': '计算机视觉技术介绍'}]}
     ]
     
-    print(f"✅ 准备处理 {len(test_requests)} 个请求")
+    processor = BatchProcessor(max_concurrent=3)
     
-    # 进度回调函数
-    def progress_callback(completed: int, total: int):
-        progress = completed / total * 100
-        print(f"🔄 处理进度: {progress:.1f}% ({completed}/{total})")
-    
-    # 开始处理
+    print(f"📝 处理 {len(batch_data)} 个请求...")
     start_time = time.time()
-    results = await processor.process_all(test_requests, progress_callback)
-    end_time = time.time()
+    
+    results = await processor.process_batch(batch_data)
+    
+    elapsed = time.time() - start_time
     
     # 显示结果
-    print(f"\n📊 处理结果:")
-    print(f"   - 总处理时间: {end_time - start_time:.2f}s")
-    print(f"   - 成功请求: {sum(1 for r in results if r.success)}")
-    print(f"   - 失败请求: {sum(1 for r in results if not r.success)}")
+    print(f"\n✅ 批处理完成，耗时: {elapsed:.2f}秒")
+    
+    for result in results:
+        if result['success']:
+            content = result['response'].choices[0].message.content[:50] if result['response'] else "无内容"
+            print(f"   ✅ 请求 {result['index'] + 1}: {content}...")
+        else:
+            print(f"   ❌ 请求 {result['index'] + 1}: {result['error']}")
     
     # 显示统计信息
     stats = processor.get_statistics()
-    print(f"   - 成功率: {stats['success_rate']:.1f}%")
-    print(f"   - 平均处理时间: {stats['processing_stats']['average_processing_time']:.2f}s")
-    print(f"   - 内存峰值: {stats['memory_stats']['current_mb']:.1f}MB")
+    print(f"\n📊 统计信息:")
+    print(f"   成功率: {stats['success_rate']:.1%}")
+    print(f"   总Token: {stats['total_tokens']}")
+    print(f"   请求/秒: {stats['requests_per_second']:.2f}")
 
-async def demo_concurrent_vs_sequential():
-    """演示并发与顺序处理的性能对比"""
-    print("\n⚡ 并发 vs 顺序处理对比")
+async def demo_structured_batch_processing():
+    """演示结构化输出的批处理"""
+    print("\n📊 演示结构化输出批处理")
     print("=" * 50)
     
-    # 准备测试数据
-    test_requests = [
-        RequestItem(id=f"req_{i+1}", prompt=f"简单回答：什么是概念{i+1}？")
-        for i in range(6)
+    # 定义结构化输出 schema
+    schema = {
+        "type": "object",
+        "properties": {
+            "topic": {"type": "string"},
+            "summary": {"type": "string"},
+            "key_points": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "difficulty": {
+                "type": "string",
+                "enum": ["初级", "中级", "高级"]
+            }
+        },
+        "required": ["topic", "summary", "key_points", "difficulty"],
+        "additionalProperties": False
+    }
+    
+    # 准备批处理数据
+    topics = [
+        "Python编程基础",
+        "数据结构与算法",
+        "Web开发框架",
+        "数据库设计",
+        "云计算架构"
     ]
     
-    # 1. 顺序处理
-    print("🔄 顺序处理测试...")
-    sequential_config = BatchConfig(
-        batch_size=1,
-        max_concurrent=1,
-        processing_mode=ProcessingMode.SEQUENTIAL
+    batch_data = []
+    for topic in topics:
+        batch_data.append({
+            'messages': [
+                {'role': 'user', 'content': f'请分析"{topic}"这个技术主题'}
+            ]
+        })
+    
+    processor = BatchProcessor(max_concurrent=2)
+    
+    print(f"📝 处理 {len(batch_data)} 个结构化输出请求...")
+    
+    results = await processor.process_batch(
+        batch_data,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "TopicAnalysis",
+                "schema": schema,
+                "strict": True
+            }
+        }
     )
-    sequential_processor = BatchProcessor(sequential_config)
     
-    sequential_start = time.time()
-    sequential_results = await sequential_processor.process_all(test_requests[:3])
-    sequential_time = time.time() - sequential_start
+    # 显示结果
+    print(f"\n✅ 结构化批处理完成")
     
-    # 2. 并发处理
-    print("🔄 并发处理测试...")
-    concurrent_config = BatchConfig(
-        batch_size=3,
-        max_concurrent=3,
-        processing_mode=ProcessingMode.CONCURRENT
-    )
-    concurrent_processor = BatchProcessor(concurrent_config)
-    
-    concurrent_start = time.time()
-    concurrent_results = await concurrent_processor.process_all(test_requests[:3])
-    concurrent_time = time.time() - concurrent_start
-    
-    # 性能对比
-    print(f"\n📊 性能对比结果:")
-    print(f"   顺序处理:")
-    print(f"     - 处理时间: {sequential_time:.2f}s")
-    print(f"     - 成功数量: {sum(1 for r in sequential_results if r.success)}")
-    
-    print(f"   并发处理:")
-    print(f"     - 处理时间: {concurrent_time:.2f}s")
-    print(f"     - 成功数量: {sum(1 for r in concurrent_results if r.success)}")
-    
-    if sequential_time > 0 and concurrent_time > 0:
-        speedup = sequential_time / concurrent_time
-        print(f"   性能提升: {speedup:.2f}x")
+    for result in results:
+        if result['success'] and result['response']:
+            parsed = result['response'].parsed
+            if parsed:
+                print(f"\n   📋 主题: {parsed.get('topic', 'N/A')}")
+                print(f"      难度: {parsed.get('difficulty', 'N/A')}")
+                print(f"      要点: {len(parsed.get('key_points', []))} 个")
+            else:
+                print(f"   ⚠️ 请求 {result['index'] + 1}: 解析失败")
+        else:
+            print(f"   ❌ 请求 {result['index'] + 1}: {result['error']}")
 
-async def demo_memory_monitoring():
-    """演示内存监控"""
-    print("\n🧠 内存监控演示")
+async def demo_reasoning_batch_processing():
+    """演示推理模型的批处理"""
+    print("\n🧠 演示推理模型批处理")
     print("=" * 50)
     
-    # 创建内存监控器
-    memory_monitor = MemoryMonitor(limit_mb=256)
-    
-    # 显示初始内存状态
-    initial_stats = memory_monitor.get_memory_stats()
-    print(f"📊 初始内存状态:")
-    print(f"   - 当前使用: {initial_stats['current_mb']:.1f}MB")
-    print(f"   - 内存限制: {initial_stats['limit_mb']:.1f}MB")
-    print(f"   - 使用率: {initial_stats['usage_percent']:.1f}%")
-    
-    # 创建处理器
-    config = BatchConfig(
-        batch_size=3,
-        max_concurrent=2,
-        memory_limit_mb=256
-    )
-    processor = BatchProcessor(config)
-    
-    # 添加请求
-    test_requests = [
-        RequestItem(id=f"req_{i+1}", prompt=f"简短回答问题{i+1}")
-        for i in range(6)
+    # 准备需要深度思考的问题
+    complex_questions = [
+        "如何设计一个高可用的分布式系统？",
+        "人工智能对就业市场的长期影响是什么？",
+        "区块链技术在金融领域的应用前景如何？"
     ]
     
-    # 处理并监控内存
-    await processor.process_all(test_requests)
+    batch_data = []
+    for question in complex_questions:
+        batch_data.append({
+            'messages': [
+                {'role': 'user', 'content': question}
+            ]
+        })
     
-    # 显示最终内存状态
-    final_stats = processor.get_statistics()['memory_stats']
-    print(f"\n📊 最终内存状态:")
-    print(f"   - 当前使用: {final_stats['current_mb']:.1f}MB")
-    print(f"   - 内存峰值: {processor.processing_stats['memory_peak_mb']:.1f}MB")
+    # 创建支持推理模型的处理器
+    processor = BatchProcessor(max_concurrent=2)
+    
+    # 尝试使用推理模型
+    if os.getenv('DEEPSEEK_API_KEY'):
+        processor.model = "deepseek-reasoner"
+    
+    print(f"📝 处理 {len(batch_data)} 个复杂推理问题...")
+    
+    results = await processor.process_batch(batch_data)
+    
+    # 显示结果
+    print(f"\n✅ 推理批处理完成")
+    
+    for i, result in enumerate(results):
+        if result['success'] and result['response']:
+            response = result['response']
+            content = response.choices[0].message.content[:100] if response.choices else "无内容"
+            
+            print(f"\n   🤔 问题 {i + 1}: {complex_questions[i]}")
+            print(f"      答案: {content}...")
+            
+            # 检查是否有思考过程
+            if hasattr(response.choices[0].message, 'reasoning_content'):
+                reasoning = response.choices[0].message.reasoning_content
+                if reasoning:
+                    print(f"      思考: {reasoning[:80]}...")
+                else:
+                    print("      思考: 使用了普通模型")
+            else:
+                print("      思考: 无思考过程记录")
+        else:
+            print(f"   ❌ 问题 {i + 1}: {result['error']}")
 
-async def demo_error_handling():
-    """演示错误处理"""
-    print("\n🛡️ 错误处理演示")
+async def demo_stream_batch_processing():
+    """演示流式批处理"""
+    print("\n🌊 演示流式批处理")
     print("=" * 50)
     
-    config = BatchConfig(
-        batch_size=3,
-        max_concurrent=2,
-        retry_attempts=2
-    )
-    processor = BatchProcessor(config)
+    client, model = get_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
     
-    # 混合正常和可能出错的请求
-    test_requests = [
-        RequestItem(id="normal_1", prompt="什么是AI？"),
-        RequestItem(id="normal_2", prompt="什么是机器学习？"),
-        RequestItem(id="invalid_model", prompt="测试请求", model="invalid-model-name"),
-        RequestItem(id="normal_3", prompt="什么是深度学习？"),
+    # 准备需要长回答的问题
+    questions = [
+        "详细解释深度学习的工作原理",
+        "分析云计算的发展趋势和挑战",
+        "介绍区块链技术的核心概念"
     ]
     
-    results = await processor.process_all(test_requests)
+    print(f"📝 开始 {len(questions)} 个流式请求...")
+    
+    async def process_stream_request(question: str, index: int):
+        """处理单个流式请求"""
+        print(f"\n🌊 流式请求 {index + 1}: {question}")
+        
+        try:
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=[{'role': 'user', 'content': question}],
+                stream=True,
+                fallback=["deepseek-chat", "ernie-3.5-8k"],
+                retry_policy={
+                    "max_attempts": 2,
+                    "base_delay": 1.0,
+                    "max_delay": 5.0
+                },
+                timeout=60.0
+            )
+            
+            content_parts = []
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    content_parts.append(content)
+                    print(content, end="", flush=True)
+            
+            print(f"\n   ✅ 完成，共 {len(content_parts)} 个片段")
+            return True, len(content_parts)
+            
+        except Exception as e:
+            print(f"\n   ❌ 失败: {e}")
+            return False, 0
+    
+    # 并发处理流式请求
+    tasks = [
+        process_stream_request(question, i) 
+        for i, question in enumerate(questions)
+    ]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # 统计结果
+    successful = sum(1 for result in results if isinstance(result, tuple) and result[0])
+    total_chunks = sum(result[1] for result in results if isinstance(result, tuple) and result[0])
+    
+    print(f"\n📊 流式批处理统计:")
+    print(f"   成功: {successful}/{len(questions)}")
+    print(f"   总片段: {total_chunks}")
+
+async def demo_large_scale_batch():
+    """演示大规模批处理"""
+    print("\n🚀 演示大规模批处理")
+    print("=" * 50)
+    
+    # 生成大量测试数据
+    batch_size = 20
+    questions = [
+        f"请简单介绍第{i+1}个人工智能概念" 
+        for i in range(batch_size)
+    ]
+    
+    batch_data = [
+        {'messages': [{'role': 'user', 'content': question}]}
+        for question in questions
+    ]
+    
+    # 使用更高的并发数
+    processor = BatchProcessor(max_concurrent=8, delay_between_batches=0.5)
+    
+    print(f"📝 处理 {len(batch_data)} 个大规模请求...")
+    start_time = time.time()
+    
+    # 分批处理
+    chunk_size = 10
+    all_results = []
+    
+    for i in range(0, len(batch_data), chunk_size):
+        chunk = batch_data[i:i + chunk_size]
+        print(f"   处理批次 {i//chunk_size + 1}/{(len(batch_data) + chunk_size - 1)//chunk_size}")
+        
+        chunk_results = await processor.process_batch(chunk)
+        all_results.extend(chunk_results)
+        
+        # 批次间延迟
+        if i + chunk_size < len(batch_data):
+            await asyncio.sleep(processor.delay_between_batches)
+    
+    elapsed = time.time() - start_time
+    
+    # 显示统计
+    stats = processor.get_statistics()
+    
+    print(f"\n✅ 大规模批处理完成")
+    print(f"📊 性能统计:")
+    print(f"   总请求: {stats['total_requests']}")
+    print(f"   成功率: {stats['success_rate']:.1%}")
+    print(f"   总耗时: {elapsed:.2f}秒")
+    print(f"   平均QPS: {stats['requests_per_second']:.2f}")
+    print(f"   总Token: {stats['total_tokens']}")
+    print(f"   Token/秒: {stats['tokens_per_second']:.2f}")
+
+async def demo_error_handling_batch():
+    """演示错误处理和重试"""
+    print("\n🛡️ 演示错误处理和重试")
+    print("=" * 50)
+    
+    # 准备包含可能失败的请求
+    batch_data = [
+        {'messages': [{'role': 'user', 'content': '正常请求：什么是AI？'}]},
+        {'messages': [{'role': 'user', 'content': '超长请求：' + 'x' * 10000}]},  # 可能失败
+        {'messages': [{'role': 'user', 'content': '正常请求：机器学习是什么？'}]},
+        {'messages': [{'role': 'user', 'content': ''}]},  # 空请求，可能失败
+        {'messages': [{'role': 'user', 'content': '正常请求：深度学习的应用'}]}
+    ]
+    
+    processor = BatchProcessor(max_concurrent=3)
+    
+    print(f"📝 处理 {len(batch_data)} 个包含错误的请求...")
+    
+    results = await processor.process_batch(batch_data)
     
     # 分析结果
-    successful = [r for r in results if r.success]
-    failed = [r for r in results if not r.success]
+    successful_results = [r for r in results if r['success']]
+    failed_results = [r for r in results if not r['success']]
     
-    print(f"📊 错误处理结果:")
-    print(f"   - 成功请求: {len(successful)}")
-    print(f"   - 失败请求: {len(failed)}")
+    print(f"\n📊 错误处理结果:")
+    print(f"   成功: {len(successful_results)}")
+    print(f"   失败: {len(failed_results)}")
     
-    if failed:
+    if failed_results:
         print(f"   失败详情:")
-        for result in failed:
+        for result in failed_results:
             print(f"     - {result.request_id}: {result.error}")
 
+async def demo_mixed_format_batch():
+    """演示混合格式批处理"""
+    print("\n🎭 演示混合格式批处理")
+    print("=" * 50)
+    
+    client, model = get_client()
+    if not client:
+        print("❌ 请至少设置一个 API Key")
+        return
+    
+    # 定义不同类型的请求
+    requests = [
+        {
+            'type': 'normal',
+            'messages': [{'role': 'user', 'content': '什么是云计算？'}],
+            'params': {}
+        },
+        {
+            'type': 'structured',
+            'messages': [{'role': 'user', 'content': '分析Python编程语言'}],
+            'params': {
+                'response_format': {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "LanguageAnalysis",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "language": {"type": "string"},
+                                "strengths": {"type": "array", "items": {"type": "string"}},
+                                "use_cases": {"type": "array", "items": {"type": "string"}}
+                            },
+                            "required": ["language", "strengths", "use_cases"]
+                        }
+                    }
+                }
+            }
+        },
+        {
+            'type': 'stream',
+            'messages': [{'role': 'user', 'content': '详细解释区块链技术'}],
+            'params': {'stream': True}
+        }
+    ]
+    
+    print(f"📝 处理 {len(requests)} 个混合格式请求...")
+    
+    async def process_mixed_request(request: Dict, index: int):
+        """处理混合格式请求"""
+        try:
+            if request['type'] == 'stream':
+                print(f"\n🌊 流式请求 {index + 1}:")
+                
+                stream = await client.chat.completions.create(
+                    model=model,
+                    messages=request['messages'],
+                    fallback=["deepseek-chat", "ernie-3.5-8k"],
+                    **request['params']
+                )
+                
+                content_parts = []
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        content_parts.append(content)
+                        print(content, end="", flush=True)
+                
+                print(f"\n   ✅ 流式完成，{len(content_parts)} 片段")
+                return {'type': 'stream', 'success': True, 'chunks': len(content_parts)}
+            
+            else:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=request['messages'],
+                    fallback=["deepseek-chat", "ernie-3.5-8k"],
+                    retry_policy={
+                        "max_attempts": 2,
+                        "base_delay": 1.0,
+                        "max_delay": 5.0
+                    },
+                    **request['params']
+                )
+                
+                if request['type'] == 'structured':
+                    return {
+                        'type': 'structured', 
+                        'success': True, 
+                        'parsed': response.parsed
+                    }
+                else:
+                    return {
+                        'type': 'normal', 
+                        'success': True, 
+                        'content': response.choices[0].message.content[:100]
+                    }
+        
+        except Exception as e:
+            return {'type': request['type'], 'success': False, 'error': str(e)}
+    
+    # 并发处理
+    tasks = [
+        process_mixed_request(request, i) 
+        for i, request in enumerate(requests)
+    ]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # 显示结果
+    print(f"\n📊 混合格式批处理结果:")
+    for i, result in enumerate(results):
+        if isinstance(result, dict) and result['success']:
+            if result['type'] == 'normal':
+                print(f"   ✅ 普通请求 {i + 1}: {result['content']}...")
+            elif result['type'] == 'structured':
+                print(f"   ✅ 结构化请求 {i + 1}: {result['parsed']}")
+            elif result['type'] == 'stream':
+                print(f"   ✅ 流式请求 {i + 1}: {result['chunks']} 片段")
+        else:
+            error = result.get('error', str(result)) if isinstance(result, dict) else str(result)
+            print(f"   ❌ 请求 {i + 1}: {error[:50]}...")
+
 async def main():
-    """主演示函数"""
-    print("📦 HarborAI 批量处理优化演示")
+    """主函数"""
+    print("🚀 HarborAI 批处理优化演示")
     print("=" * 60)
     
-    # 显示可用模型配置
-    print_available_models()
+    # 检查环境变量
+    client, model = get_client()
+    if not client:
+        print("⚠️ 警告: 未设置任何 API Key")
+        print("请设置 DEEPSEEK_API_KEY, ERNIE_API_KEY, 或 DOUBAO_API_KEY")
+        return
     
-    try:
-        # 基础批量处理演示
-        await demo_basic_batch_processing()
-        
-        # 并发 vs 顺序处理对比
-        await demo_concurrent_vs_sequential()
-        
-        # 内存监控演示
-        await demo_memory_monitoring()
-        
-        # 错误处理演示
-        await demo_error_handling()
-        
-        print("\n✅ 所有演示完成！")
-        print("\n💡 生产环境建议:")
-        print("   1. 根据系统资源调整批次大小和并发数")
-        print("   2. 实施内存监控和限制机制")
-        print("   3. 实现完善的错误处理和重试机制")
-        print("   4. 监控处理性能和成本效益")
-        print("   5. 使用适当的超时配置（当前90秒）")
-        
-    except Exception as e:
-        print(f"❌ 演示过程中出现错误: {str(e)}")
-        import traceback
-        traceback.print_exc()
+    print(f"🔍 使用模型: {model}")
+    
+    demos = [
+        ("基本批处理", demo_basic_batch_processing),
+        ("结构化输出批处理", demo_structured_batch_processing),
+        ("推理模型批处理", demo_reasoning_batch_processing),
+        ("流式批处理", demo_stream_batch_processing),
+        ("大规模批处理", demo_large_scale_batch),
+        ("错误处理和重试", demo_error_handling_batch),
+        ("混合格式批处理", demo_mixed_format_batch)
+    ]
+    
+    for name, demo_func in demos:
+        try:
+            await demo_func()
+            await asyncio.sleep(1)  # 避免请求过于频繁
+        except Exception as e:
+            print(f"❌ {name} 演示失败: {e}")
+    
+    print("\n🎉 批处理演示完成！")
+    print("\n💡 关键要点:")
+    print("1. 使用原生异步支持，避免 asyncio.to_thread")
+    print("2. 通过 Semaphore 控制并发数，避免API限流")
+    print("3. 支持普通、结构化、流式等多种格式的批处理")
+    print("4. 内置重试和降级机制，提高成功率")
+    print("5. 详细的统计信息，便于性能监控")
+    print("6. 灵活的错误处理，确保批处理的健壮性")
 
 if __name__ == "__main__":
-    # 运行演示
     asyncio.run(main())
