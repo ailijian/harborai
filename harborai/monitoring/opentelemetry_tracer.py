@@ -13,8 +13,6 @@ from contextlib import contextmanager
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from opentelemetry.sdk.resources import Resource
@@ -22,9 +20,29 @@ try:
     from opentelemetry.trace import Status, StatusCode
     from opentelemetry.propagate import inject, extract
     OTEL_AVAILABLE = True
+    
+    # 尝试导入可选的导出器
+    try:
+        from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+        JAEGER_THRIFT_AVAILABLE = True
+    except ImportError:
+        JAEGER_THRIFT_AVAILABLE = False
+        JaegerExporter = None
+    
+    try:
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        OTLP_AVAILABLE = True
+    except ImportError:
+        OTLP_AVAILABLE = False
+        OTLPSpanExporter = None
+        
 except ImportError:
     OTEL_AVAILABLE = False
+    JAEGER_THRIFT_AVAILABLE = False
+    OTLP_AVAILABLE = False
     trace = None
+    JaegerExporter = None
+    OTLPSpanExporter = None
 
 from ..utils.logger import get_logger
 from ..utils.tracer import get_current_trace_id, generate_trace_id
@@ -86,7 +104,7 @@ class OpenTelemetryTracer:
             jaeger_endpoint: Jaeger端点
             otlp_endpoint: OTLP端点
         """
-        if jaeger_endpoint:
+        if jaeger_endpoint and JAEGER_THRIFT_AVAILABLE:
             try:
                 jaeger_exporter = JaegerExporter(
                     agent_host_name="localhost",
@@ -98,8 +116,10 @@ class OpenTelemetryTracer:
                 logger.info(f"Jaeger导出器已配置: {jaeger_endpoint}")
             except Exception as e:
                 logger.warning(f"配置Jaeger导出器失败: {e}")
+        elif jaeger_endpoint and not JAEGER_THRIFT_AVAILABLE:
+            logger.warning("Jaeger Thrift导出器不可用，请安装opentelemetry-exporter-jaeger")
         
-        if otlp_endpoint:
+        if otlp_endpoint and OTLP_AVAILABLE:
             try:
                 otlp_exporter = OTLPSpanExporter(
                     endpoint=otlp_endpoint,
@@ -110,6 +130,8 @@ class OpenTelemetryTracer:
                 logger.info(f"OTLP导出器已配置: {otlp_endpoint}")
             except Exception as e:
                 logger.warning(f"配置OTLP导出器失败: {e}")
+        elif otlp_endpoint and not OTLP_AVAILABLE:
+            logger.warning("OTLP导出器不可用，请安装opentelemetry-exporter-otlp")
     
     @contextmanager
     def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None,
@@ -196,7 +218,7 @@ class OpenTelemetryTracer:
         span.set_attribute("harborai.tokens.completion", completion_tokens)
         span.set_attribute("harborai.tokens.total", total_tokens)
     
-    def trace_cost(self, span: Optional[Any], cost: float, currency: str = "USD"):
+    def trace_cost(self, span: Optional[Any], cost: float, currency: str = "RMB"):
         """记录成本追踪信息
         
         Args:

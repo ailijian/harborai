@@ -7,6 +7,7 @@ OpenAI 插件
 """
 
 import json
+import os
 import time
 from typing import Dict, List, Optional, Union, Any, AsyncGenerator, Iterator, Generator
 from dataclasses import dataclass, asdict
@@ -16,7 +17,7 @@ from openai import OpenAI, AsyncOpenAI
 from openai.types.chat import ChatCompletion as OpenAIChatCompletion, ChatCompletionChunk as OpenAIChatCompletionChunk
 
 from ..base_plugin import BaseLLMPlugin, ModelInfo, ChatMessage, ChatChoice, ChatChoiceDelta, Usage, ChatCompletion, ChatCompletionChunk
-from ...utils.exceptions import APIError, AuthenticationError, RateLimitError, TimeoutError
+from ...utils.exceptions import APIError, AuthenticationError, RateLimitError, TimeoutError, PluginError
 from ...utils.logger import get_logger
 from ...utils.tracer import get_current_trace_id
 
@@ -28,8 +29,21 @@ class OpenAIPlugin(BaseLLMPlugin):
         super().__init__(name, **config)
         
         # 保存配置属性，用于结构化输出
-        self.api_key = config.get("api_key")
-        self.base_url = config.get("base_url")
+        self.api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
+        self.base_url = config.get("base_url") or os.getenv("OPENAI_BASE_URL")
+        
+        # 初始化日志记录器
+        self.logger = get_logger(f"harborai.plugins.{name}")
+        
+        # 检查 API 密钥是否存在
+        if not self.api_key:
+            self.logger.info("OpenAI 插件未配置 API 密钥，插件将不可用。请设置 OPENAI_API_KEY 环境变量或在配置中提供 api_key")
+            self.client = None
+            self.async_client = None
+            self._is_configured = False
+            return
+        
+        self._is_configured = True
         
         # 设置支持的模型列表
         self._supported_models = [
@@ -89,23 +103,34 @@ class OpenAIPlugin(BaseLLMPlugin):
             )
         ]
         
-        # 初始化 OpenAI 客户端
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=config.get("timeout", 30),
-            max_retries=config.get("max_retries", 3)
-        )
-        
-        self.async_client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            timeout=config.get("timeout", 30),
-            max_retries=config.get("max_retries", 3)
-        )
-        
-        self.logger = get_logger(f"harborai.plugins.{name}")
+        try:
+            # 初始化 OpenAI 客户端
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=config.get("timeout", 30),
+                max_retries=config.get("max_retries", 3)
+            )
+            
+            self.async_client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=config.get("timeout", 30),
+                max_retries=config.get("max_retries", 3)
+            )
+            
+            self.logger.info("OpenAI 插件初始化成功")
+            
+        except Exception as e:
+            self.logger.error(f"OpenAI 插件初始化失败: {str(e)}")
+            self.client = None
+            self.async_client = None
+            self._is_configured = False
     
+    def is_configured(self) -> bool:
+        """检查插件是否已正确配置"""
+        return self._is_configured
+
     @property
     def supported_models(self) -> List[ModelInfo]:
         """支持的模型列表"""
@@ -314,6 +339,14 @@ class OpenAIPlugin(BaseLLMPlugin):
         **kwargs
     ) -> Union[ChatCompletion, Generator[ChatCompletionChunk, None, None]]:
         """同步聊天完成"""
+        # 检查插件是否已配置
+        if not self.is_configured():
+            raise PluginError(
+                plugin_name="openai",
+                message="OpenAI plugin is not configured. Please set OPENAI_API_KEY environment variable.",
+                trace_id=get_current_trace_id()
+            )
+        
         start_time = time.time()
         try:
             # 验证请求
@@ -364,6 +397,14 @@ class OpenAIPlugin(BaseLLMPlugin):
         **kwargs
     ) -> Union[ChatCompletion, AsyncGenerator[ChatCompletionChunk, None]]:
         """异步聊天完成"""
+        # 检查插件是否已配置
+        if not self.is_configured():
+            raise PluginError(
+                plugin_name="openai",
+                message="OpenAI plugin is not configured. Please set OPENAI_API_KEY environment variable.",
+                trace_id=get_current_trace_id()
+            )
+        
         start_time = time.time()
         try:
             # 验证请求

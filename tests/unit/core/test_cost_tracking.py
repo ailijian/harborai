@@ -66,19 +66,19 @@ class TestCostBreakdown:
         breakdown = CostBreakdown(
             input_cost=Decimal("0.001"),
             output_cost=Decimal("0.002"),
-            currency="USD"
+            currency="RMB"
         )
         
         assert breakdown.input_cost == Decimal("0.001")
         assert breakdown.output_cost == Decimal("0.002")
-        assert breakdown.currency == "USD"
+        assert breakdown.currency == "RMB"
     
     def test_cost_breakdown_total_cost(self):
         """测试总成本计算"""
         breakdown = CostBreakdown(
             input_cost=Decimal("0.001"),
             output_cost=Decimal("0.002"),
-            currency="USD"
+            currency="RMB"
         )
         
         # 如果有total_cost方法，测试它
@@ -90,7 +90,7 @@ class TestCostBreakdown:
         breakdown = CostBreakdown(
             input_cost=Decimal("0"),
             output_cost=Decimal("0"),
-            currency="USD"
+            currency="RMB"
         )
         
         assert breakdown.input_cost == Decimal("0")
@@ -104,7 +104,7 @@ class TestApiCall:
         """测试ApiCall对象创建"""
         token_usage = TokenUsage(100, 50, 150)
         cost_breakdown = CostBreakdown(
-            Decimal("0.001"), Decimal("0.002"), "USD"
+            Decimal("0.001"), Decimal("0.002"), "RMB"
         )
         
         api_call = ApiCall(
@@ -140,7 +140,7 @@ class TestApiCall:
         """测试最小参数ApiCall创建"""
         token_usage = TokenUsage(10, 5, 15)
         cost_breakdown = CostBreakdown(
-            Decimal("0.0001"), Decimal("0.0002"), "USD"
+            Decimal("0.0001"), Decimal("0.0002"), "RMB"
         )
         
         api_call = ApiCall(
@@ -172,7 +172,7 @@ class TestBudget:
             name="测试预算",
             amount=Decimal("100.00"),
             period=BudgetPeriod.MONTHLY,
-            currency="USD",
+            currency="RMB",
             categories=[CostCategory.API_CALLS],
             providers=["openai"],
             models=["gpt-3.5-turbo"],
@@ -187,7 +187,7 @@ class TestBudget:
         assert budget.name == "测试预算"
         assert budget.amount == Decimal("100.00")
         assert budget.period == BudgetPeriod.MONTHLY
-        assert budget.currency == "USD"
+        assert budget.currency == "RMB"
         assert CostCategory.API_CALLS in budget.categories
         assert "openai" in budget.providers
         assert "gpt-3.5-turbo" in budget.models
@@ -207,7 +207,7 @@ class TestBudget:
         assert budget.name == "最小预算"
         assert budget.amount == Decimal("50.00")
         assert budget.period == BudgetPeriod.DAILY
-        assert budget.currency == "USD"  # 默认值
+        assert budget.currency == "RMB"  # 默认值
         assert budget.enabled is True  # 默认值
 
 
@@ -1008,7 +1008,7 @@ class TestCostReporter:
         assert report.period_start == start_time
         assert report.period_end == end_time
         assert report.total_cost == Decimal('0')
-        assert report.currency == "USD"
+        assert report.currency == "RMB"
         assert len(report.breakdown_by_provider) == 0
     
     def test_generate_report_with_data(self):

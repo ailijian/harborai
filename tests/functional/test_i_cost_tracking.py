@@ -79,7 +79,7 @@ class CostBreakdown:
     input_cost: Decimal = Decimal('0')
     output_cost: Decimal = Decimal('0')
     total_cost: Decimal = Decimal('0')
-    currency: str = "USD"
+    currency: str = "RMB"
     
     def __post_init__(self):
         if self.total_cost == Decimal('0'):
@@ -112,7 +112,7 @@ class Budget:
     name: str
     amount: Decimal
     period: BudgetPeriod
-    currency: str = "USD"
+    currency: str = "RMB"
     categories: List[CostCategory] = field(default_factory=list)
     providers: List[str] = field(default_factory=list)
     models: List[str] = field(default_factory=list)
@@ -262,7 +262,7 @@ class MockPricingCalculator:
         return CostBreakdown(
             input_cost=input_cost,
             output_cost=output_cost,
-            currency="USD"
+            currency="RMB"
         )
     
     def calculate_cost_with_discount(self, provider: str, model: str, token_usage: TokenUsage, 
@@ -790,7 +790,7 @@ class TestCostCalculation:
         assert cost.input_cost > 0
         assert cost.output_cost > 0
         assert cost.total_cost == cost.input_cost + cost.output_cost
-        assert cost.currency == "USD"
+        assert cost.currency == "RMB"
         
         # 验证输出成本通常高于输入成本（deepseek-chat: input=0.001, output=0.002）
         assert cost.output_cost > cost.input_cost
@@ -1224,7 +1224,7 @@ class TestBudgetManagement:
         assert budget.name == "Monthly API Budget"
         assert budget.amount == Decimal('100.00')
         assert budget.period == BudgetPeriod.MONTHLY
-        assert budget.currency == "USD"
+        assert budget.currency == "RMB"
         assert budget.enabled is True
         assert len(budget.alert_thresholds) == 3
         

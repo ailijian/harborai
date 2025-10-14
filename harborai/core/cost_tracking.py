@@ -71,7 +71,7 @@ class CostBreakdown:
     input_cost: Decimal = Decimal('0')
     output_cost: Decimal = Decimal('0')
     total_cost: Decimal = Decimal('0')
-    currency: str = "USD"
+    currency: str = "RMB"
     
     def __post_init__(self):
         if self.total_cost == Decimal('0'):
@@ -104,7 +104,7 @@ class Budget:
     name: str
     amount: Decimal
     period: BudgetPeriod
-    currency: str = "USD"
+    currency: str = "RMB"
     categories: List[CostCategory] = field(default_factory=list)
     providers: List[str] = field(default_factory=list)
     models: List[str] = field(default_factory=list)
@@ -237,7 +237,7 @@ class PricingCalculator(BasePricingCalculator):
         return CostBreakdown(
             input_cost=input_cost,
             output_cost=output_cost,
-            currency="USD"
+            currency="RMB"
         )
     
     def calculate_cost_with_discount(self, provider: str, model: str, token_usage: TokenUsage, 
@@ -520,7 +520,7 @@ class CostReporter:
                 period_start=period_start,
                 period_end=period_end,
                 total_cost=Decimal('0'),
-                currency="USD"
+                currency="RMB"
             )
         
         # 计算总成本和统计
@@ -559,7 +559,7 @@ class CostReporter:
             period_start=period_start,
             period_end=period_end,
             total_cost=total_cost,
-            currency="USD",
+            currency="RMB",
             breakdown_by_provider=dict(breakdown_by_provider),
             breakdown_by_model=dict(breakdown_by_model),
             breakdown_by_user=dict(breakdown_by_user),

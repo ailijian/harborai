@@ -27,10 +27,12 @@
 
 ---
 
-📚 [技术文档](./docs/) • 
-⚡ [快速开始](#-快速开始) • 
-🚀 [性能优化](#-性能优化) • 
-📖 [API文档](#-api文档) • 
+📚 [技术文档](./docs/README.md) • 
+📖 [API文档](./docs/api.md) • 
+🏗️ [架构设计](./docs/architecture.md) • 
+⚡ [性能优化](./docs/performance.md) • 
+🛠️ [开发指南](./docs/development.md) • 
+🚀 [部署指南](./docs/deployment.md) • 
 🧪 [测试](#-测试) • 
 🤝 [贡献指南](#-贡献指南)
 
@@ -541,9 +543,72 @@ HARBORAI_STRUCTURED_LOGGING=true
 # 安全配置（可选）
 HARBORAI_RATE_LIMIT_ENABLED=false
 HARBORAI_TIMEOUT=30
+
+# 成本追踪配置
+HARBORAI_DEFAULT_CURRENCY=RMB  # 默认货币单位：RMB（人民币）
+HARBORAI_COST_TRACKING_ENABLED=true
 ```
 
 完整的配置选项请参考 [.env.example](.env.example) 文件。
+
+### 成本追踪货币配置
+
+HarborAI 默认使用 **RMB（人民币）** 作为成本追踪的货币单位，同时支持多种货币类型的灵活配置：
+
+#### 🏦 支持的货币类型
+
+* **RMB** - 人民币（默认）
+* **CNY** - 人民币（ISO 4217标准代码）
+* **USD** - 美元
+* **EUR** - 欧元
+* **JPY** - 日元
+* **GBP** - 英镑
+
+#### ⚙️ 配置方法
+
+**方法1: 环境变量配置**
+```env
+# 设置默认货币单位
+HARBORAI_DEFAULT_CURRENCY=RMB  # 或 USD、CNY、EUR 等
+```
+
+**方法2: 代码中动态配置**
+```python
+from harborai import HarborAI
+
+# 在客户端初始化时指定货币
+client = HarborAI(
+    api_key="your-api-key",
+    default_currency="RMB"  # 设置默认货币
+)
+
+# 在具体调用中指定货币
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[{"role": "user", "content": "Hello"}],
+    cost_tracking={"currency": "USD"}  # 临时使用USD
+)
+```
+
+**方法3: 成本追踪对象配置**
+```python
+from harborai.core.cost_tracking import CostBreakdown, Budget
+
+# 创建成本分析对象时指定货币
+breakdown = CostBreakdown(currency="RMB")
+budget = Budget(limit=100.0, currency="RMB")
+
+# 获取成本报告时指定货币
+cost_summary = client.get_cost_summary(currency="RMB")
+```
+
+#### 💡 使用建议
+
+* **国内用户**: 推荐使用 `RMB` 或 `CNY`，便于成本核算
+* **国际用户**: 可根据需要选择 `USD`、`EUR` 等国际货币
+* **多地区部署**: 可在不同环境中设置不同的默认货币
+
+> 📊 **注意**: 货币设置仅影响成本显示格式，实际计费以各AI服务商的原始货币为准
 
 ### 性能优化配置
 
@@ -1067,6 +1132,127 @@ HarborAI 提供丰富的 Prometheus 指标：
   "provider": "openai"
 }
 ```
+
+### OpenTelemetry 分布式追踪
+
+HarborAI 集成了 OpenTelemetry 分布式追踪，提供完整的请求链路可观测性，帮助您深入了解系统性能和调用关系。
+
+#### 🎯 分布式追踪的价值
+
+* **全链路可视化**: 追踪请求从客户端到AI服务商的完整调用链路
+* **性能瓶颈识别**: 精确定位系统中的性能瓶颈和延迟热点
+* **错误根因分析**: 快速定位错误发生的具体位置和原因
+* **依赖关系映射**: 清晰展示服务间的依赖关系和调用模式
+* **AI调用洞察**: 专门针对AI模型调用的性能分析和成本追踪
+
+#### ⚙️ 配置方法
+
+在 `.env` 文件中配置 OpenTelemetry：
+
+```env
+# 启用 OpenTelemetry 追踪
+OTEL_ENABLED=true
+OTEL_SERVICE_NAME=harborai
+OTEL_SERVICE_VERSION=1.0.0
+OTEL_ENVIRONMENT=production
+
+# 导出器配置
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+
+# 采样配置（生产环境建议 0.1-0.3）
+OTEL_TRACES_SAMPLER=traceidratio
+OTEL_TRACES_SAMPLER_ARG=1.0
+
+# 自动仪表化配置
+OTEL_PYTHON_FASTAPI_INSTRUMENTATION_ENABLED=true
+OTEL_PYTHON_HTTPX_INSTRUMENTATION_ENABLED=true
+OTEL_PYTHON_SQLALCHEMY_INSTRUMENTATION_ENABLED=true
+OTEL_PYTHON_REDIS_INSTRUMENTATION_ENABLED=true
+```
+
+#### 📊 追踪数据结构
+
+HarborAI 的分布式追踪包含以下关键信息：
+
+```json
+{
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "operation_name": "chat.completions.create",
+  "start_time": "2024-01-15T10:30:00.123Z",
+  "duration_ms": 1250,
+  "status": "OK",
+  "tags": {
+    "service.name": "harborai",
+    "ai.model": "deepseek-chat",
+    "ai.provider": "deepseek",
+    "ai.request.tokens": 150,
+    "ai.response.tokens": 200,
+    "ai.cost.amount": 0.0045,
+    "ai.cost.currency": "RMB",
+    "http.method": "POST",
+    "http.status_code": 200
+  },
+  "logs": [
+    {
+      "timestamp": "2024-01-15T10:30:00.500Z",
+      "level": "INFO",
+      "message": "AI request sent to provider",
+      "fields": {
+        "provider": "deepseek",
+        "model": "deepseek-chat"
+      }
+    }
+  ]
+}
+```
+
+#### 🚀 生产环境使用
+
+**1. 部署追踪后端**
+
+推荐使用 Jaeger 或 Zipkin 作为追踪后端：
+
+```bash
+# 使用 Docker 部署 Jaeger
+docker run -d --name jaeger \
+  -p 16686:16686 \
+  -p 14268:14268 \
+  -p 4317:4317 \
+  jaegertracing/all-in-one:latest
+```
+
+**2. 配置生产环境**
+
+```env
+# 生产环境配置
+OTEL_ENVIRONMENT=production
+OTEL_EXPORTER_OTLP_ENDPOINT=https://your-jaeger-endpoint:4317
+OTEL_TRACES_SAMPLER_ARG=0.1  # 10% 采样率，减少性能影响
+
+# 安全配置
+OTEL_PYTHON_SQLALCHEMY_RECORD_STATEMENTS=false
+OTEL_PYTHON_HTTPX_RECORD_REQUEST_BODY=false
+OTEL_PYTHON_HTTPX_RECORD_RESPONSE_BODY=false
+```
+
+**3. 监控告警集成**
+
+结合 Prometheus 指标和 OpenTelemetry 追踪数据，实现完整的可观测性：
+
+* **指标监控**: 使用 Prometheus 监控系统整体健康状况
+* **链路追踪**: 使用 OpenTelemetry 分析具体请求的执行路径
+* **日志聚合**: 使用结构化日志记录详细的业务信息
+* **告警联动**: 基于指标触发告警，使用追踪数据进行根因分析
+
+#### 💡 最佳实践
+
+* **采样策略**: 生产环境建议使用 10%-30% 的采样率
+* **标签规范**: 使用统一的标签命名规范，便于查询和分析
+* **敏感数据**: 避免在追踪数据中记录敏感信息
+* **性能影响**: 监控追踪系统本身的性能开销
+* **数据保留**: 根据业务需求设置合理的数据保留策略
 
 ## 🤝 贡献指南
 

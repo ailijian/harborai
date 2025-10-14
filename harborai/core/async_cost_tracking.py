@@ -147,7 +147,7 @@ class AsyncCostTracker:
                 cost_breakdown = CostBreakdown(
                     input_cost=Decimal(str(cost * 0.6)),  # 假设60%为输入成本
                     output_cost=Decimal(str(cost * 0.4)),  # 假设40%为输出成本
-                    currency="USD"
+                    currency="RMB"
                 )
                 
                 # 创建ApiCall对象

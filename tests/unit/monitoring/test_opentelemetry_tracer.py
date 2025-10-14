@@ -171,11 +171,11 @@ class TestOpenTelemetryTracer:
         tracer = OpenTelemetryTracer()
         mock_span = Mock()
         
-        tracer.trace_cost(mock_span, 0.05, "USD")
+        tracer.trace_cost(mock_span, 0.05, "RMB")
         
         # 验证成本属性被设置
         mock_span.set_attribute.assert_any_call("harborai.cost.amount", 0.05)
-        mock_span.set_attribute.assert_any_call("harborai.cost.currency", "USD")
+        mock_span.set_attribute.assert_any_call("harborai.cost.currency", "RMB")
     
     @pytest.mark.skipif(not OTEL_AVAILABLE, reason="OpenTelemetry not available")
     def test_trace_performance(self):

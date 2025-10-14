@@ -63,7 +63,7 @@ class ModelPricing:
     provider: str
     input_cost_per_1k: float  # 输入token成本
     output_cost_per_1k: float  # 输出token成本
-    currency: str = "USD"
+    currency: str = "RMB"
     last_updated: str = None
     
     def __post_init__(self):
