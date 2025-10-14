@@ -4,7 +4,7 @@
 param(
     [switch]$Verbose,
     [switch]$FixIssues,
-    [switch]$GenerateReport = $true,
+    [switch]$GenerateReport,
     [switch]$Help
 )
 
@@ -24,6 +24,11 @@ if ($Help) {
     Write-Host "    .\verify_reports.ps1 -Verbose"
     Write-Host "    .\verify_reports.ps1 -FixIssues -Verbose"
     exit 0
+}
+
+# Set default values for switch parameters
+if (-not $PSBoundParameters.ContainsKey('GenerateReport')) {
+    $GenerateReport = $true
 }
 
 # Global variables
@@ -353,8 +358,10 @@ function Test-PerformanceIntegration {
     
     $PerformanceDir = Join-Path $TestsDir "performance"
     $PerformanceFiles = @{
-        "performance_report_generator.py" = Join-Path $PerformanceDir "performance_report_generator.py"
-        "simple_performance_test.py" = Join-Path $PerformanceDir "simple_performance_test.py"
+        "test_basic_performance.py" = Join-Path $PerformanceDir "test_basic_performance.py"
+        "test_streaming_performance.py" = Join-Path $PerformanceDir "test_streaming_performance.py"
+        "test_controller_comprehensive.py" = Join-Path $PerformanceDir "test_controller_comprehensive.py"
+        "test_resource_monitoring_unified.py" = Join-Path $PerformanceDir "test_resource_monitoring_unified.py"
     }
     
     $VerificationResults.PerformanceIntegration.Files = @{}
