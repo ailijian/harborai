@@ -621,7 +621,7 @@ class CostAnalyzer:
             
             <div class="section">
                 <h2>总体统计</h2>
-                <p>总成本: ${report.total_cost:.4f}</p>
+                <p>总成本: ¥{report.total_cost:.4f}</p>
                 <p>总Token数: {report.total_tokens:,}</p>
                 <p>总请求数: {report.total_requests:,}</p>
                 <p>成本增长率: {report.growth_rate:.2%}</p>

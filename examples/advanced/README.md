@@ -98,6 +98,38 @@ response = await client.chat.completions.create(
 async def process_batch(tasks):
     async with asyncio.TaskGroup() as tg:
         tasks = [
+
+### 📊 log_analysis.py - 高级日志分析工具
+**核心功能**：
+- 多维度日志分析（性能、错误、使用模式）
+- 交互式日志浏览器
+- 自定义报告生成和数据导出
+- 统计可视化和趋势分析
+
+**应用价值**：
+- 深入了解系统运行状况
+- 快速定位性能瓶颈和错误模式
+- 支持数据驱动的优化决策
+- 提供完整的可观测性解决方案
+
+**关键特性**：
+```python
+# 交互式日志浏览
+python log_analysis.py --interactive
+
+# 生成性能分析报告
+python log_analysis.py --performance 7
+
+# 导出综合分析报告
+python log_analysis.py --report analysis.json --days 7
+```
+
+**功能模块**：
+- **性能趋势分析**: 响应时间统计、P95分位数、模型性能对比
+- **错误模式识别**: 错误类型分布、成功率统计、常见错误分析
+- **使用模式分析**: 峰值时间识别、模型流行度、请求大小分布
+- **交互式浏览**: 命令行界面、实时查询、关键词搜索
+- **报告生成**: JSON格式导出、自定义时间范围、多维度统计
             tg.create_task(client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[{"role": "user", "content": task}],

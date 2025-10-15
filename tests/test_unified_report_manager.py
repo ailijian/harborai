@@ -24,9 +24,9 @@ import os
 import sys
 
 # 添加路径以导入被测试模块
-sys.path.insert(0, str(Path(__file__).parent / "utils"))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.unified_report_manager import (
+from tests.utils.unified_report_manager import (
     UnifiedReportManager,
     get_report_manager,
     get_unit_report_path,

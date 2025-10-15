@@ -21,8 +21,31 @@
 
 ### 4. 日志监控 (`logging_monitoring.py`)
 - **场景**: 生产环境中的可观测性需求
-- **功能**: 结构化日志、性能监控、错误追踪
-- **应用价值**: 问题诊断，性能优化
+- **功能**: 结构化日志、性能监控、错误追踪、真实模型调用演示
+- **应用价值**: 问题诊断，性能优化，全链路监控
+
+**详细功能**:
+- 真实模型API调用和日志记录
+- SQLite数据库存储结构化日志
+- 性能指标监控（响应时间、成功率等）
+- 实时告警系统
+- 监控面板和数据可视化
+- 支持多种运行模式（完整演示、仅测试、仅监控）
+
+**运行参数**:
+```bash
+# 完整演示（默认）
+python logging_monitoring.py
+
+# 仅测试模型调用，不生成大量日志
+python logging_monitoring.py --test-only
+
+# 仅运行监控功能，不调用模型
+python logging_monitoring.py --monitor-only
+
+# 测试特定模型
+python logging_monitoring.py --model deepseek-chat
+```
 
 ## 🚀 快速运行
 

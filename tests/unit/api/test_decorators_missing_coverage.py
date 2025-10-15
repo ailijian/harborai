@@ -115,7 +115,7 @@ class TestCostTrackingMissingCoverage:
                     log_message = mock_logger.info.call_args[0][0]
                     assert "Cost tracking" in log_message
                     assert "gpt-4" in log_message
-                    assert "Cost: $0.002500" in log_message
+                    assert "Cost: ¥0.002500" in log_message
     
     def test_cost_tracking_sync_with_none_cost(self):
         """测试同步函数成本计算返回None的情况"""

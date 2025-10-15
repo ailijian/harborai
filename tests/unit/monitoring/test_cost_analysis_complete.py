@@ -480,7 +480,7 @@ class TestCostAnalyzer:
         assert isinstance(html_output, str)
         assert "<!DOCTYPE html>" in html_output
         assert "test_001" in html_output
-        assert "$50.0000" in html_output
+        assert "¥50.0000" in html_output
     
     def test_export_report_unsupported_format(self):
         """测试导出不支持的格式"""

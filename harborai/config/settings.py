@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     # 日志配置
     enable_async_logging: bool = Field(default=True, alias="HARBORAI_ASYNC_LOGGING")
     log_retention_days: int = Field(default=7)
+    file_log_directory: str = Field(default="./logs", alias="HARBORAI_FILE_LOG_DIR")
     
     # 插件配置
     plugin_directories: List[str] = Field(default_factory=lambda: ["harborai.core.plugins"])

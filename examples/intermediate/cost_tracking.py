@@ -471,7 +471,7 @@ class CostTracker:
                     "priority": "medium",
                     "avg_daily_cost": avg_daily_cost,
                     "daily_budget": self.daily_budget,
-                    "description": f"平均日成本 ${avg_daily_cost:.4f} 接近预算限制，建议优化使用策略"
+                    "description": f"平均日成本 ¥{avg_daily_cost:.4f} 接近预算限制，建议优化使用策略"
                 })
         
         # 分析token使用效率
@@ -616,8 +616,8 @@ async def cost_comparison_demo(tracker: CostTracker):
     
     for result in sorted(results, key=lambda x: x["estimated_cost"]):
         print(f"{result['model']:<20} {result['provider']:<12} "
-              f"${result['input_cost_per_1k']:<11.4f} ${result['output_cost_per_1k']:<11.4f} "
-              f"${result['estimated_cost']:<11.4f}")
+              f"¥{result['input_cost_per_1k']:<11.4f} ¥{result['output_cost_per_1k']:<11.4f} "
+              f"¥{result['estimated_cost']:<11.4f}")
 
 
 async def budget_monitoring_demo(tracker: CostTracker):
@@ -670,8 +670,8 @@ async def usage_analytics_demo(tracker: CostTracker):
     print(f"📊 基础统计 (最近7天):")
     print(f"   总请求数: {basic['total_requests']}")
     print(f"   总Token数: {basic['total_tokens']:,}")
-    print(f"   总成本: ${basic['total_cost']:.4f}")
-    print(f"   平均每次请求成本: ${basic['avg_cost_per_request']:.4f}")
+    print(f"   总成本: ¥{basic['total_cost']:.4f}")
+    print(f"   平均每次请求成本: ¥{basic['avg_cost_per_request']:.4f}")
     print(f"   平均响应时间: {basic['avg_response_time']:.2f}秒")
     
     if stats["by_model"]:
@@ -680,7 +680,7 @@ async def usage_analytics_demo(tracker: CostTracker):
         print("-" * 60)
         for model in stats["by_model"]:
             print(f"{model['model_name']:<20} {model['requests']:<10} "
-                  f"${model['cost']:<11.4f} {model['tokens']:<12,}")
+                  f"¥{model['cost']:<11.4f} {model['tokens']:<12,}")
     
     if stats["by_category"]:
         print(f"\n📊 按分类统计:")
@@ -688,7 +688,7 @@ async def usage_analytics_demo(tracker: CostTracker):
         print("-" * 60)
         for category in stats["by_category"]:
             print(f"{category['category']:<20} {category['requests']:<10} "
-                  f"${category['cost']:<11.4f} {category['tokens']:<12,}")
+                  f"¥{category['cost']:<11.4f} {category['tokens']:<12,}")
 
 
 async def optimization_suggestions_demo(tracker: CostTracker):
@@ -719,12 +719,12 @@ async def optimization_suggestions_demo(tracker: CostTracker):
                       f"输出: ${alt['savings_output']:.4f}/1K)")
         
         elif suggestion["type"] == "budget_optimization":
-            print(f"   平均日成本: ${suggestion['avg_daily_cost']:.4f}")
-            print(f"   日预算: ${suggestion['daily_budget']:.2f}")
+            print(f"   平均日成本: ¥{suggestion['avg_daily_cost']:.4f}")
+            print(f"   日预算: ¥{suggestion['daily_budget']:.2f}")
         
         elif suggestion["type"] == "token_optimization":
             print(f"   平均每次请求Token数: {suggestion['avg_tokens_per_request']:.0f}")
-            print(f"   平均每Token成本: ${suggestion['avg_cost_per_token']:.6f}")
+            print(f"   平均每Token成本: ¥{suggestion['avg_cost_per_token']:.6f}")
 
 
 async def simulate_usage(tracker: CostTracker):
@@ -753,7 +753,7 @@ async def simulate_usage(tracker: CostTracker):
                 scenario["prompt"], scenario["category"],
                 max_tokens=500, temperature=0.7
             )
-            print(f"✅ 记录了 {scenario['category'].value} 调用，成本: ${record.total_cost:.4f}")
+            print(f"✅ 记录了 {scenario['category'].value} 调用，成本: ¥{record.total_cost:.4f}")
         except Exception as e:
             print(f"❌ 调用失败: {e}")
 

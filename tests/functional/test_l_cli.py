@@ -310,21 +310,21 @@ except ImportError:
             click.echo(f"成功请求: {stats_data['successful_requests']}")
             click.echo(f"失败请求: {stats_data['failed_requests']}")
             click.echo(f"总Token数: {stats_data['total_tokens']:,}")
-            click.echo(f"总成本: ${stats_data['total_cost']:.2f}")
+            click.echo(f"总成本: ¥{stats_data['total_cost']:.2f}")
             
             if provider and provider in stats_data['providers']:
                 provider_stats = stats_data['providers'][provider]
                 click.echo(f"\n提供商 {provider} 统计:")
                 click.echo(f"  请求数: {provider_stats['requests']}")
                 click.echo(f"  Token数: {provider_stats['tokens']:,}")
-                click.echo(f"  成本: ${provider_stats['cost']:.2f}")
+                click.echo(f"  成本: ¥{provider_stats['cost']:.2f}")
             
             if model and model in stats_data['models']:
                 model_stats = stats_data['models'][model]
                 click.echo(f"\n模型 {model} 统计:")
                 click.echo(f"  请求数: {model_stats['requests']}")
                 click.echo(f"  Token数: {model_stats['tokens']:,}")
-                click.echo(f"  成本: ${model_stats['cost']:.2f}")
+                click.echo(f"  成本: ¥{model_stats['cost']:.2f}")
 
 
 # 真实CLI测试辅助类

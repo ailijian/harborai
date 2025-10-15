@@ -100,6 +100,215 @@ HarborAI项目完全使用vibe coding方式开发（全程使用国际版TRAE SO
 
 * **监控告警**: Prometheus 指标、OpenTelemetry 追踪
 
+### 📊 企业级可观测性
+
+* **分布式追踪**: OpenTelemetry 标准追踪，支持 Jaeger/Zipkin APM
+
+* **结构化日志**: structlog 结构化日志记录，支持 PostgreSQL 持久化
+
+* **成本追踪**: 精确的 Token 使用量和成本计算，支持多币种
+
+* **性能监控**: Prometheus 指标收集，实时监控系统性能
+
+* **自动降级**: PostgreSQL 不可用时自动切换到文件日志
+
+* **统一查询**: 支持按 trace_id、时间范围、模型等多维度查询
+
+### 🔧 核心技术栈
+
+#### 日志与监控
+* **structlog 23.2.0**: 结构化日志记录
+* **psycopg2-binary 2.9.9**: PostgreSQL 异步连接
+* **prometheus-client 0.19.0**: 指标收集
+
+#### 分布式追踪
+* **opentelemetry-api 1.21.0**: OpenTelemetry API
+* **opentelemetry-sdk 1.21.0**: OpenTelemetry SDK
+* **opentelemetry-instrumentation 0.42b0**: 自动化仪表
+
+#### 数据处理
+* **pydantic 2.5.0**: 数据验证和序列化
+* **tiktoken 0.5.2**: Token 计算
+* **rich 13.7.0**: 命令行界面美化
+
+## 🛡️ 企业级安全
+
+HarborAI 提供全面的安全保护机制，确保生产环境的安全性：
+
+### 🔐 输入验证和数据保护
+
+```python
+from harborai.security import InputValidator, DataProtector
+
+# 输入验证
+validator = InputValidator()
+user_input = "用户输入的内容"
+
+# 安全检查
+if validator.is_safe_input(user_input):
+    # 清理和标准化输入
+    clean_input = validator.sanitize_input(user_input)
+    
+    # 数据保护
+    protector = DataProtector()
+    encrypted_data = protector.encrypt_sensitive_data(clean_input)
+```
+
+### 🚪 访问控制和身份认证
+
+```python
+from harborai.security import AccessController, AuthManager
+
+# 访问控制
+access_controller = AccessController()
+auth_manager = AuthManager()
+
+# 身份验证
+token = auth_manager.authenticate(api_key="your-api-key")
+if access_controller.check_permission(token, "model_access"):
+    # 执行受保护的操作
+    response = client.chat.completions.create(...)
+```
+
+### 📊 安全监控和审计
+
+```python
+from harborai.security import SecurityMonitor, AuditLogger
+
+# 安全监控
+monitor = SecurityMonitor()
+audit_logger = AuditLogger()
+
+# 记录安全事件
+monitor.record_event("api_access", {
+    "user_id": "user123",
+    "endpoint": "/chat/completions",
+    "timestamp": datetime.now()
+})
+
+# 审计日志
+audit_logger.log_security_event(
+    action="model_access",
+    user="user123",
+    resource="gpt-4",
+    result="success"
+)
+
+# 获取安全摘要
+security_summary = audit_logger.get_security_summary(hours=24)
+```
+
+### ⚙️ 安全配置
+
+```env
+# 启用安全功能
+HARBORAI_SECURITY_ENABLED=true
+HARBORAI_INPUT_VALIDATION=true
+HARBORAI_DATA_ENCRYPTION=true
+
+# 访问控制
+HARBORAI_ACCESS_CONTROL=true
+HARBORAI_AUTH_REQUIRED=true
+HARBORAI_RATE_LIMIT_ENABLED=true
+HARBORAI_MAX_REQUESTS_PER_MINUTE=100
+
+# 安全监控
+HARBORAI_SECURITY_MONITORING=true
+HARBORAI_AUDIT_LOGGING=true
+HARBORAI_THREAT_DETECTION=true
+
+# 数据保护
+HARBORAI_ENCRYPT_LOGS=true
+HARBORAI_MASK_SENSITIVE_DATA=true
+HARBORAI_LOG_RETENTION_DAYS=30
+```
+
+## 🔌 插件系统
+
+HarborAI 采用灵活的插件架构，支持多厂商模型和自定义扩展：
+
+### 📦 内置插件
+
+| 插件名称 | 支持厂商 | 主要模型 | 特殊功能 |
+|---------|---------|---------|---------|
+| OpenAI | OpenAI | GPT-4, GPT-3.5 | 原生结构化输出 |
+| DeepSeek | DeepSeek | deepseek-chat, deepseek-reasoner | 推理模型支持 |
+| Wenxin | 百度千帆 | ernie-x1-turbo-32k | 长上下文支持 |
+| Doubao | 字节跳动 | doubao-1-5-pro-32k | 多模态支持 |
+
+### 🛠️ 插件管理
+
+```bash
+# 查看插件状态
+harborai list-plugins
+
+# 启用/禁用插件
+harborai plugin enable deepseek
+harborai plugin disable openai
+
+# 查看插件详细信息
+harborai plugin info deepseek
+```
+
+### 🏗️ 插件架构
+
+```python
+from harborai.core.plugins import PluginManager, BaseLLMPlugin
+
+# 插件管理器
+plugin_manager = PluginManager()
+
+# 获取可用插件
+available_plugins = plugin_manager.get_available_plugins()
+
+# 动态加载插件
+plugin_manager.load_plugin("deepseek")
+
+# 获取插件实例
+deepseek_plugin = plugin_manager.get_plugin("deepseek")
+```
+
+### 🔧 自定义插件开发
+
+```python
+from harborai.core.plugins import BaseLLMPlugin
+from harborai.core.models import ModelInfo
+
+class CustomPlugin(BaseLLMPlugin):
+    def __init__(self):
+        super().__init__(
+            name="custom",
+            version="1.0.0",
+            supported_models=[
+                ModelInfo(
+                    id="custom-model",
+                    name="Custom Model",
+                    provider="custom",
+                    max_tokens=4096
+                )
+            ]
+        )
+    
+    async def chat_completion(self, messages, **kwargs):
+        # 实现自定义模型调用逻辑
+        pass
+    
+    def get_pricing(self, model: str):
+        # 返回定价信息
+        return {"input": 0.001, "output": 0.002}
+```
+
+### ⚙️ 插件配置
+
+```env
+# 插件配置
+HARBORAI_PLUGIN_PATH=./plugins
+HARBORAI_PLUGIN_AUTO_LOAD=true
+HARBORAI_PLUGIN_CACHE_ENABLED=true
+HARBORAI_PLUGIN_PRELOAD=true
+HARBORAI_PLUGIN_CACHE_SIZE=100
+```
+
 ### 🔧 开发者体验
 
 * **零学习成本**: 与 OpenAI SDK 一致的 API 设计
@@ -109,6 +318,94 @@ HarborAI项目完全使用vibe coding方式开发（全程使用国际版TRAE SO
 * **丰富示例**: 从基础到高级的完整示例库
 
 * **详细文档**: 全中文技术文档和最佳实践指南
+
+## 💾 企业级数据持久化
+
+HarborAI 采用简化的双层数据持久化架构，确保数据安全和系统可靠性：
+
+### 数据库架构
+
+```mermaid
+graph TD
+    A[应用层] --> B[FallbackLogger]
+    B --> C{PostgreSQL 可用?}
+    C -->|是| D[PostgreSQL 存储]
+    C -->|否| E[文件日志存储]
+    D --> F[定期健康检查]
+    F --> G{连接恢复?}
+    G -->|是| D
+    G -->|否| E
+    E --> H[自动重试连接]
+    H --> C
+```
+
+### 主要存储：PostgreSQL
+
+```python
+# PostgreSQL 配置
+from harborai.storage import initialize_postgres_logger
+
+# 自动初始化 PostgreSQL 日志记录器
+postgres_logger = initialize_postgres_logger(
+    connection_string="postgresql://user:pass@localhost:5432/harborai"
+)
+```
+
+### 自动降级机制
+
+```python
+from harborai.storage import FallbackLogger, LoggerState
+
+# 创建降级日志记录器
+fallback_logger = FallbackLogger(
+    postgres_connection_string="postgresql://user:pass@localhost:5432/harborai",
+    log_directory="./logs",
+    max_postgres_failures=3,  # 失败3次后降级
+    health_check_interval=60.0  # 每60秒检查一次健康状态
+)
+
+# 查看当前状态
+current_state = fallback_logger.get_state()
+print(f"当前状态: {current_state}")  # POSTGRES_ACTIVE 或 FILE_FALLBACK
+
+# 获取统计信息
+stats = fallback_logger.get_stats()
+print(f"PostgreSQL 日志: {stats['postgres_logs']}")
+print(f"文件日志: {stats['file_logs']}")
+```
+
+### 数据库配置
+
+```env
+# PostgreSQL 主要配置
+HARBORAI_POSTGRES_URL=postgresql+asyncpg://harborai:password@localhost:5432/harborai
+
+# 或者分项配置
+HARBORAI_POSTGRES_HOST=localhost
+HARBORAI_POSTGRES_PORT=5432
+HARBORAI_POSTGRES_USER=harborai
+HARBORAI_POSTGRES_PASSWORD=your-secure-password
+HARBORAI_POSTGRES_DATABASE=harborai
+
+# 降级配置
+HARBORAI_POSTGRES_LOGGING=true
+HARBORAI_FALLBACK_LOG_DIR=./logs
+HARBORAI_MAX_POSTGRES_FAILURES=3
+HARBORAI_HEALTH_CHECK_INTERVAL=60
+```
+
+### 数据恢复和迁移
+
+```bash
+# 数据库初始化
+harborai init-db
+
+# 强制重新创建
+harborai init-db --force
+
+# 查看数据库状态
+harborai stats --database
+```
 
 ## 📋 目录
 
@@ -320,7 +617,113 @@ response = client.chat.completions.create(
 asyncio.run(async_chat())
 ```
 
-### 3. 性能优化使用
+### 3. 日志查询和统计
+
+```python
+from harborai.observability import get_logs, get_log_by_trace_id, get_log_stats
+
+# 查询最近的API调用日志
+logs = await get_logs(
+    page=1,
+    size=20,
+    start_time=datetime.now() - timedelta(days=7),
+    provider="deepseek",
+    model="deepseek-chat"
+)
+
+print(f"总计: {logs.total} 条日志")
+for log in logs.data:
+    print(f"Trace ID: {log.hb_trace_id}")
+    print(f"模型: {log.provider}/{log.model}")
+    print(f"Token使用: {log.token_usage.total_tokens}")
+    print(f"成本: {log.cost_info.total_cost} {log.cost_info.currency}")
+    print(f"延迟: {log.performance_metrics.latency_ms}ms")
+    
+    # APM链接 - 直接跳转到Jaeger/Zipkin
+    if log.apm_links:
+        print(f"Jaeger: {log.apm_links.jaeger}")
+        print(f"Zipkin: {log.apm_links.zipkin}")
+
+# 根据trace_id查询详细日志
+detailed_log = await get_log_by_trace_id("hb_1703123456789_a1b2c3d4")
+print(f"详细追踪信息: {detailed_log.tracing}")
+
+# 获取统计信息
+stats = await get_log_stats(days=30)
+print(f"总调用次数: {stats.total_requests}")
+print(f"总成本: {stats.total_cost} CNY")
+print(f"平均延迟: {stats.avg_latency_ms}ms")
+```
+
+### 4. 分布式追踪使用
+
+```python
+from harborai import HarborAI
+from harborai.observability import TracingContext
+
+# 启用分布式追踪
+client = HarborAI(
+    api_key="your-api-key",
+    enable_tracing=True,
+    tracing_config={
+        "service_name": "my-ai-app",
+        "jaeger_endpoint": "http://localhost:14268/api/traces",
+        "sampling_rate": 1.0
+    }
+)
+
+# 创建追踪上下文
+with TracingContext(operation_name="user_query_processing") as trace_ctx:
+    # 设置用户会话信息
+    trace_ctx.set_tag("user.id", "user123")
+    trace_ctx.set_tag("session.id", "session_abc")
+    
+    # AI调用会自动关联到当前追踪上下文
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[{"role": "user", "content": "Hello"}]
+    )
+    
+    # 追踪信息会自动记录到日志中
+    print(f"Trace ID: {trace_ctx.trace_id}")
+    print(f"Span ID: {trace_ctx.span_id}")
+```
+
+### 5. 成本追踪和监控
+
+```python
+from harborai.observability import CostTracker, get_cost_analysis
+
+# 成本追踪器
+cost_tracker = CostTracker(currency="CNY")
+
+# 设置成本预算和告警
+cost_tracker.set_budget(
+    daily_limit=100.0,  # 每日100元限额
+    monthly_limit=2000.0,  # 每月2000元限额
+    alert_threshold=0.8  # 80%时告警
+)
+
+# 获取成本分析
+cost_analysis = await get_cost_analysis(
+    start_time=datetime.now() - timedelta(days=30),
+    group_by=["provider", "model", "date"]
+)
+
+print("成本分析报告:")
+for item in cost_analysis.breakdown:
+    print(f"{item.provider}/{item.model}: {item.total_cost} CNY")
+    print(f"  Token使用: {item.total_tokens:,}")
+    print(f"  平均成本/1K Token: {item.avg_cost_per_1k_tokens:.4f} CNY")
+
+# 实时成本监控
+current_costs = cost_tracker.get_current_usage()
+print(f"今日成本: {current_costs.daily_cost} CNY")
+print(f"本月成本: {current_costs.monthly_cost} CNY")
+print(f"预算使用率: {current_costs.budget_usage_rate:.1%}")
+```
+
+### 6. 性能优化使用
 
 ```python
 from harborai.api.fast_client import FastHarborAI
@@ -336,6 +739,72 @@ if hasattr(client, 'get_memory_stats'):
     stats = client.get_memory_stats()
     print(f"缓存命中率: {stats['cache']['hit_rate']:.1%}")
     print(f"内存使用: {stats['system_memory']['rss_mb']:.1f}MB")
+```
+
+## 🛠️ CLI 工具
+
+HarborAI 提供了强大的命令行工具，帮助您管理和监控 AI 应用：
+
+### 基础命令
+
+```bash
+# 查看版本和帮助
+harborai --version
+harborai --help
+
+# 初始化数据库（PostgreSQL）
+harborai init-db
+
+# 列出可用模型
+harborai list-models --provider deepseek
+
+# 查看插件状态
+harborai list-plugins
+```
+
+### 数据库管理
+
+```bash
+# 初始化数据库
+harborai init-db
+
+# 强制重新创建数据库表
+harborai init-db --force
+
+# 检查数据库连接状态
+harborai db-status
+```
+
+### 监控和统计
+
+```bash
+# 查看 API 调用日志（从 PostgreSQL 或文件日志）
+harborai logs --days 7 --model deepseek-chat
+
+# 查看使用统计
+harborai stats --days 30 --provider deepseek
+
+# 查看数据库状态和降级信息
+harborai stats --database
+
+# 查看配置信息
+harborai config
+```
+
+### 高级功能
+
+```bash
+# 交互式模式
+harborai interactive
+
+# 批量处理
+harborai batch-process --input-file requests.jsonl
+
+# 启动服务器模式
+harborai server --host 0.0.0.0 --port 8000
+
+# 测试连接
+harborai test-connection --provider deepseek
 ```
 
 ## 🚀 性能优化
@@ -505,48 +974,118 @@ python scenarios/chatbot_system.py
 
 ## ⚙️ 配置
 
-### 环境变量配置
+### 完整环境变量配置
 
-HarborAI 支持通过环境变量进行配置：
+HarborAI 支持通过环境变量进行全面配置，按功能分类如下：
 
 ```env
-# AI服务提供商配置（推荐使用 DeepSeek）
-DEEPSEEK_API_KEY=your-deepseek-api-key-here  # 推荐：获取地址 https://platform.deepseek.com/api_keys
+# === 基础配置 ===
+HARBORAI_PERFORMANCE_MODE=full  # fast, balanced, full
+HARBORAI_LOG_LEVEL=INFO
+HARBORAI_DEBUG=false
+
+# === AI 服务商配置 ===
+# DeepSeek（推荐）
+DEEPSEEK_API_KEY=your-deepseek-api-key-here  # 获取地址: https://platform.deepseek.com/api_keys
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 
-# 其他服务提供商（可选）
+# OpenAI
 OPENAI_API_KEY=sk-your-openai-api-key
 OPENAI_BASE_URL=https://api.openai.com/v1
-ERNIE_API_KEY=sk-ant-your-ernie-api-key-here
-ERNIE_BASE_URL=https://qianfan.baidubce.com/v2
 
-# 性能模式配置
-HARBORAI_PERFORMANCE_MODE=full  # fast, balanced, full
+# 百度千帆
+WENXIN_API_KEY=your-wenxin-api-key
+WENXIN_BASE_URL=https://qianfan.baidubce.com/v2
+
+# 字节跳动豆包
+DOUBAO_API_KEY=your-doubao-api-key
+DOUBAO_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+
+# === PostgreSQL 数据库配置（主存储）===
+HARBORAI_POSTGRES_URL=postgresql+asyncpg://harborai:password@localhost:5432/harborai
+HARBORAI_POSTGRES_HOST=localhost
+HARBORAI_POSTGRES_PORT=5432
+HARBORAI_POSTGRES_USER=harborai
+HARBORAI_POSTGRES_PASSWORD=your-secure-password
+HARBORAI_POSTGRES_DATABASE=harborai
+
+# === 日志系统配置 ===
+HARBORAI_POSTGRES_LOGGING=true
+HARBORAI_ASYNC_LOGGING=true
+HARBORAI_FALLBACK_LOG_DIR=./logs
+HARBORAI_MAX_POSTGRES_FAILURES=3
+HARBORAI_HEALTH_CHECK_INTERVAL=60
+HARBORAI_LOG_RETENTION_DAYS=15
+
+# === OpenTelemetry 分布式追踪配置 ===
+OTEL_ENABLED=true
+OTEL_SERVICE_NAME=harborai-logging
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+OTEL_EXPORTER_OTLP_HEADERS={}
+OTEL_RESOURCE_ATTRIBUTES=service.name=harborai-logging,service.version=2.0.0,ai.system=harborai
+
+# === Jaeger APM 配置（可选）===
+JAEGER_ENDPOINT=http://localhost:14268/api/traces
+JAEGER_UI_URL=http://localhost:16686
+ZIPKIN_ENDPOINT=http://localhost:9411/api/v2/spans
+
+# === 模型价格配置（支持环境变量动态配置）===
+DEEPSEEK_INPUT_PRICE=0.0014
+DEEPSEEK_OUTPUT_PRICE=0.0028
+OPENAI_GPT4_INPUT_PRICE=0.03
+OPENAI_GPT4_OUTPUT_PRICE=0.06
+WENXIN_INPUT_PRICE=0.008
+WENXIN_OUTPUT_PRICE=0.016
+
+# === 性能优化配置 ===
+HARBORAI_FAST_PATH=true
+HARBORAI_FAST_PATH_MODELS=deepseek-chat,deepseek-reasoner
+HARBORAI_FAST_PATH_SKIP_COST=false
+HARBORAI_ASYNC_DECORATORS=true
+HARBORAI_DETAILED_TRACING=true
 HARBORAI_ENABLE_LAZY_LOADING=true
 HARBORAI_MEMORY_OPTIMIZATION=true
 
-# 缓存配置
+# === 缓存配置 ===
+HARBORAI_TOKEN_CACHE=true
+HARBORAI_TOKEN_CACHE_TTL=300
+HARBORAI_RESPONSE_CACHE=true
+HARBORAI_RESPONSE_CACHE_TTL=600
+HARBORAI_CACHE_CLEANUP_INTERVAL=300
 HARBORAI_CACHE_ENABLED=true
 HARBORAI_CACHE_TTL=3600
 HARBORAI_CACHE_MAX_SIZE=1000
 
-# 监控配置（可选）
-HARBORAI_MONITORING_ENABLED=false
-HARBORAI_METRICS_ENABLED=false
-PROMETHEUS_PORT=9090
-
-# 日志配置
-HARBORAI_LOG_LEVEL=INFO
-HARBORAI_LOG_FORMAT=json
-HARBORAI_STRUCTURED_LOGGING=true
-
-# 安全配置（可选）
-HARBORAI_RATE_LIMIT_ENABLED=false
+# === 安全配置 ===
+HARBORAI_SECURITY_ENABLED=true
+HARBORAI_ENCRYPTION_KEY=your-encryption-key
+HARBORAI_AUDIT_LOGGING=true
+HARBORAI_SECURITY_MONITORING=true
+HARBORAI_RATE_LIMIT_ENABLED=true
+HARBORAI_MAX_REQUESTS_PER_MINUTE=100
 HARBORAI_TIMEOUT=30
 
-# 成本追踪配置
-HARBORAI_DEFAULT_CURRENCY=RMB  # 默认货币单位：RMB（人民币）
+# === 监控配置 ===
+HARBORAI_PERFORMANCE_MANAGER=true
+HARBORAI_BACKGROUND_TASKS=true
+HARBORAI_BACKGROUND_WORKERS=2
+HARBORAI_MONITORING_ENABLED=true
+HARBORAI_METRICS_ENABLED=true
+PROMETHEUS_PORT=9090
+PROMETHEUS_METRICS_PATH=/metrics
+
+# === 插件配置 ===
+HARBORAI_PLUGIN_PATH=./plugins
+HARBORAI_PLUGIN_AUTO_LOAD=true
+HARBORAI_PLUGIN_PRELOAD=true
+HARBORAI_PLUGIN_CACHE_SIZE=100
+
+# === 成本追踪配置 ===
+HARBORAI_COST_TRACKING=true
+HARBORAI_DEFAULT_CURRENCY=CNY  # 默认货币单位：CNY（人民币）
 HARBORAI_COST_TRACKING_ENABLED=true
+HARBORAI_COST_ALERT_THRESHOLD=100.0  # 成本告警阈值
+HARBORAI_COST_EXPORT_ENABLED=true  # 启用成本数据导出
 ```
 
 完整的配置选项请参考 [.env.example](.env.example) 文件。
@@ -886,50 +1425,226 @@ ai_providers:
 }
 ```
 
+### 日志查询 API
+
+**GET** `/v1/logs/query`
+
+查询和分析日志数据，支持多种过滤条件和统计功能。
+
+#### 请求参数
+
+```json
+{
+  "start_time": "2025-01-01T00:00:00Z",
+  "end_time": "2025-01-31T23:59:59Z",
+  "trace_id": "hb_trace_12345",
+  "model": "deepseek-chat",
+  "status": "success",
+  "limit": 100,
+  "offset": 0,
+  "include_stats": true
+}
+```
+
+#### 响应结构 (LogQueryResult)
+
+```json
+{
+  "logs": [
+    {
+      "id": "log_12345",
+      "hb_trace_id": "hb_trace_12345",
+      "otel_trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "timestamp": "2025-01-25T10:30:00Z",
+      "model": "deepseek-chat",
+      "provider": "deepseek",
+      "status": "success",
+      "input_tokens": 150,
+      "output_tokens": 300,
+      "total_tokens": 450,
+      "cost": {
+        "input_cost": 0.21,
+        "output_cost": 0.84,
+        "total_cost": 1.05,
+        "currency": "CNY"
+      },
+      "performance": {
+        "response_time": 2.5,
+        "first_token_time": 0.8,
+        "tokens_per_second": 120
+      },
+      "request_data": {
+        "messages": [...],
+        "temperature": 0.7,
+        "max_tokens": 500
+      },
+      "response_data": {
+        "content": "...",
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "stats": {
+    "total_logs": 1250,
+    "total_cost": 156.78,
+    "avg_response_time": 2.3,
+    "success_rate": 99.2,
+    "token_usage": {
+      "total_input_tokens": 125000,
+      "total_output_tokens": 187500,
+      "total_tokens": 312500
+    },
+    "model_distribution": {
+      "deepseek-chat": 800,
+      "gpt-4": 300,
+      "claude-3": 150
+    }
+  },
+  "apm_links": {
+    "jaeger": "http://localhost:16686/trace/4bf92f3577b34da6a3ce929d0e0e4736",
+    "zipkin": "http://localhost:9411/zipkin/traces/4bf92f3577b34da6a3ce929d0e0e4736"
+  },
+  "pagination": {
+    "current_page": 1,
+    "total_pages": 13,
+    "total_items": 1250,
+    "has_next": true,
+    "has_prev": false
+  }
+}
+```
+
+#### 统计查询 API
+
+**GET** `/v1/logs/stats`
+
+获取日志统计信息和成本分析。
+
+```json
+{
+  "time_range": {
+    "start": "2025-01-01T00:00:00Z",
+    "end": "2025-01-31T23:59:59Z"
+  },
+  "group_by": ["model", "provider", "date"],
+  "metrics": ["cost", "tokens", "response_time", "success_rate"]
+}
+```
+
+#### 分布式追踪集成
+
+所有API响应都包含追踪信息，支持与APM系统集成：
+
+```json
+{
+  "trace_context": {
+    "hb_trace_id": "hb_trace_12345",
+    "otel_trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "00f067aa0ba902b7",
+    "trace_flags": "01"
+  },
+  "apm_links": {
+    "jaeger": "http://localhost:16686/trace/4bf92f3577b34da6a3ce929d0e0e4736",
+    "zipkin": "http://localhost:9411/zipkin/traces/4bf92f3577b34da6a3ce929d0e0e4736"
+  }
+}
+```
+
 ## 🏗️ 架构设计
 
+### 整体架构
+
 ```mermaid
-graph TB
-    A[用户应用] --> B[HarborAI 客户端]
+graph TD
+    A[用户应用] --> B[HarborAI客户端]
     B --> C[性能优化层]
     C --> D[插件管理器]
-    D --> E[AI服务适配器]
+    D --> E[AI服务提供商]
     
-    E --> F[OpenAI API]
-    E --> G[Anthropic API]
-    E --> H[Google Gemini API]
+    B --> F[智能缓存]
+    B --> G[内存优化]
+    B --> H[延迟加载]
+    B --> I[observability模块]
     
-    C --> I[智能缓存]
-    C --> J[内存优化]
-    C --> K[延迟加载]
+    E --> J[OpenAI]
+    E --> K[DeepSeek]
+    E --> L[百度千帆]
+    E --> M[豆包]
     
-    B --> L[监控系统]
-    L --> M[性能统计]
-    L --> N[错误追踪]
+    I --> N[OpenTelemetry分布式追踪]
+    I --> O[日志系统]
+    I --> P[Prometheus指标]
+```
+
+### 日志系统架构
+
+```mermaid
+graph TD
+    A[HarborAI统一客户端] --> B[observability模块]
+    B --> C[FallbackLogger降级管理器]
+    C --> D[PostgreSQLLogger主存储]
+    C --> E[FileSystemLogger备份存储]
+    B --> F[PrometheusMetrics指标收集]
+    B --> G[structlog结构化日志]
+    B --> H[OpenTelemetry分布式追踪]
     
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-    style E fill:#fce4ec
-    style I fill:#f1f8e9
+    subgraph "日志收集层"
+        B1[异步日志收集器]
+        B2[数据预处理器]
+        B3[敏感信息检测器]
+        B4[Token解析器]
+        B5[成本计算器]
+    end
+    
+    subgraph "数据处理层"
+        C1[厂商响应解析器]
+        C2[PricingCalculator成本计算]
+        C3[数据验证器]
+        C4[数据规范化器]
+        C5[性能指标计算器]
+    end
+    
+    subgraph "存储层"
+        D1[PostgreSQL主存储]
+        D2[文件系统备份存储]
+        D3[自动降级机制]
+    end
+    
+    subgraph "查询层"
+        E1[PostgreSQL查询引擎]
+        E2[文件日志解析器]
+        E3[统一查询接口]
+    end
+    
+    subgraph "监控层"
+        F1[Prometheus指标]
+        F2[性能监控]
+        F3[健康检查]
+        F4[OpenTelemetry追踪]
+    end
 ```
 
 ### 核心组件
 
-* **HarborAI 客户端**: 提供与 OpenAI SDK 完全兼容的接口
+* **HarborAI客户端**: 统一的API接口，兼容OpenAI SDK
 
-* **性能优化层**: 三种性能模式（FAST/BALANCED/FULL）
+* **性能优化层**: 延迟加载、内存优化、智能缓存
 
-* **插件管理器**: 基于 `BaseLLMPlugin` 的可扩展插件系统
+* **插件管理器**: 动态加载AI服务提供商插件
+
+* **observability模块**: 企业级可观测性，包含日志、监控、追踪
 
 * **智能缓存**: 自适应缓存策略，提升响应速度
 
-* **内存优化**: 严格控制内存增长，优化垃圾回收
+* **内存优化**: 严格控制内存使用，避免内存泄漏
 
-* **延迟加载**: 按需加载模块，大幅减少初始化时间
+* **延迟加载**: 按需加载组件，减少初始化时间
 
-* **监控系统**: 实时性能监控和错误追踪
+* **日志系统**: PostgreSQL主存储 + 文件备份的双层架构
+
+* **分布式追踪**: OpenTelemetry标准追踪，支持Jaeger/Zipkin
+
+* **自动降级**: PostgreSQL不可用时自动切换到文件日志
 
 ## 🧪 测试
 
@@ -1253,6 +1968,331 @@ OTEL_PYTHON_HTTPX_RECORD_RESPONSE_BODY=false
 * **敏感数据**: 避免在追踪数据中记录敏感信息
 * **性能影响**: 监控追踪系统本身的性能开销
 * **数据保留**: 根据业务需求设置合理的数据保留策略
+
+## 🔧 故障排除
+
+### 🗄️ PostgreSQL 数据库问题
+
+#### 1. PostgreSQL 连接失败
+
+**症状**: 日志显示 "PostgreSQL connection failed, falling back to file logging"
+
+**诊断步骤**:
+```bash
+# 1. 检查 PostgreSQL 服务状态
+sudo systemctl status postgresql
+# Windows: net start postgresql-x64-14
+
+# 2. 验证连接配置
+echo $HARBORAI_POSTGRES_URL
+# 或检查各项配置
+echo $HARBORAI_POSTGRES_HOST
+echo $HARBORAI_POSTGRES_PORT
+echo $HARBORAI_POSTGRES_USER
+
+# 3. 测试数据库连接
+psql -h localhost -p 5432 -U harborai -d harborai
+
+# 4. 检查 HarborAI 数据库状态
+python -c "
+from harborai.storage.postgres_logger import PostgreSQLLogger
+logger = PostgreSQLLogger()
+print(f'连接状态: {logger.is_healthy()}')
+print(f'健康检查: {logger.health_check()}')
+"
+```
+
+**解决方案**:
+```bash
+# 1. 启动 PostgreSQL 服务
+sudo systemctl start postgresql
+
+# 2. 创建数据库和用户
+sudo -u postgres psql
+CREATE DATABASE harborai;
+CREATE USER harborai WITH PASSWORD 'your-password';
+GRANT ALL PRIVILEGES ON DATABASE harborai TO harborai;
+
+# 3. 初始化 HarborAI 数据库表
+python -c "
+from harborai.storage.postgres_logger import PostgreSQLLogger
+logger = PostgreSQLLogger()
+logger.init_tables()
+"
+```
+
+#### 2. 数据库表结构问题
+
+**症状**: 数据库连接正常但写入失败
+
+**诊断和修复**:
+```python
+# 检查表结构
+from harborai.storage.postgres_logger import PostgreSQLLogger
+
+logger = PostgreSQLLogger()
+tables = logger.check_tables()
+print(f"表状态: {tables}")
+
+# 重新创建表结构
+if not tables['all_exist']:
+    logger.init_tables(force=True)
+    print("表结构已重新创建")
+```
+
+#### 3. 数据库性能问题
+
+**症状**: 日志写入缓慢，影响API响应时间
+
+**优化方案**:
+```sql
+-- 1. 创建索引优化查询性能
+CREATE INDEX IF NOT EXISTS idx_harborai_logs_timestamp ON harborai_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_harborai_logs_trace_id ON harborai_logs(hb_trace_id);
+CREATE INDEX IF NOT EXISTS idx_harborai_logs_model ON harborai_logs(model);
+
+-- 2. 定期清理旧数据
+DELETE FROM harborai_logs WHERE timestamp < NOW() - INTERVAL '30 days';
+
+-- 3. 分析表统计信息
+ANALYZE harborai_logs;
+```
+
+### 🔄 降级机制问题
+
+#### 1. 降级机制未触发
+
+**症状**: PostgreSQL 不可用但系统没有自动降级到文件日志
+
+**诊断步骤**:
+```python
+# 检查降级配置
+import os
+print(f"降级目录: {os.getenv('HARBORAI_FALLBACK_LOG_DIR', './logs')}")
+print(f"最大失败次数: {os.getenv('HARBORAI_MAX_POSTGRES_FAILURES', '3')}")
+print(f"健康检查间隔: {os.getenv('HARBORAI_HEALTH_CHECK_INTERVAL', '60')}")
+
+# 检查降级状态
+from harborai.storage.fallback_logger import FallbackLogger
+fallback = FallbackLogger()
+status = fallback.get_status()
+print(f"降级状态: {status}")
+```
+
+**解决方案**:
+```python
+# 手动触发降级测试
+from harborai.storage.fallback_logger import FallbackLogger
+
+fallback = FallbackLogger()
+# 强制降级
+fallback.force_fallback()
+print("已强制切换到文件日志")
+
+# 恢复正常模式
+fallback.restore_primary()
+print("已恢复到 PostgreSQL 日志")
+```
+
+#### 2. 文件日志权限问题
+
+**症状**: 降级到文件日志时写入失败
+
+**解决方案**:
+```bash
+# 1. 检查日志目录权限
+ls -la ./logs/
+# 确保目录可写
+
+# 2. 创建日志目录
+mkdir -p ./logs
+chmod 755 ./logs
+
+# 3. 检查磁盘空间
+df -h ./logs
+```
+
+### 📊 OpenTelemetry 追踪问题
+
+#### 1. 追踪数据未生成
+
+**症状**: Jaeger/Zipkin 中看不到追踪数据
+
+**诊断步骤**:
+```python
+# 检查 OpenTelemetry 配置
+import os
+print(f"OTEL 启用状态: {os.getenv('OTEL_ENABLED', 'false')}")
+print(f"服务名称: {os.getenv('OTEL_SERVICE_NAME', 'harborai')}")
+print(f"导出端点: {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4317')}")
+
+# 测试追踪功能
+from harborai.observability.tracing import get_tracer
+tracer = get_tracer()
+with tracer.start_as_current_span("test_span") as span:
+    span.set_attribute("test.key", "test_value")
+    print("测试 span 已创建")
+```
+
+#### 2. Jaeger 连接问题
+
+**解决方案**:
+```bash
+# 1. 检查 Jaeger 服务状态
+curl http://localhost:16686/api/services
+curl http://localhost:14268/api/traces
+
+# 2. 重启 Jaeger 容器
+docker restart jaeger
+
+# 3. 检查网络连接
+telnet localhost 4317
+```
+
+### 🚨 日志查询问题
+
+#### 1. 查询性能慢
+
+**优化方案**:
+```python
+# 使用时间范围限制查询
+from datetime import datetime, timedelta
+from harborai.storage.postgres_logger import PostgreSQLLogger
+
+logger = PostgreSQLLogger()
+end_time = datetime.now()
+start_time = end_time - timedelta(hours=1)  # 只查询最近1小时
+
+logs = logger.query_logs(
+    start_time=start_time,
+    end_time=end_time,
+    limit=100  # 限制结果数量
+)
+```
+
+#### 2. 内存使用过高
+
+**解决方案**:
+```python
+# 使用分页查询避免内存问题
+def query_logs_paginated(logger, start_time, end_time, page_size=100):
+    offset = 0
+    while True:
+        logs = logger.query_logs(
+            start_time=start_time,
+            end_time=end_time,
+            limit=page_size,
+            offset=offset
+        )
+        if not logs:
+            break
+        
+        yield logs
+        offset += page_size
+```
+
+### 🛠️ 调试工具和命令
+
+#### 系统状态检查
+```bash
+# 检查整体系统状态
+python -c "
+from harborai.storage.fallback_logger import FallbackLogger
+from harborai.storage.postgres_logger import PostgreSQLLogger
+
+fallback = FallbackLogger()
+postgres = PostgreSQLLogger()
+
+print('=== 系统状态 ===')
+print(f'PostgreSQL 健康状态: {postgres.is_healthy()}')
+print(f'降级状态: {fallback.get_status()}')
+print(f'当前日志模式: {fallback.current_mode}')
+"
+```
+
+#### 日志查看工具
+```python
+# 查看最近的日志
+from harborai.storage.postgres_logger import PostgreSQLLogger
+from datetime import datetime, timedelta
+
+logger = PostgreSQLLogger()
+recent_logs = logger.query_logs(
+    start_time=datetime.now() - timedelta(hours=1),
+    limit=10
+)
+
+for log in recent_logs:
+    print(f"{log['timestamp']} - {log['model']} - {log['status']}")
+```
+
+#### 性能监控
+```python
+# 监控日志系统性能
+from harborai.storage.fallback_logger import FallbackLogger
+
+fallback = FallbackLogger()
+stats = fallback.get_performance_stats()
+print(f"写入性能统计: {stats}")
+```
+
+### 模型调用问题
+
+#### 1. API 密钥无效
+
+```python
+# 问题：API 密钥无效
+# 解决：检查环境变量配置
+import os
+print(os.getenv('DEEPSEEK_API_KEY'))  # 确认密钥已设置
+```
+
+#### 2. 模型不可用
+
+```bash
+# 问题：特定模型不可用
+# 解决：查看可用模型列表
+harborai list-models --provider deepseek
+```
+
+### 性能问题
+
+#### 1. 响应速度慢
+
+```python
+# 问题：响应速度慢
+# 解决：启用快速模式
+from harborai.api.fast_client import FastHarborAI
+client = FastHarborAI(performance_mode="fast")
+```
+
+#### 2. 内存使用过高
+
+```env
+# 问题：内存使用过高
+# 解决：启用内存优化
+HARBORAI_ENABLE_MEMORY_OPTIMIZATION=true
+HARBORAI_MEMORY_THRESHOLD_MB=50.0
+```
+
+### 🛠️ 调试工具
+
+```bash
+# 查看详细日志
+harborai logs --days 1 --level DEBUG
+
+# 检查系统状态
+harborai stats --format json
+
+# 测试连接
+harborai test-connection --provider deepseek
+
+# 查看数据库状态
+harborai stats --database
+
+# 强制降级测试
+harborai force-fallback
+```
 
 ## 🤝 贡献指南
 

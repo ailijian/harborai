@@ -10,6 +10,7 @@ from threading import Thread
 
 from ..utils.logger import get_logger
 from ..utils.exceptions import StorageError
+from ..utils.timestamp import get_unified_timestamp, validate_timestamp_order
 
 logger = get_logger(__name__)
 
@@ -68,22 +69,25 @@ class PostgreSQLLogger:
     
     def stop(self):
         """停止日志记录器。"""
-        if not self._running:
-            return
-            
+        logger.info("Stopping PostgreSQL logger...")
         self._running = False
-        
-        # 等待工作线程结束
-        if self._worker_thread:
-            self._worker_thread.join(timeout=10)
         
         # 关闭数据库连接
         if self._connection:
             try:
                 self._connection.close()
-            except Exception:
-                pass
-            self._connection = None
+                logger.info("PostgreSQL connection closed successfully")
+            except Exception as e:
+                logger.warning(
+                    "Error closing PostgreSQL connection",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "connection_state": "closing"
+                    }
+                )
+            finally:
+                self._connection = None
         
         logger.info("PostgreSQL logger stopped")
     
@@ -109,7 +113,7 @@ class PostgreSQLLogger:
         
         log_entry = {
             "trace_id": trace_id,
-            "timestamp": datetime.now(),
+            "timestamp": get_unified_timestamp(),
             "type": "request",
             "model": model,
             "messages": sanitized_messages,
@@ -158,7 +162,7 @@ class PostgreSQLLogger:
         
         log_entry = {
             "trace_id": trace_id,
-            "timestamp": datetime.now(),
+            "timestamp": get_unified_timestamp(),
             "type": "response",
             "success": success,
             "latency": latency,
@@ -269,19 +273,73 @@ class PostgreSQLLogger:
                     last_flush = current_time
                     
             except Exception as e:
-                # 在测试环境中使用debug级别，避免过多的错误信息
-                if "invalid" in str(e) or "test" in str(e).lower():
-                    logger.debug(f"Error in PostgreSQL logger worker: {e}")
+                # 详细的错误分析和处理
+                error_context = {
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "batch_size": len(batch),
+                    "worker_state": "processing",
+                    "timestamp": time.time(),
+                    "last_flush": last_flush
+                }
+                
+                # 根据错误类型进行分类处理
+                error_message = str(e).lower()
+                if any(keyword in error_message for keyword in ['connection', 'timeout', 'network']):
+                    # 连接相关错误
+                    logger.warning(
+                        "PostgreSQL connection error detected, attempting recovery",
+                        extra={**error_context, "error_category": "connection"}
+                    )
+                    self._handle_connection_error(e, batch)
+                elif any(keyword in error_message for keyword in ['permission', 'authentication', 'access']):
+                    # 权限相关错误
+                    logger.error(
+                        "PostgreSQL permission error, requires manual intervention",
+                        extra={**error_context, "error_category": "permission"}
+                    )
+                    self._handle_permission_error(e, batch)
+                elif any(keyword in error_message for keyword in ['disk', 'space', 'quota']):
+                    # 存储相关错误
+                    logger.error(
+                        "PostgreSQL storage error detected",
+                        extra={**error_context, "error_category": "storage"}
+                    )
+                    self._handle_storage_error(e, batch)
                 else:
-                    logger.error(f"Error in PostgreSQL logger worker: {e}")
+                    # 未知错误
+                    logger.error(
+                        "Unknown PostgreSQL error",
+                        extra={**error_context, "error_category": "unknown"}
+                    )
+                    self._handle_unknown_error(e, batch)
+                
                 # 通知fallback_logger关于错误
                 if self.error_callback:
-                    self.error_callback(e)
-                time.sleep(1)
+                    try:
+                        self.error_callback(e)
+                    except Exception as callback_error:
+                        logger.error(
+                            "Error callback execution failed",
+                            extra={
+                                **error_context,
+                                "callback_error": str(callback_error)
+                            }
+                        )
         
-        # 处理剩余的日志
-        if batch:
-            self._flush_batch(batch)
+        # 等待工作线程结束
+        if self._worker_thread:
+            self._worker_thread.join(timeout=10)
+        
+        # 关闭数据库连接
+        if self._connection:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
+            self._connection = None
+        
+        logger.info("PostgreSQL logger stopped")
     
     def _flush_batch(self, batch: List[Dict[str, Any]]):
         """批量写入日志到数据库。"""
@@ -389,6 +447,78 @@ class PostgreSQLLogger:
         except Exception as e:
             logger.error(f"Failed to create table: {e}")
             raise StorageError(f"Failed to create table: {e}")
+    
+    def _handle_connection_error(self, error: Exception, batch: List[Dict]):
+        """处理连接相关错误"""
+        try:
+            # 尝试重新连接
+            self._reconnect()
+            
+            # 如果重连成功，尝试重新处理批次
+            if batch and self._connection:
+                logger.info("Retrying batch after reconnection")
+                self._flush_batch(batch)
+        except Exception as reconnect_error:
+            logger.error(
+                "Failed to reconnect to PostgreSQL",
+                extra={
+                    "original_error": str(error),
+                    "reconnect_error": str(reconnect_error),
+                    "batch_size": len(batch)
+                }
+            )
+    
+    def _handle_permission_error(self, error: Exception, batch: List[Dict]):
+        """处理权限相关错误"""
+        logger.critical(
+            "PostgreSQL permission error requires immediate attention",
+            extra={
+                "error": str(error),
+                "batch_size": len(batch),
+                "action_required": "Check database credentials and permissions"
+            }
+        )
+        # 权限错误通常需要人工干预，停止处理
+        self._running = False
+    
+    def _handle_storage_error(self, error: Exception, batch: List[Dict]):
+        """处理存储相关错误"""
+        logger.critical(
+            "PostgreSQL storage error detected",
+            extra={
+                "error": str(error),
+                "batch_size": len(batch),
+                "action_required": "Check database storage space and quotas"
+            }
+        )
+        # 存储错误可能需要清理或扩容
+        self._running = False
+    
+    def _handle_unknown_error(self, error: Exception, batch: List[Dict]):
+        """处理未知错误"""
+        logger.error(
+            "Unknown PostgreSQL error, continuing with caution",
+            extra={
+                "error": str(error),
+                "batch_size": len(batch),
+                "action": "monitoring_required"
+            }
+        )
+        # 对于未知错误，继续运行但增加监控
+    
+    def _reconnect(self):
+        """重新连接到PostgreSQL"""
+        if self._connection:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
+            self._connection = None
+        
+        # 重新建立连接
+        import psycopg2
+        self._connection = psycopg2.connect(self.connection_string)
+        logger.info("PostgreSQL reconnection successful")
 
 
 # 全局日志记录器实例

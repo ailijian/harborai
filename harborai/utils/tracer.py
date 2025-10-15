@@ -21,7 +21,7 @@ def generate_trace_id() -> str:
     """生成新的 Trace ID"""
     timestamp = int(time.time() * 1000)  # 毫秒时间戳
     random_part = uuid.uuid4().hex[:8]  # 8位随机字符
-    return f"harborai_{timestamp}_{random_part}"
+    return f"hb_{timestamp}_{random_part}"
 
 
 def set_current_trace_id(trace_id: str) -> None:

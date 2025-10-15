@@ -75,6 +75,9 @@ def should_retry_api_error(exception: Exception) -> bool:
     return False
 
 
+
+
+
 def calculate_backoff_delay(
     attempt: int,
     base_delay: float = 1.0,
@@ -104,25 +107,32 @@ class RetryConfig:
         max_attempts: int = 3,
         base_delay: float = 1.0,
         max_delay: float = 60.0,
-        exponential_base: float = 2.0,
+        exponential_base: float = 2.0,  # 保持向后兼容
+        backoff_factor: Optional[float] = None,  # 新参数
         jitter: bool = True,
         retryable_exceptions: Tuple[Type[Exception], ...] = RETRYABLE_EXCEPTIONS,
         retry_condition: Optional[Callable[[Exception], bool]] = None,
+        on_retry: Optional[Callable] = None,
+        on_failure: Optional[Callable] = None,
     ):
         self.max_attempts = max_attempts
         self.base_delay = base_delay
         self.max_delay = max_delay
-        self.exponential_base = exponential_base
+        # 向后兼容：如果提供了 backoff_factor，使用它；否则使用 exponential_base
+        self.backoff_factor = backoff_factor if backoff_factor is not None else exponential_base
+        self.exponential_base = exponential_base  # 保持向后兼容
         self.jitter = jitter
         self.retryable_exceptions = retryable_exceptions
         self.retry_condition = retry_condition or should_retry_api_error
+        self.on_retry = on_retry
+        self.on_failure = on_failure
 
 
 def retry_with_backoff(
     config: Optional[RetryConfig] = None,
     trace_id: Optional[str] = None
 ):
-    """重试装饰器（同步版本）"""
+    """重试装饰器"""
     if config is None:
         config = RetryConfig()
     
@@ -130,66 +140,129 @@ def retry_with_backoff(
         @wraps(func)
         def wrapper(*args, **kwargs):
             last_exception = None
+            retry_context = {
+                "function_name": func.__name__,
+                "trace_id": trace_id,
+                "max_attempts": config.max_attempts,
+                "start_time": time.time()
+            }
             
             for attempt in range(1, config.max_attempts + 1):
                 try:
-                    return func(*args, **kwargs)
+                    result = func(*args, **kwargs)
+                    
+                    # 如果之前有重试，记录成功恢复
+                    if attempt > 1:
+                        logger.info(
+                            "Function succeeded after retry",
+                            extra={
+                                **retry_context,
+                                "successful_attempt": attempt,
+                                "total_duration": time.time() - retry_context["start_time"]
+                            }
+                        )
+                    
+                    return result
                 except Exception as e:
                     last_exception = e
+                    
+                    # 详细的错误上下文
+                    error_context = {
+                        **retry_context,
+                        "attempt": attempt,
+                        "exception_type": type(e).__name__,
+                        "exception_message": str(e),
+                        "is_retryable": config.retry_condition(e),
+                        "timestamp": time.time()
+                    }
                     
                     # 检查是否应该重试
                     if not config.retry_condition(e):
                         logger.warning(
                             "Exception not retryable, failing immediately",
-                            extra={
-                                "trace_id": trace_id,
-                                "exception_type": type(e).__name__,
-                                "exception_message": str(e),
-                                "attempt": attempt,
-                            }
+                            extra=error_context
                         )
-                        raise
+                        
+                        # 执行失败回调
+                        if config.on_failure:
+                            try:
+                                config.on_failure(e, attempt)
+                            except Exception as callback_error:
+                                logger.error(
+                                    "Failure callback execution failed",
+                                    extra={
+                                        **error_context,
+                                        "callback_error": str(callback_error)
+                                    }
+                                )
+                        
+                        raise e
                     
-                    # 如果是最后一次尝试，直接抛出异常
+                    # 如果是最后一次尝试
                     if attempt == config.max_attempts:
                         logger.error(
                             "All retry attempts exhausted",
                             extra={
-                                "trace_id": trace_id,
-                                "exception_type": type(e).__name__,
-                                "exception_message": str(e),
-                                "total_attempts": attempt,
+                                **error_context,
+                                "total_duration": time.time() - retry_context["start_time"]
                             }
                         )
-                        raise
+                        
+                        # 执行失败回调
+                        if config.on_failure:
+                            try:
+                                config.on_failure(e, attempt)
+                            except Exception as callback_error:
+                                logger.error(
+                                    "Failure callback execution failed",
+                                    extra={
+                                        **error_context,
+                                        "callback_error": str(callback_error)
+                                    }
+                                )
+                        
+                        raise e
                     
                     # 计算延迟时间
-                    delay = calculate_backoff_delay(
-                        attempt,
-                        config.base_delay,
-                        config.max_delay,
-                        config.exponential_base,
-                        config.jitter,
+                    delay = min(
+                        config.base_delay * (config.backoff_factor ** (attempt - 1)),
+                        config.max_delay
                     )
                     
+                    # 添加抖动
+                    if config.jitter:
+                        delay *= (0.5 + random.random() * 0.5)
+                    
                     logger.warning(
-                        "Retrying after exception",
+                        "Function failed, retrying",
                         extra={
-                            "trace_id": trace_id,
-                            "exception_type": type(e).__name__,
-                            "exception_message": str(e),
-                            "attempt": attempt,
-                            "max_attempts": config.max_attempts,
-                            "delay_seconds": delay,
+                            **error_context,
+                            "retry_delay": delay,
+                            "next_attempt": attempt + 1
                         }
                     )
                     
-                    # 等待后重试
+                    # 执行重试回调
+                    if config.on_retry:
+                        try:
+                            config.on_retry(attempt, e, delay)
+                        except Exception as callback_error:
+                            logger.error(
+                                "Retry callback execution failed",
+                                extra={
+                                    **error_context,
+                                    "callback_error": str(callback_error),
+                                    "retry_delay": delay
+                                }
+                            )
+                    
                     time.sleep(delay)
             
-            # 理论上不会到达这里，但为了类型安全
+            # 这里不应该到达，但为了安全起见
             if last_exception:
                 raise last_exception
+            else:
+                raise RuntimeError("Unexpected retry loop termination")
         
         return wrapper
     return decorator
@@ -207,66 +280,138 @@ def async_retry_with_backoff(
         @wraps(func)
         async def wrapper(*args, **kwargs):
             last_exception = None
+            retry_context = {
+                "function_name": func.__name__,
+                "trace_id": trace_id,
+                "max_attempts": config.max_attempts,
+                "start_time": time.time()
+            }
             
             for attempt in range(1, config.max_attempts + 1):
                 try:
-                    return await func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
+                    
+                    # 如果之前有重试，记录成功恢复
+                    if attempt > 1:
+                        logger.info(
+                            "Async function succeeded after retry",
+                            extra={
+                                **retry_context,
+                                "successful_attempt": attempt,
+                                "total_duration": time.time() - retry_context["start_time"]
+                            }
+                        )
+                    
+                    return result
                 except Exception as e:
                     last_exception = e
+                    
+                    # 详细的错误上下文
+                    error_context = {
+                        **retry_context,
+                        "attempt": attempt,
+                        "exception_type": type(e).__name__,
+                        "exception_message": str(e),
+                        "is_retryable": config.retry_condition(e),
+                        "timestamp": time.time()
+                    }
                     
                     # 检查是否应该重试
                     if not config.retry_condition(e):
                         logger.warning(
-                            "Exception not retryable, failing immediately",
-                            extra={
-                                "trace_id": trace_id,
-                                "exception_type": type(e).__name__,
-                                "exception_message": str(e),
-                                "attempt": attempt,
-                            }
+                            "Async exception not retryable, failing immediately",
+                            extra=error_context
                         )
-                        raise
+                        
+                        # 执行失败回调
+                        if config.on_failure:
+                            try:
+                                if asyncio.iscoroutinefunction(config.on_failure):
+                                    await config.on_failure(e, attempt)
+                                else:
+                                    config.on_failure(e, attempt)
+                            except Exception as callback_error:
+                                logger.error(
+                                    "Async failure callback execution failed",
+                                    extra={
+                                        **error_context,
+                                        "callback_error": str(callback_error)
+                                    }
+                                )
+                        
+                        raise e
                     
-                    # 如果是最后一次尝试，直接抛出异常
+                    # 如果是最后一次尝试
                     if attempt == config.max_attempts:
                         logger.error(
-                            "All retry attempts exhausted",
+                            "All async retry attempts exhausted",
                             extra={
-                                "trace_id": trace_id,
-                                "exception_type": type(e).__name__,
-                                "exception_message": str(e),
-                                "total_attempts": attempt,
+                                **error_context,
+                                "total_duration": time.time() - retry_context["start_time"]
                             }
                         )
-                        raise
+                        
+                        # 执行失败回调
+                        if config.on_failure:
+                            try:
+                                if asyncio.iscoroutinefunction(config.on_failure):
+                                    await config.on_failure(e, attempt)
+                                else:
+                                    config.on_failure(e, attempt)
+                            except Exception as callback_error:
+                                logger.error(
+                                    "Async failure callback execution failed",
+                                    extra={
+                                        **error_context,
+                                        "callback_error": str(callback_error)
+                                    }
+                                )
+                        
+                        raise e
                     
                     # 计算延迟时间
-                    delay = calculate_backoff_delay(
-                        attempt,
-                        config.base_delay,
-                        config.max_delay,
-                        config.exponential_base,
-                        config.jitter,
+                    delay = min(
+                        config.base_delay * (config.backoff_factor ** (attempt - 1)),
+                        config.max_delay
                     )
                     
+                    # 添加抖动
+                    if config.jitter:
+                        delay *= (0.5 + random.random() * 0.5)
+                    
                     logger.warning(
-                        "Retrying after exception",
+                        "Async function failed, retrying",
                         extra={
-                            "trace_id": trace_id,
-                            "exception_type": type(e).__name__,
-                            "exception_message": str(e),
-                            "attempt": attempt,
-                            "max_attempts": config.max_attempts,
-                            "delay_seconds": delay,
+                            **error_context,
+                            "retry_delay": delay,
+                            "next_attempt": attempt + 1
                         }
                     )
                     
-                    # 异步等待后重试
+                    # 执行重试回调
+                    if config.on_retry:
+                        try:
+                            if asyncio.iscoroutinefunction(config.on_retry):
+                                await config.on_retry(attempt, e, delay)
+                            else:
+                                config.on_retry(attempt, e, delay)
+                        except Exception as callback_error:
+                            logger.error(
+                                "Async retry callback execution failed",
+                                extra={
+                                    **error_context,
+                                    "callback_error": str(callback_error),
+                                    "retry_delay": delay
+                                }
+                            )
+                    
                     await asyncio.sleep(delay)
             
-            # 理论上不会到达这里，但为了类型安全
+            # 这里不应该到达，但为了安全起见
             if last_exception:
                 raise last_exception
+            else:
+                raise RuntimeError("Unexpected async retry loop termination")
         
         return wrapper
     return decorator

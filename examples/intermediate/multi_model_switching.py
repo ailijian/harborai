@@ -320,7 +320,7 @@ async def compare_models_performance(router: ModelRouter, prompt: str, models: L
     
     for model_name, perf in performance_results.items():
         if perf.success:
-            print(f"{model_name:<20} {perf.response_time:<10.2f} {perf.token_count:<10} ${perf.cost:<9.4f} {'✅成功':<10}")
+            print(f"{model_name:<20} {perf.response_time:<10.2f} {perf.token_count:<10} ¥{perf.cost:<9.4f} {'✅成功':<10}")
         else:
             print(f"{model_name:<20} {'N/A':<10} {'N/A':<10} {'N/A':<10} {'❌失败':<10}")
     
@@ -379,7 +379,7 @@ async def intelligent_model_routing(router: ModelRouter, tasks: List[Dict[str, A
         }
         
         if performance.success:
-            print(f"   ✅ 完成 - 耗时: {performance.response_time:.2f}s, 成本: ${performance.cost:.4f}")
+            print(f"   ✅ 完成 - 耗时: {performance.response_time:.2f}s, 成本: ¥{performance.cost:.4f}")
         else:
             print(f"   ❌ 失败 - {performance.error}")
             result["error"] = performance.error
@@ -437,7 +437,7 @@ async def load_balancing_demo(router: ModelRouter, prompt: str, num_requests: in
     
     for model, stats in model_stats.items():
         avg_time = stats["total_time"] / stats["success"] if stats["success"] > 0 else 0
-        print(f"{model:<20} {stats['success']:<8} {stats['failed']:<8} {avg_time:<12.2f} ${stats['total_cost']:<9.4f}")
+        print(f"{model:<20} {stats['success']:<8} {stats['failed']:<8} {avg_time:<12.2f} ¥{stats['total_cost']:<9.4f}")
 
 
 def show_model_capabilities(router: ModelRouter):
@@ -453,7 +453,7 @@ def show_model_capabilities(router: ModelRouter):
     for model_name in available_models:
         config = router.models[model_name]
         strengths = ", ".join([t.value for t in config.strengths])
-        print(f"{model_name:<20} {config.provider.value:<12} ${config.cost_per_1k_tokens:<9.4f} {strengths:<30} {config.description}")
+        print(f"{model_name:<20} {config.provider.value:<12} ¥{config.cost_per_1k_tokens:<9.4f} {strengths:<30} {config.description}")
 
 
 async def adaptive_model_selection(router: ModelRouter, prompts: List[str]):
@@ -495,7 +495,7 @@ async def adaptive_model_selection(router: ModelRouter, prompts: List[str]):
             # 执行任务
             performance = await call_model_with_metrics(router, recommended, prompt)
             if performance.success:
-                print(f"   ✅ 执行成功 - 耗时: {performance.response_time:.2f}s, 成本: ${performance.cost:.4f}")
+                print(f"   ✅ 执行成功 - 耗时: {performance.response_time:.2f}s, 成本: ¥{performance.cost:.4f}")
             else:
                 print(f"   ❌ 执行失败: {performance.error}")
 
@@ -564,7 +564,7 @@ async def main():
         print(f"   成功率: {overall_stats['success_rate']:.1%}")
         print(f"   平均响应时间: {overall_stats['avg_response_time']:.2f}秒")
         print(f"   平均Token数: {overall_stats['avg_token_count']:.0f}")
-        print(f"   总成本: ${overall_stats['total_cost']:.4f}")
+        print(f"   总成本: ¥{overall_stats['total_cost']:.4f}")
         
         print(f"\n📈 各模型统计:")
         for model in available_models:
@@ -575,7 +575,7 @@ async def main():
                 print(f"     成功率: {model_stats['success_rate']:.1%}")
                 if model_stats['successful_calls'] > 0:
                     print(f"     平均耗时: {model_stats['avg_response_time']:.2f}秒")
-                    print(f"     总成本: ${model_stats['total_cost']:.4f}")
+                    print(f"     总成本: ¥{model_stats['total_cost']:.4f}")
     
     print(f"\n🎉 多模型切换示例执行完成！")
 

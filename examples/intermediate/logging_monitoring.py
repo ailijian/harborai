@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-HarborAI 日志监控示例
+HarborAI 中级日志功能演示 - 日志监控与分析
 
-这个示例展示了如何在HarborAI中实现全面的日志记录和监控，
-包括请求追踪、性能监控、错误分析和实时告警。
+这个脚本演示了 HarborAI 日志系统的中级功能，包括：
+1. 真实模型调用和日志记录
+2. 结构化日志记录
+3. 性能指标监控
+4. 错误追踪和分析
+5. 告警规则设置
+6. 日志查看和分析
+7. 新的布局模式演示（classic 和 enhanced）
+8. 新的 trace_id 格式支持（hb_ 前缀）
+9. 配对显示和统计分析
 
-场景描述:
-- 结构化日志记录
-- 性能指标监控
-- 错误追踪分析
-- 实时告警系统
+使用方法：
+    python logging_monitoring.py                    # 运行完整演示
+    python logging_monitoring.py --real-calls       # 进行真实模型调用
+    python logging_monitoring.py --monitoring-only  # 仅演示监控功能
+    python logging_monitoring.py --layout-demo      # 演示布局模式
+    python logging_monitoring.py --trace-id-demo    # 演示 trace_id 功能
 
-应用价值:
-- 提升系统可观测性
-- 快速问题定位
-- 性能优化指导
-- 运维监控支持
+更新内容：
+- 支持新的 hb_ 前缀 trace_id 格式
+- 添加布局模式演示（classic 和 enhanced）
+- 增强性能监控和告警功能
+- 改进错误处理和用户体验
+- 添加配对显示和统计分析
+
+作者: HarborAI Team
+版本: 2.0.0
+更新时间: 2025-01-14
 """
 
 import os
@@ -25,7 +40,7 @@ import asyncio
 import logging
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
 from pathlib import Path
@@ -850,7 +865,7 @@ async def monitoring_demo():
     print(f"   总请求数: {overview['total_requests']}")
     print(f"   错误数量: {overview['error_count']}")
     print(f"   成功率: {overview['success_rate']:.1%}")
-    print(f"   总成本: ${overview['total_cost']:.4f}")
+    print(f"   总成本: ¥{overview['total_cost']:.4f}")
     print(f"   平均响应时间: {overview['avg_response_time']:.2f}秒")
     
     print(f"\n📈 指标统计:")
@@ -887,7 +902,7 @@ async def monitoring_demo():
             if log["response_time"]:
                 print(f"      响应时间: {log['response_time']:.2f}s")
             if log["cost"]:
-                print(f"      成本: ${log['cost']:.4f}")
+                print(f"      成本: ¥{log['cost']:.4f}")
     
     # 显示告警
     print(f"\n🔹 4. 告警状态")
@@ -920,17 +935,517 @@ async def monitoring_demo():
         print("   - 检查模型名称是否正确")
         print("   - 验证API密钥配置")
         print("   - 添加重试机制")
+
+
+# ============================================================================
+# 监控仪表板功能
+# ============================================================================
+
+def show_monitoring_dashboard(monitor: HarborAIMonitor):
+    """显示监控仪表板"""
+    print("🔸 生成监控报告...")
     
-    if overview['total_cost'] > 0.1:
-        print("💰 成本提醒:")
-        print(f"   - 当前总成本: ${overview['total_cost']:.4f}")
-        print("   - 建议设置成本预算")
-        print("   - 考虑使用更经济的模型")
+    # 显示基本统计
+    print(f"📊 基本统计:")
+    print(f"   - 总请求数: {monitor.request_count}")
+    print(f"   - 错误数: {monitor.error_count}")
+    print(f"   - 总成本: ¥{monitor.total_cost:.4f}")
     
-    print(f"\n🎉 监控演示完成！")
-    print(f"📁 监控数据保存在: monitoring.db")
-    print(f"📝 日志文件: harborai_monitor.log")
+    if monitor.request_count > 0:
+        avg_response_time = monitor.total_response_time / monitor.request_count
+        success_rate = ((monitor.request_count - monitor.error_count) / monitor.request_count) * 100
+        print(f"   - 平均响应时间: {avg_response_time:.2f}ms")
+        print(f"   - 成功率: {success_rate:.1f}%")
+    
+    # 显示指标统计
+    print(f"\n📈 指标统计:")
+    print(f"   - 计数器: {len(monitor.metrics.counters)} 个")
+    print(f"   - 仪表盘: {len(monitor.metrics.gauges)} 个")
+    print(f"   - 直方图: {len(monitor.metrics.histograms)} 个")
+    print(f"   - 计时器: {len(monitor.metrics.timers)} 个")
+    
+    # 显示告警规则
+    print(f"\n🚨 告警规则:")
+    print(f"   - 已配置规则: {len(monitor.alerts.rules)} 个")
+    enabled_rules = sum(1 for rule in monitor.alerts.rules if rule.enabled)
+    print(f"   - 启用规则: {enabled_rules} 个")
+    
+    print("✅ 监控报告生成完成")
+
+
+# ============================================================================
+# 真实模型调用和完整演示功能
+# ============================================================================
+
+class RealModelDemo:
+    """真实模型调用演示类"""
+    
+    def __init__(self):
+        """初始化演示类"""
+        self.harborai = HarborAI()
+        self.logger = StructuredLogger("RealModelDemo")
+        self.monitor = HarborAIMonitor()
+        
+        # 可用模型列表（从项目配置获取）
+        self.available_models = [
+            {'vendor': 'deepseek', 'model': 'deepseek-chat', 'is_reasoning': False},
+            {'vendor': 'deepseek', 'model': 'deepseek-reasoner', 'is_reasoning': True},
+            {'vendor': 'ernie', 'model': 'ernie-3.5-8k', 'is_reasoning': False},
+            {'vendor': 'ernie', 'model': 'ernie-4.0-turbo-8k', 'is_reasoning': False},
+            {'vendor': 'doubao', 'model': 'doubao-1-5-pro-32k-character-250715', 'is_reasoning': False},
+        ]
+        
+        # 测试消息列表
+        self.test_messages = [
+            "你好，请简单介绍一下你自己。",
+            "请解释什么是人工智能？",
+            "写一个简单的Python函数来计算斐波那契数列。",
+            "请推荐3本值得阅读的技术书籍。",
+            "解释一下什么是机器学习？"
+        ]
+    
+    def print_section(self, title: str):
+        """打印章节标题"""
+        print(f"\n{'='*60}")
+        print(f"  {title}")
+        print(f"{'='*60}")
+    
+    def print_step(self, step: str):
+        """打印步骤"""
+        print(f"\n🔸 {step}")
+    
+    def check_environment(self):
+        """检查环境配置"""
+        self.print_step("检查环境配置...")
+        
+        # 检查API密钥配置
+        api_keys = {
+            'DEEPSEEK_API_KEY': os.getenv('DEEPSEEK_API_KEY'),
+            'DOUBAO_API_KEY': os.getenv('DOUBAO_API_KEY'),
+            'WENXIN_API_KEY': os.getenv('WENXIN_API_KEY'),
+        }
+        
+        configured_keys = {k: v for k, v in api_keys.items() if v}
+        
+        if not configured_keys:
+            print("❌ 没有配置任何API密钥")
+            return False
+        
+        print(f"✅ 已配置的API密钥: {', '.join(configured_keys.keys())}")
+        
+        # 记录环境检查日志
+        self.logger.info(
+            "环境检查完成",
+            metadata={"configured_keys": list(configured_keys.keys())}
+        )
+        
+        return True
+    
+    async def test_single_model(self, model_info: Dict[str, Any], message: str, request_id: str) -> Dict[str, Any]:
+        """测试单个模型"""
+        model_name = model_info['model']
+        vendor = model_info['vendor']
+        
+        # 记录请求开始
+        self.logger.info(
+            f"开始测试模型: {model_name}",
+            request_id=request_id,
+            model_name=model_name,
+            metadata={"vendor": vendor, "message": message[:50]}
+        )
+        
+        try:
+            start_time = time.time()
+            
+            # 调用模型
+            response = await self.harborai.achat(
+                model=model_name,
+                messages=[{"role": "user", "content": message}],
+                max_tokens=100  # 限制token数以节省成本
+            )
+            
+            duration = time.time() - start_time
+            
+            # 检查响应
+            if response and hasattr(response, 'content'):
+                # 记录成功日志
+                self.logger.info(
+                    f"模型调用成功: {model_name}",
+                    request_id=request_id,
+                    model_name=model_name,
+                    response_time=duration,
+                    token_count=len(response.content) if response.content else 0,
+                    metadata={
+                        "vendor": vendor,
+                        "response_length": len(response.content) if response.content else 0,
+                        "success": True
+                    }
+                )
+                
+                # 记录性能指标
+                self.monitor.record_metric("api_response_time", duration, {"model": model_name, "vendor": vendor})
+                self.monitor.record_metric("api_success_count", 1, {"model": model_name, "vendor": vendor})
+                
+                print(f"✅ {model_name}: 响应成功 ({duration:.2f}s)")
+                return {
+                    'model': model_name,
+                    'vendor': vendor,
+                    'success': True,
+                    'duration': duration,
+                    'response_length': len(response.content) if response.content else 0,
+                    'error': None
+                }
+            else:
+                # 记录警告日志
+                self.logger.warning(
+                    f"模型响应为空: {model_name}",
+                    request_id=request_id,
+                    model_name=model_name,
+                    response_time=duration,
+                    metadata={"vendor": vendor, "error": "响应为空"}
+                )
+                
+                # 记录错误指标
+                self.monitor.record_metric("api_error_count", 1, {"model": model_name, "vendor": vendor, "error_type": "empty_response"})
+                
+                print(f"⚠️  {model_name}: 响应为空")
+                return {
+                    'model': model_name,
+                    'vendor': vendor,
+                    'success': False,
+                    'duration': duration,
+                    'response_length': 0,
+                    'error': "响应为空"
+                }
+                
+        except Exception as e:
+            duration = time.time() - start_time
+            
+            # 记录错误日志
+            self.logger.error(
+                f"模型调用失败: {model_name}",
+                request_id=request_id,
+                model_name=model_name,
+                response_time=duration,
+                error_code="API_ERROR",
+                stack_trace=str(e),
+                metadata={"vendor": vendor, "error": str(e)}
+            )
+            
+            # 记录错误指标
+            self.monitor.record_metric("api_error_count", 1, {"model": model_name, "vendor": vendor, "error_type": "exception"})
+            
+            print(f"❌ {model_name}: {str(e)}")
+            return {
+                'model': model_name,
+                'vendor': vendor,
+                'success': False,
+                'duration': duration,
+                'response_length': 0,
+                'error': str(e)
+            }
+    
+    async def run_model_tests(self, target_model: Optional[str] = None, test_only: bool = False):
+        """运行模型测试"""
+        self.print_step("开始模型测试...")
+        
+        # 过滤模型
+        if target_model:
+            models_to_test = [m for m in self.available_models if m['model'] == target_model]
+            if not models_to_test:
+                print(f"❌ 未找到模型: {target_model}")
+                return []
+        else:
+            models_to_test = self.available_models
+        
+        # 选择测试消息
+        messages_to_test = self.test_messages[:1] if test_only else self.test_messages[:3]
+        
+        results = []
+        
+        for model_info in models_to_test:
+            for i, message in enumerate(messages_to_test):
+                request_id = f"test_{model_info['model']}_{i}_{int(time.time())}"
+                print(f"测试 {model_info['model']} - 消息 {i+1}")
+                
+                result = await self.test_single_model(model_info, message, request_id)
+                results.append(result)
+                
+                # 避免请求过于频繁
+                await asyncio.sleep(1)
+        
+        return results
+    
+    def show_test_results(self, results: List[Dict[str, Any]]):
+        """显示测试结果"""
+        if not results:
+            return
+        
+        successful = [r for r in results if r['success']]
+        failed = [r for r in results if not r['success']]
+        
+        self.print_step("测试结果摘要")
+        
+        print(f"📊 总测试数: {len(results)}")
+        print(f"✅ 成功: {len(successful)}")
+        print(f"❌ 失败: {len(failed)}")
+        print(f"📈 成功率: {len(successful)/len(results)*100:.1f}%")
+        
+        if successful:
+            avg_duration = sum(r['duration'] for r in successful) / len(successful)
+            print(f"⏱️  平均响应时间: {avg_duration:.2f}s")
+        
+        # 记录测试摘要日志
+        self.logger.info(
+            "模型测试完成",
+            metadata={
+                "total_tests": len(results),
+                "successful": len(successful),
+                "failed": len(failed),
+                "success_rate": len(successful)/len(results)*100
+            }
+        )
+    
+    def demonstrate_log_viewing(self):
+        """演示日志查看功能"""
+        self.print_step("演示日志查看功能...")
+        
+        try:
+            # 导入日志查看工具
+            from harborai.config.settings import get_settings
+            from harborai.database.file_log_parser import FileLogParser
+            
+            settings = get_settings()
+            parser = FileLogParser(settings.file_log_directory)
+            
+            # 查询最近的日志
+            result = parser.query_api_logs(days=1, limit=5)
+            
+            if result.error:
+                print(f"❌ 查询失败: {result.error}")
+                return
+            
+            print(f"✅ 查询成功: 找到 {result.total_count} 条日志记录")
+            
+            if result.data:
+                print("\n📋 最近的日志记录:")
+                for i, log in enumerate(result.data[:3], 1):
+                    timestamp = log.get('timestamp', 'N/A')
+                    model = log.get('model', 'unknown')
+                    success = log.get('success', False)
+                    tokens = log.get('tokens', {})
+                    total_tokens = tokens.get('total_tokens', 0) if isinstance(tokens, dict) else 0
+                    
+                    status = "✅ 成功" if success else "❌ 失败"
+                    print(f"  [{i}] {timestamp} | {model} | {status} | {total_tokens} tokens")
+            
+        except Exception as e:
+            print(f"❌ 日志查看演示失败: {e}")
+    
+    def show_usage_commands(self):
+        """显示使用命令"""
+        self.print_step("日志查看命令参考...")
+        
+        commands = [
+            ("查看所有日志", "python view_logs.py"),
+            ("查看文件日志", "python view_logs.py --source file"),
+            ("查看统计信息", "python view_logs.py --stats"),
+            ("查看特定模型", "python view_logs.py --model deepseek-chat"),
+            ("JSON格式输出", "python view_logs.py --format json"),
+            ("查看请求日志", "python view_logs.py --type request"),
+            ("查看响应日志", "python view_logs.py --type response"),
+            ("配对显示请求-响应", "python view_logs.py --type paired")
+        ]
+        
+        print("\n💡 常用日志查看命令:")
+        for desc, cmd in commands:
+            print(f"  • {desc}: {cmd}")
+    
+    async def run_complete_demo(self, target_model: Optional[str] = None, test_only: bool = False, monitor_only: bool = False):
+        """运行完整演示"""
+        self.print_section("HarborAI 完整日志监控与真实模型调用演示")
+        
+        print("📝 本演示将展示:")
+        print("  1. 环境配置检查")
+        print("  2. 真实模型调用和日志记录")
+        print("  3. 性能监控和指标收集")
+        print("  4. 日志查看和分析功能")
+        print("  5. 监控报告和告警演示")
+        
+        # 1. 检查环境
+        self.print_section("1. 环境配置检查")
+        if not self.check_environment():
+            return
+        
+        # 如果是仅监控模式，跳过模型测试
+        if not monitor_only:
+            # 2. 运行模型测试
+            self.print_section("2. 真实模型调用测试")
+            results = await self.run_model_tests(target_model, test_only)
+            
+            # 3. 显示测试结果
+            self.print_section("3. 测试结果分析")
+            self.show_test_results(results)
+        
+        # 4. 演示日志查看
+        self.print_section("4. 日志查看功能")
+        self.demonstrate_log_viewing()
+        
+        # 5. 显示监控报告
+        self.print_section("5. 监控报告")
+        show_monitoring_dashboard(self.monitor)
+        
+        # 6. 显示使用命令
+        self.print_section("6. 使用命令参考")
+        self.show_usage_commands()
+        
+        # 总结
+        self.print_section("演示完成")
+        print("✅ 环境配置检查完成")
+        if not monitor_only:
+            print("✅ 真实模型调用测试完成")
+        print("✅ 日志记录和监控功能正常")
+        print("✅ 日志查看和分析功能正常")
+        print("\n🎉 完整日志监控演示完成！")
+        print("💡 提示: 使用上述命令查看和分析日志数据")
+
+
+class LayoutModeDemo:
+    """布局模式演示类"""
+    
+    def __init__(self):
+        """初始化演示类"""
+        self.project_root = Path(__file__).parent.parent.parent
+        self.view_logs_script = self.project_root / "view_logs.py"
+    
+    def run_view_logs_command(self, args: List[str]) -> Tuple[bool, str, str]:
+        """运行 view_logs.py 命令"""
+        if not self.view_logs_script.exists():
+            return False, "", "view_logs.py 脚本不存在"
+        
+        cmd = ["python", str(self.view_logs_script)] + args
+        
+        try:
+            import subprocess
+            result = subprocess.run(
+                cmd, 
+                capture_output=True, 
+                text=True, 
+                encoding='utf-8', 
+                errors='ignore',
+                timeout=30,
+                cwd=str(self.project_root)
+            )
+            return result.returncode == 0, result.stdout, result.stderr
+        except subprocess.TimeoutExpired:
+            return False, "", "命令执行超时"
+        except Exception as e:
+            return False, "", f"执行命令时出错: {e}"
+    
+    def demo_layout_modes(self):
+        """演示布局模式"""
+        print("\n🎨 布局模式演示:")
+        
+        # 1. Classic 布局
+        print("   1. Classic 布局（传统表格显示）:")
+        success, stdout, stderr = self.run_view_logs_command([
+            "--layout", "classic", "--limit", "5"
+        ])
+        
+        if success:
+            print("     ✅ Classic 布局示例:")
+            lines = stdout.split('\n')[:10]
+            for line in lines:
+                if line.strip():
+                    print(f"     {line}")
+        else:
+            print(f"     ❌ Classic 布局演示失败: {stderr}")
+        
+        print("\n   2. Enhanced 布局（智能配对显示）:")
+        success, stdout, stderr = self.run_view_logs_command([
+            "--layout", "enhanced", "--limit", "4"
+        ])
+        
+        if success:
+            print("     ✅ Enhanced 布局示例:")
+            lines = stdout.split('\n')[:10]
+            for line in lines:
+                if line.strip():
+                    print(f"     {line}")
+        else:
+            print(f"     ❌ Enhanced 布局演示失败: {stderr}")
+    
+    def demo_trace_id_features(self):
+        """演示 trace_id 功能"""
+        print("\n🆔 Trace ID 功能演示:")
+        
+        # 1. 列出最近的 trace_id
+        print("   1. 列出最近的 trace_id:")
+        success, stdout, stderr = self.run_view_logs_command([
+            "--list-recent-trace-ids", "--limit", "10"
+        ])
+        
+        if success:
+            print("     ✅ 最近的 trace_id:")
+            for line in stdout.split('\n')[:8]:
+                if line.strip():
+                    print(f"     {line}")
+        else:
+            print(f"     ❌ 获取 trace_id 列表失败: {stderr}")
+
+
+async def main():
+    """主函数"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="HarborAI 中级日志功能演示 - 监控与分析",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  python logging_monitoring.py                    # 运行完整演示
+  python logging_monitoring.py --real-calls       # 进行真实模型调用
+  python logging_monitoring.py --monitoring-only  # 仅演示监控功能
+  python logging_monitoring.py --layout-demo      # 演示布局模式
+  python logging_monitoring.py --trace-id-demo    # 演示 trace_id 功能
+        """
+    )
+    
+    parser.add_argument("--real-calls", action="store_true", help="进行真实的模型调用（需要 API 密钥）")
+    parser.add_argument("--monitoring-only", action="store_true", help="仅演示监控功能（不创建新数据）")
+    parser.add_argument("--layout-demo", action="store_true", help="仅演示布局模式")
+    parser.add_argument("--trace-id-demo", action="store_true", help="仅演示 trace_id 功能")
+    parser.add_argument("--model", help="仅测试指定模型")
+    
+    args = parser.parse_args()
+    
+    try:
+        if args.layout_demo:
+            # 仅演示布局模式
+            layout_demo = LayoutModeDemo()
+            layout_demo.demo_layout_modes()
+            
+        elif args.trace_id_demo:
+            # 仅演示 trace_id 功能
+            layout_demo = LayoutModeDemo()
+            layout_demo.demo_trace_id_features()
+            
+        else:
+            # 运行原有的完整演示
+            demo = RealModelDemo()
+            await demo.run_complete_demo(
+                target_model=args.model,
+                test_only=not args.real_calls,
+                monitor_only=args.monitoring_only
+            )
+            
+    except KeyboardInterrupt:
+        print("\n\n⚠️ 演示被用户中断")
+    except Exception as e:
+        print(f"\n❌ 演示过程中发生错误: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
-    asyncio.run(monitoring_demo())
+    asyncio.run(main())

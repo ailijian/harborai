@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-数据库连接管理
+数据库连接管理 (已弃用)
 
-提供数据库初始化和会话管理功能。
+⚠️ 警告: 此模块已弃用，请使用 postgres_connection.py
+
+此模块提供 SQLite 数据库连接，仅用于向后兼容和数据迁移。
+新的实现应使用 PostgreSQL 连接。
 """
+
+import warnings
+
+# 发出弃用警告
+warnings.warn(
+    "harborai.database.connection 模块已弃用，请使用 postgres_connection.py",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 import sqlite3
 import os

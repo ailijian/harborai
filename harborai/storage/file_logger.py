@@ -14,6 +14,7 @@ import shutil
 
 from ..utils.logger import get_logger
 from ..utils.exceptions import StorageError
+from ..utils.timestamp import get_unified_timestamp_iso, create_timestamp_context
 
 logger = get_logger(__name__)
 
@@ -87,8 +88,34 @@ class FileSystemLogger:
         self._current_file_size = 0
         self._file_lock = Lock()
         
-        # 确保日志目录存在
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        # 确保日志目录存在，并添加错误处理
+        self._ensure_log_directory_exists()
+    
+    def _ensure_log_directory_exists(self) -> None:
+        """确保日志目录存在，如果不存在则自动创建"""
+        try:
+            if not self.log_dir.exists():
+                logger.info(f"创建日志目录: {self.log_dir}")
+                self.log_dir.mkdir(parents=True, exist_ok=True)
+                
+                # 检查目录是否可写
+                if not os.access(self.log_dir, os.W_OK):
+                    logger.error(f"日志目录不可写: {self.log_dir}")
+                    raise PermissionError(f"日志目录不可写: {self.log_dir}")
+                    
+                logger.info(f"日志目录创建成功: {self.log_dir}")
+            else:
+                # 目录存在，检查是否可写
+                if not os.access(self.log_dir, os.W_OK):
+                    logger.warning(f"日志目录不可写: {self.log_dir}")
+                    
+        except (OSError, PermissionError) as e:
+            logger.error(f"无法创建或访问日志目录 {self.log_dir}: {e}")
+            logger.error("建议解决方案:")
+            logger.error(f"1. 检查目录权限: {self.log_dir.parent}")
+            logger.error("2. 手动创建目录或使用其他位置")
+            logger.error("3. 设置环境变量 HARBORAI_LOG_DIR 指定其他目录")
+            # 不抛出异常，允许程序继续运行，但日志功能可能受限
         
     def start(self):
         """启动日志记录器。"""
@@ -146,7 +173,7 @@ class FileSystemLogger:
         """
         log_entry = {
             "trace_id": trace_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_unified_timestamp_iso(),
             "type": "request",
             "model": model,
             "messages": self._sanitize_messages(messages),
@@ -196,7 +223,7 @@ class FileSystemLogger:
         
         log_entry = {
             "trace_id": trace_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": get_unified_timestamp_iso(),
             "type": "response",
             "success": success,
             "latency": latency,

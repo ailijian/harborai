@@ -81,7 +81,7 @@ python basic/streaming_output.py
 - **结构化输出**: Agently vs Native两种解析方式
 - **多模型切换**: 在不同模型间无缝切换
 - **成本追踪**: 实时监控API调用成本
-- **日志监控**: 全链路日志记录与分析
+- **日志监控**: 全链路日志记录与分析，包含真实模型调用演示
 
 ### ⚡ 高级功能组合应用案例 (advanced/)
 
@@ -90,6 +90,7 @@ python basic/streaming_output.py
 - **降级策略**: 自动模型/厂商降级
 - **批量处理**: 高效的批量调用处理
 - **性能优化**: 缓存、连接池等优化技术
+- **日志分析**: 高级日志分析工具，支持性能监控、错误模式识别和交互式浏览
 
 ### 🎯 跨场景综合应用案例 (scenarios/)
 
@@ -127,6 +128,96 @@ response = client.chat.completions.create(
 - 成本统计和预算控制
 - 性能指标监控
 - 异步日志记录
+
+## 📊 日志存储与查看功能
+
+HarborAI 提供了完整的日志存储和查看解决方案，支持多层级的日志管理：
+
+### 🔰 基础日志功能 (basic/log_basics.py)
+- **日志生成**: 创建测试日志数据，模拟真实API调用
+- **日志查看**: 展示日志文件位置和内容结构
+- **基础命令**: 演示 `view_logs.py` 的基本使用方法
+
+```bash
+# 运行基础日志演示
+python basic/log_basics.py
+
+# 可选参数
+python basic/log_basics.py --demo-type full    # 完整演示
+python basic/log_basics.py --demo-type create  # 仅创建日志
+python basic/log_basics.py --demo-type view    # 仅查看日志
+```
+
+### 🔧 中级日志监控 (intermediate/logging_monitoring.py)
+- **真实模型调用**: 使用真实API进行模型调用并记录日志
+- **结构化日志**: SQLite数据库存储，支持复杂查询
+- **性能监控**: 响应时间、成功率、错误率统计
+- **实时告警**: 基于规则的告警系统
+- **监控面板**: 可视化监控数据展示
+
+```bash
+# 运行完整日志监控演示
+python intermediate/logging_monitoring.py
+
+# 可选参数
+python intermediate/logging_monitoring.py --test-only     # 仅测试模型调用
+python intermediate/logging_monitoring.py --monitor-only  # 仅运行监控功能
+python intermediate/logging_monitoring.py --model deepseek-chat  # 测试特定模型
+```
+
+### ⚡ 高级日志分析 (advanced/log_analysis.py)
+- **多维度分析**: 性能趋势、错误模式、使用模式分析
+- **交互式浏览**: 命令行交互式日志浏览器
+- **自定义报告**: 生成详细的分析报告
+- **数据导出**: 支持JSON格式的数据导出
+- **统计可视化**: 丰富的统计信息展示
+
+```bash
+# 交互式日志浏览器
+python advanced/log_analysis.py --interactive
+
+# 运行演示套件
+python advanced/log_analysis.py --demo
+
+# 生成性能分析报告
+python advanced/log_analysis.py --performance 7
+
+# 生成错误分析报告
+python advanced/log_analysis.py --errors 7
+
+# 导出综合报告
+python advanced/log_analysis.py --report my_report.json --days 7
+```
+
+### 📋 日志查看命令参考
+
+HarborAI 提供了强大的 `view_logs.py` 工具，支持多种查看方式：
+
+```bash
+# 基础查看
+python view_logs.py                           # 查看所有日志
+python view_logs.py --limit 10                # 限制显示条数
+python view_logs.py --days 7                  # 查看最近7天
+
+# 按类型过滤
+python view_logs.py --type all                # 所有类型（默认）
+python view_logs.py --type request            # 仅请求日志
+python view_logs.py --type response           # 仅响应日志
+python view_logs.py --type paired             # 配对显示请求-响应
+
+# 按模型过滤
+python view_logs.py --model deepseek-chat     # 特定模型
+python view_logs.py --model-pattern "deepseek*"  # 模型名称模式
+
+# 统计信息
+python view_logs.py --stats                   # 显示统计信息
+python view_logs.py --stats --format json     # JSON格式统计
+
+# 输出格式
+python view_logs.py --format table            # 表格格式（默认）
+python view_logs.py --format json             # JSON格式
+python view_logs.py --format csv              # CSV格式
+```
 
 ## 📖 使用指南
 

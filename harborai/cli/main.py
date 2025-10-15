@@ -19,8 +19,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
 
-from ..database.connection import init_database_sync, get_db_session
-from ..database.models import APILog, TraceLog, ModelUsage
+from ..database.postgres_client import get_postgres_client
 from ..config.settings import get_settings
 from ..core.client_manager import ClientManager
 from ..utils.logger import get_logger
@@ -61,32 +60,117 @@ def cli(ctx, format, config, verbose, quiet):
     ctx.obj['quiet'] = quiet
 
 
+
+
+
 @cli.command()
-@click.option(
-    "--force",
-    is_flag=True,
-    help="强制重新创建数据库表"
-)
-def init_db(force: bool):
-    """初始化数据库"""
-    console.print("[bold blue]初始化 HarborAI 数据库...[/bold blue]")
+def init_postgres():
+    """初始化 PostgreSQL 数据库"""
+    console.print("[bold blue]初始化 PostgreSQL 数据库[/bold blue]")
     
     try:
+        from ..database.postgres_connection import init_postgres_database, test_postgres_connection
+        
+        # 测试连接
+        console.print("[cyan]测试 PostgreSQL 连接...[/cyan]")
+        if not test_postgres_connection():
+            console.print("[red]✗ PostgreSQL 连接失败[/red]")
+            console.print("[yellow]请检查以下配置:[/yellow]")
+            console.print("  - POSTGRES_HOST")
+            console.print("  - POSTGRES_PORT")
+            console.print("  - POSTGRES_DB")
+            console.print("  - POSTGRES_USER")
+            console.print("  - POSTGRES_PASSWORD")
+            raise click.ClickException("PostgreSQL 连接失败")
+        
+        console.print("[green]✓ PostgreSQL 连接成功[/green]")
+        
+        # 初始化数据库
+        console.print("[cyan]初始化数据库表结构...[/cyan]")
+        if init_postgres_database():
+            console.print("[bold green]✓ PostgreSQL 数据库初始化完成![/bold green]")
+            console.print("\n[yellow]💡 提示: 如果您有 SQLite 数据需要迁移，请运行:[/yellow]")
+            console.print("[dim]   harborai migrate-sqlite --backup[/dim]")
+        else:
+            console.print("[red]✗ 数据库初始化失败[/red]")
+            raise click.ClickException("数据库初始化失败")
+            
+    except Exception as e:
+        console.print(f"[bold red]✗ 初始化失败: {e}[/bold red]")
+        raise click.ClickException(str(e))
+
+
+@cli.command()
+@click.option(
+    "--backup",
+    is_flag=True,
+    help="迁移前备份 SQLite 数据库"
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="仅检查，不执行实际迁移"
+)
+def migrate_sqlite(backup: bool, dry_run: bool):
+    """将 SQLite 数据迁移到 PostgreSQL"""
+    console.print("[bold blue]SQLite 到 PostgreSQL 数据迁移[/bold blue]")
+    
+    try:
+        from ..tools.migrate_sqlite_to_postgres import SQLiteToPostgresMigrator
+        
+        migrator = SQLiteToPostgresMigrator()
+        
+        if dry_run:
+            console.print("[cyan]执行迁移检查...[/cyan]")
+            
+            # 检查 SQLite
+            if migrator.check_sqlite_exists():
+                console.print(f"[green]✓[/green] SQLite 数据库存在: {migrator.sqlite_path}")
+                data = migrator.get_sqlite_data()
+                for table, records in data.items():
+                    console.print(f"   - {table}: {len(records)} 条记录")
+            else:
+                console.print(f"[red]✗[/red] SQLite 数据库不存在: {migrator.sqlite_path}")
+                return
+            
+            # 检查 PostgreSQL
+            if migrator.check_postgres_connection():
+                console.print("[green]✓[/green] PostgreSQL 连接正常")
+            else:
+                console.print("[red]✗[/red] PostgreSQL 连接失败")
+                return
+            
+            console.print("[green]✓ 迁移检查完成，可以执行迁移[/green]")
+            return
+        
+        # 备份
+        if backup:
+            backup_path = migrator.backup_sqlite()
+            console.print(f"[cyan]📁 数据库已备份到: {backup_path}[/cyan]")
+        
+        # 执行迁移
+        console.print("[cyan]🚀 开始数据迁移...[/cyan]")
+        
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console
         ) as progress:
-            task = progress.add_task("创建数据库表...", total=None)
+            task = progress.add_task("迁移数据...", total=None)
             
-            init_database_sync()
+            results = migrator.migrate_all()
             
-            progress.update(task, description="数据库初始化完成")
+            progress.update(task, description="迁移完成")
         
-        console.print("[bold green]✓ 数据库初始化成功![/bold green]")
+        console.print("[bold green]✓ 迁移完成![/bold green]")
+        for table, count in results.items():
+            console.print(f"   - {table}: {count} 条记录")
+        
+        console.print("\n[yellow]💡 提示: 迁移完成后，可以删除 SQLite 数据库文件以释放空间[/yellow]")
+        console.print(f"[dim]   rm {migrator.sqlite_path}[/dim]")
         
     except Exception as e:
-        console.print(f"[bold red]✗ 数据库初始化失败: {e}[/bold red]")
+        console.print(f"[bold red]✗ 迁移失败: {e}[/bold red]")
         raise click.ClickException(str(e))
 
 
@@ -478,62 +562,74 @@ def logs(days: int, model: Optional[str], plugin: Optional[str], limit: int):
     console.print(f"[bold blue]HarborAI API 日志 (最近 {days} 天)[/bold blue]")
     
     try:
-        with get_db_session() as session:
-            if session is None:
-                console.print("[yellow]数据库未启用，无法查看日志[/yellow]")
-                return
+        # 使用 PostgreSQL 客户端查询，支持自动降级到文件日志
+        postgres_client = get_postgres_client()
+        result = postgres_client.query_api_logs(
+            days=days,
+            model=model,
+            provider=plugin,  # 将 plugin 参数映射到 provider
+            limit=limit
+        )
+        
+        if result.error:
+            console.print(f"[yellow]查询警告: {result.error}[/yellow]")
+        
+        # 显示数据源信息
+        source_info = "PostgreSQL" if result.source == "postgresql" else "文件日志"
+        console.print(f"[dim]数据源: {source_info}[/dim]")
+        
+        if not result.data:
+            console.print("[yellow]未找到匹配的日志记录[/yellow]")
+            return
+        
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("时间", style="cyan")
+        table.add_column("模型", style="blue")
+        table.add_column("提供商", style="green")
+        table.add_column("状态", justify="center")
+        table.add_column("Token", justify="right")
+        table.add_column("耗时(ms)", justify="right")
+        table.add_column("成本", justify="right")
+        
+        for log_data in result.data:
+            status = log_data.get('response_status', 'unknown')
+            status_style = "green" if status == "success" else "red"
+            status_display = f"[{status_style}]{status}[/{status_style}]"
             
-            # 构建查询
-            query = session.query(APILog)
+            tokens = log_data.get('total_tokens')
+            tokens_display = f"{tokens:,}" if tokens else "N/A"
             
-            # 时间过滤
-            since_date = datetime.utcnow() - timedelta(days=days)
-            query = query.filter(APILog.timestamp >= since_date)
+            duration = log_data.get('duration_ms')
+            duration_display = f"{duration:.1f}" if duration else "N/A"
             
-            # 模型过滤
-            if model:
-                query = query.filter(APILog.model == model)
+            cost = log_data.get('estimated_cost')
+            cost_display = f"¥{cost:.4f}" if cost else "N/A"
             
-            # 插件过滤
-            if plugin:
-                query = query.filter(APILog.plugin == plugin)
+            timestamp = log_data.get('timestamp')
+            if isinstance(timestamp, str):
+                try:
+                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                except ValueError:
+                    timestamp = None
             
-            # 排序和限制
-            logs = query.order_by(APILog.timestamp.desc()).limit(limit).all()
+            timestamp_display = timestamp.strftime("%m-%d %H:%M:%S") if timestamp else "N/A"
             
-            if not logs:
-                console.print("[yellow]未找到匹配的日志记录[/yellow]")
-                return
-            
-            table = Table(show_header=True, header_style="bold magenta")
-            table.add_column("时间", style="cyan")
-            table.add_column("模型", style="blue")
-            table.add_column("插件", style="green")
-            table.add_column("状态", justify="center")
-            table.add_column("Token", justify="right")
-            table.add_column("耗时(ms)", justify="right")
-            table.add_column("成本", justify="right")
-            
-            for log in logs:
-                status_style = "green" if log.response_status == "success" else "red"
-                status = f"[{status_style}]{log.response_status or 'unknown'}[/{status_style}]"
-                
-                tokens = f"{log.total_tokens:,}" if log.total_tokens else "N/A"
-                duration = f"{log.duration_ms:.1f}" if log.duration_ms else "N/A"
-                cost = f"${log.estimated_cost:.4f}" if log.estimated_cost else "N/A"
-                
-                table.add_row(
-                    log.timestamp.strftime("%m-%d %H:%M:%S") if log.timestamp else "N/A",
-                    log.model or "N/A",
-                    log.plugin or "N/A",
-                    status,
-                    tokens,
-                    duration,
-                    cost
-                )
-            
-            console.print(table)
-            
+            table.add_row(
+                timestamp_display,
+                log_data.get('model') or "N/A",
+                log_data.get('provider') or "N/A",
+                status_display,
+                tokens_display,
+                duration_display,
+                cost_display
+            )
+        
+        console.print(table)
+        
+        # 显示总计信息
+        if result.total_count > len(result.data):
+            console.print(f"\n[dim]显示 {len(result.data)} 条记录，共 {result.total_count} 条[/dim]")
+        
     except Exception as e:
         console.print(f"[bold red]✗ 查看日志失败: {e}[/bold red]")
         raise click.ClickException(str(e))
@@ -561,107 +657,106 @@ def stats(ctx, days: int, provider: Optional[str], model: Optional[str]):
         console.print(f"[bold blue]HarborAI 使用统计 (最近 {days} 天)[/bold blue]")
     
     try:
-        with get_db_session() as session:
-            if session is None:
-                # 数据库不可用时返回模拟数据
-                stats_data = {
-                    "total_requests": 1000,
-                    "successful_requests": 950,
-                    "failed_requests": 50,
-                    "total_tokens": 50000,
-                    "total_cost": 25.50,
-                    "providers": {
-                        "deepseek": {"requests": 600, "tokens": 30000},
-                        "openai": {"requests": 400, "tokens": 20000}
-                    },
-                    "models": {
-                        "deepseek-chat": {"requests": 500, "tokens": 25000},
-                        "gpt-4": {"requests": 300, "tokens": 15000}
-                    }
-                }
-                
-                if ctx.obj.get('format') == 'json':
-                    console.print(json.dumps(stats_data, ensure_ascii=False, indent=2))
-                else:
-                    console.print("[bold blue]使用统计:[/bold blue]")
-                    console.print(f"  总请求数: {stats_data['total_requests']}")
-                    console.print(f"  成功请求: {stats_data['successful_requests']}")
-                    console.print(f"  失败请求: {stats_data['failed_requests']}")
-                    console.print(f"  总Token数: {stats_data['total_tokens']}")
-                    console.print(f"  总成本: ${stats_data['total_cost']}")
-                    
-                    if provider and provider in stats_data['providers']:
-                        prov_stats = stats_data['providers'][provider]
-                        console.print(f"\n[cyan]提供商 {provider} 统计:[/cyan]")
-                        console.print(f"  请求数: {prov_stats['requests']}")
-                        console.print(f"  Token数: {prov_stats['tokens']}")
-                    
-                    if model and model in stats_data['models']:
-                        model_stats = stats_data['models'][model]
-                        console.print(f"\n[cyan]模型 {model} 统计:[/cyan]")
-                        console.print(f"  请求数: {model_stats['requests']}")
-                        console.print(f"  Token数: {model_stats['tokens']}")
-                return
-            
-            # 时间过滤
-            since_date = datetime.utcnow() - timedelta(days=days)
-            
-            # 总体统计
-            total_requests = session.query(APILog).filter(
-                APILog.timestamp >= since_date
-            ).count()
-            
-            success_requests = session.query(APILog).filter(
-                APILog.timestamp >= since_date,
-                APILog.response_status == "success"
-            ).count()
-            
-            # 按模型统计
-            from sqlalchemy import func
-            model_stats = session.query(
-                APILog.model,
-                func.count(APILog.id).label('request_count'),
-                func.sum(APILog.total_tokens).label('total_tokens'),
-                func.sum(APILog.estimated_cost).label('total_cost')
-            ).filter(
-                APILog.timestamp >= since_date,
-                APILog.model.isnot(None)
-            ).group_by(APILog.model).all()
-            
-            # 显示总体统计
-            success_rate = (success_requests / total_requests * 100) if total_requests > 0 else 0
+        # 使用 PostgreSQL 客户端查询，支持自动降级到文件日志
+        postgres_client = get_postgres_client()
+        result = postgres_client.query_model_usage(
+            days=days,
+            provider=provider,
+            model=model
+        )
+        
+        if result.error:
+            console.print(f"[yellow]查询警告: {result.error}[/yellow]")
+        
+        # 显示数据源信息
+        source_info = "PostgreSQL" if result.source == "postgresql" else "文件日志"
+        if ctx.obj.get('format') != 'json':
+            console.print(f"[dim]数据源: {source_info}[/dim]")
+        
+        if not result.data:
+            if ctx.obj.get('format') == 'json':
+                console.print(json.dumps({
+                    "total_requests": 0,
+                    "successful_requests": 0,
+                    "failed_requests": 0,
+                    "total_tokens": 0,
+                    "total_cost": 0.0,
+                    "models": [],
+                    "source": result.source
+                }, ensure_ascii=False, indent=2))
+            else:
+                console.print("[yellow]未找到匹配的统计数据[/yellow]")
+            return
+        
+        # 计算总体统计
+        total_requests = sum(item.get('request_count', 0) for item in result.data)
+        successful_requests = sum(item.get('success_count', 0) for item in result.data)
+        failed_requests = total_requests - successful_requests
+        total_tokens = sum(item.get('total_tokens', 0) for item in result.data)
+        total_cost = sum(item.get('total_cost', 0.0) for item in result.data)
+        
+        if ctx.obj.get('format') == 'json':
+            # JSON 格式输出
+            stats_data = {
+                "total_requests": total_requests,
+                "successful_requests": successful_requests,
+                "failed_requests": failed_requests,
+                "total_tokens": total_tokens,
+                "total_cost": total_cost,
+                "models": result.data,
+                "source": result.source
+            }
+            console.print(json.dumps(stats_data, ensure_ascii=False, indent=2))
+        else:
+            # 表格格式输出
+            success_rate = (successful_requests / total_requests * 100) if total_requests > 0 else 0
             
             summary_panel = Panel(
                 f"总请求数: {total_requests:,}\n"
-                f"成功请求: {success_requests:,}\n"
-                f"成功率: {success_rate:.1f}%",
+                f"成功请求: {successful_requests:,}\n"
+                f"失败请求: {failed_requests:,}\n"
+                f"成功率: {success_rate:.1f}%\n"
+                f"总Token数: {total_tokens:,}\n"
+                f"总成本: ¥{total_cost:.4f}",
                 title="总体统计",
                 border_style="blue"
             )
             console.print(summary_panel)
             
             # 显示模型统计
-            if model_stats:
+            if result.data:
                 table = Table(show_header=True, header_style="bold magenta")
                 table.add_column("模型", style="cyan")
+                table.add_column("提供商", style="green")
                 table.add_column("请求数", justify="right")
+                table.add_column("成功数", justify="right")
                 table.add_column("总Token", justify="right")
                 table.add_column("总成本", justify="right")
                 
-                for stat in model_stats:
-                    tokens = f"{stat.total_tokens:,}" if stat.total_tokens else "0"
-                    cost = f"${stat.total_cost:.4f}" if stat.total_cost else "$0.0000"
+                for stat in result.data:
+                    model_name = stat.get('model', 'N/A')
+                    provider_name = stat.get('provider', 'N/A')
+                    request_count = stat.get('request_count', 0)
+                    success_count = stat.get('success_count', 0)
+                    tokens = stat.get('total_tokens', 0)
+                    cost = stat.get('total_cost', 0.0)
                     
                     table.add_row(
-                        stat.model,
-                        f"{stat.request_count:,}",
-                        tokens,
-                        cost
+                        model_name,
+                        provider_name,
+                        f"{request_count:,}",
+                        f"{success_count:,}",
+                        f"{tokens:,}",
+                        f"¥{cost:.4f}"
                     )
                 
                 console.print("\n[bold blue]按模型统计[/bold blue]")
                 console.print(table)
-            
+        
+        # 显示总计信息
+        if ctx.obj.get('format') != 'json' and result.total_count > len(result.data):
+            console.print(f"\n[dim]显示 {len(result.data)} 个模型，共 {result.total_count} 个[/dim]")
+        
     except Exception as e:
         console.print(f"[bold red]✗ 查看统计失败: {e}[/bold red]")
         raise click.ClickException(str(e))

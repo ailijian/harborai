@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from ..utils.logger import get_logger
 from ..utils.exceptions import StorageError
+from ..utils.timestamp import create_timestamp_context, validate_timestamp_order
 from .file_logger import FileSystemLogger
 from .postgres_logger import PostgreSQLLogger
 
@@ -76,6 +77,9 @@ class FallbackLogger:
         # 日志记录器实例
         self._postgres_logger: Optional[PostgreSQLLogger] = None
         self._file_logger: Optional[FileSystemLogger] = None
+        
+        # 时间戳上下文管理器缓存
+        self._timestamp_contexts: Dict[str, Any] = {}
         
         # 初始化日志记录器
         self._initialize_loggers()
@@ -146,6 +150,14 @@ class FallbackLogger:
         """
         self._check_health()
         
+        # 创建时间戳上下文管理器
+        if trace_id not in self._timestamp_contexts:
+            self._timestamp_contexts[trace_id] = create_timestamp_context(trace_id)
+        
+        # 标记请求时间戳
+        timestamp_context = self._timestamp_contexts[trace_id]
+        timestamp_context.mark_request()
+        
         try:
             if self._state == LoggerState.POSTGRES_ACTIVE and self._postgres_logger:
                 self._postgres_logger.log_request(trace_id, model, messages, **kwargs)
@@ -155,15 +167,39 @@ class FallbackLogger:
                     self._file_logger.log_request(trace_id, model, messages, **kwargs)
                     self._stats["file_logs"] += 1
         except Exception as e:
-            logger.error(f"Failed to log request: {e}")
+            # 详细的错误处理和分类
+            error_context = {
+                "trace_id": trace_id,
+                "model": model,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "current_state": self._state.value,
+                "timestamp": time.time()
+            }
+            
+            logger.error("Failed to log request", extra=error_context)
             self._handle_logging_failure(e)
-            # 尝试使用备用日志记录器
+            
+            # 尝试使用备用日志记录器，增强错误处理
             try:
-                if self._file_logger:
+                if self._file_logger and self._state != LoggerState.ERROR:
+                    logger.info(f"Attempting fallback logging for trace_id: {trace_id}")
                     self._file_logger.log_request(trace_id, model, messages, **kwargs)
                     self._stats["file_logs"] += 1
+                    self._stats["fallback_successes"] = self._stats.get("fallback_successes", 0) + 1
+                else:
+                    logger.warning(f"No fallback logger available for trace_id: {trace_id}")
+                    self._stats["lost_logs"] = self._stats.get("lost_logs", 0) + 1
             except Exception as fallback_error:
-                logger.error(f"Fallback logging also failed: {fallback_error}")
+                fallback_context = {
+                    "trace_id": trace_id,
+                    "original_error": str(e),
+                    "fallback_error_type": type(fallback_error).__name__,
+                    "fallback_error_message": str(fallback_error),
+                    "timestamp": time.time()
+                }
+                logger.critical("Both primary and fallback logging failed", extra=fallback_context)
+                self._stats["lost_logs"] = self._stats.get("lost_logs", 0) + 1
     
     def log_response(self,
                     trace_id: str,
@@ -182,6 +218,16 @@ class FallbackLogger:
         """
         self._check_health()
         
+        # 获取时间戳上下文管理器并标记响应时间戳
+        if trace_id in self._timestamp_contexts:
+            timestamp_context = self._timestamp_contexts[trace_id]
+            timestamp_context.mark_response()
+            
+            # 清理上下文缓存（避免内存泄漏）
+            del self._timestamp_contexts[trace_id]
+        else:
+            logger.warning(f"未找到 trace_id {trace_id} 的请求时间戳上下文")
+        
         try:
             if self._state == LoggerState.POSTGRES_ACTIVE and self._postgres_logger:
                 self._postgres_logger.log_response(trace_id, response, latency, success, error)
@@ -191,39 +237,118 @@ class FallbackLogger:
                     self._file_logger.log_response(trace_id, response, latency, success, error)
                     self._stats["file_logs"] += 1
         except Exception as e:
-            logger.error(f"Failed to log response: {e}")
+            # 详细的错误处理
+            error_context = {
+                "trace_id": trace_id,
+                "latency": latency,
+                "success": success,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "current_state": self._state.value,
+                "timestamp": time.time()
+            }
+            
+            logger.error("Failed to log response", extra=error_context)
             self._handle_logging_failure(e)
+            
             # 尝试使用备用日志记录器
             try:
-                if self._file_logger:
+                if self._file_logger and self._state != LoggerState.ERROR:
+                    logger.info(f"Attempting fallback response logging for trace_id: {trace_id}")
                     self._file_logger.log_response(trace_id, response, latency, success, error)
                     self._stats["file_logs"] += 1
+                    self._stats["fallback_successes"] = self._stats.get("fallback_successes", 0) + 1
+                else:
+                    logger.warning(f"No fallback logger available for response trace_id: {trace_id}")
+                    self._stats["lost_logs"] = self._stats.get("lost_logs", 0) + 1
             except Exception as fallback_error:
-                logger.error(f"Fallback logging also failed: {fallback_error}")
+                fallback_context = {
+                    "trace_id": trace_id,
+                    "original_error": str(e),
+                    "fallback_error_type": type(fallback_error).__name__,
+                    "fallback_error_message": str(fallback_error),
+                    "timestamp": time.time()
+                }
+                logger.critical("Both primary and fallback response logging failed", extra=fallback_context)
+                self._stats["lost_logs"] = self._stats.get("lost_logs", 0) + 1
     
     def _handle_logging_failure(self, error: Exception):
-        """处理日志记录失败。"""
+        """处理日志记录失败。
+        
+        Args:
+            error: 异常对象
+        """
+        error_type = type(error).__name__
+        error_msg = str(error)
+        
+        # 增强错误分析和处理
         if self._state == LoggerState.POSTGRES_ACTIVE:
-            self._handle_postgres_failure(error)
+            # PostgreSQL相关错误
+            if any(keyword in error_msg.lower() for keyword in ['connection', 'timeout', 'network']):
+                logger.warning("PostgreSQL connection issue detected, switching to file fallback")
+                self._switch_to_file_fallback()
+                self._handle_postgres_failure(error)
+            elif any(keyword in error_msg.lower() for keyword in ['disk', 'space', 'permission']):
+                logger.error("PostgreSQL storage issue detected")
+                self._switch_to_file_fallback()
+            else:
+                logger.error(f"Unknown PostgreSQL error: {error_type} - {error_msg}")
+                self._handle_postgres_failure(error)
+        else:
+            # 文件日志相关错误
+            if any(keyword in error_msg.lower() for keyword in ['disk', 'space', 'permission']):
+                logger.critical("File logging also failing due to storage issues")
+                self._state = LoggerState.ERROR
+            else:
+                logger.error(f"File logging error: {error_type} - {error_msg}")
     
     def _handle_postgres_failure(self, error: Exception):
-        """处理PostgreSQL失败。"""
-        self._postgres_failure_count += 1
+        """处理PostgreSQL失败。
+        
+        Args:
+            error: 异常对象
+        """
         self._stats["postgres_failures"] += 1
         
-        # 在测试环境中使用debug级别，避免过多的警告信息
-        if "invalid" in str(error) or "test" in str(error).lower():
-            logger.debug(f"PostgreSQL failure #{self._postgres_failure_count}: {error}")
-        else:
-            logger.warning(f"PostgreSQL failure #{self._postgres_failure_count}: {error}")
+        # 详细的错误分类和处理
+        error_type = type(error).__name__
+        error_msg = str(error)
         
-        if self._postgres_failure_count >= self.max_postgres_failures:
-            if "invalid" in str(error) or "test" in str(error).lower():
-                logger.info(f"PostgreSQL failed {self._postgres_failure_count} times, switching to file fallback")
-            else:
-                logger.error(f"PostgreSQL failed {self._postgres_failure_count} times, switching to file fallback")
-            self._switch_to_file_fallback()
+        # 记录详细的错误信息
+        logger.error(
+            "PostgreSQL logger failure detected",
+            extra={
+                "error_type": error_type,
+                "error_message": error_msg,
+                "failure_count": self._stats["postgres_failures"],
+                "current_state": self._state.value,
+                "timestamp": time.time()
+            }
+        )
+        
+        # 根据错误类型决定处理策略
+        if "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            # 连接相关错误，可能是临时的
+            logger.warning("Connection-related error detected, will attempt recovery")
+            self._schedule_postgres_recovery()
+        elif "authentication" in error_msg.lower() or "permission" in error_msg.lower():
+            # 认证或权限错误，通常是配置问题
+            logger.error("Authentication/permission error detected, manual intervention required")
+            self._state = LoggerState.ERROR
+        else:
+            # 其他错误，尝试恢复
+            logger.warning("Unknown PostgreSQL error, attempting recovery")
+            self._schedule_postgres_recovery()
     
+    def _schedule_postgres_recovery(self):
+        """安排PostgreSQL恢复尝试"""
+        # 实现指数退避策略
+        recovery_delay = min(60, 2 ** min(self._stats["postgres_failures"], 6))
+        logger.info(f"Scheduling PostgreSQL recovery in {recovery_delay} seconds")
+        
+        # 这里可以添加定时器或异步任务来尝试恢复
+        # 为了简化，暂时只记录日志
+
     def _switch_to_file_fallback(self):
         """切换到文件系统降级。"""
         if self._state != LoggerState.FILE_FALLBACK:

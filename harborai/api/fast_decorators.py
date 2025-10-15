@@ -138,7 +138,7 @@ async def _async_record_cost(
             logger.debug(
                 f"[{trace_id}] Fast cost tracking - Model: {model}, "
                 f"Input: {usage.prompt_tokens}, Output: {usage.completion_tokens}, "
-                f"Cost: ${cost:.6f if cost else 'N/A'}, Duration: {duration:.3f}s"
+                f"Cost: ¥{cost:.6f if cost else 'N/A'}, Duration: {duration:.3f}s"
             )
             
             # 使用异步成本追踪器

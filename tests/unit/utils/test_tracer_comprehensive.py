@@ -34,14 +34,14 @@ class TestGenerateTraceId:
         """测试生成的trace_id格式"""
         trace_id = generate_trace_id()
         
-        # 验证格式：harborai_timestamp_random
+        # 验证格式：hb_timestamp_random
         assert isinstance(trace_id, str)
-        assert trace_id.startswith("harborai_")
-        assert len(trace_id) == 31  # harborai_ (9) + timestamp (13) + _ (1) + random (8) = 31
+        assert trace_id.startswith("hb_")
+        assert len(trace_id) == 25  # hb_ (3) + timestamp (13) + _ (1) + random (8) = 25
         
         parts = trace_id.split("_")
         assert len(parts) == 3
-        assert parts[0] == "harborai"
+        assert parts[0] == "hb"
         assert parts[1].isdigit()  # timestamp
         assert len(parts[2]) == 8  # random part
     
@@ -61,13 +61,13 @@ class TestGenerateTraceId:
         """测试生成的trace_id格式一致性"""
         trace_id = generate_trace_id()
         
-        # 应该包含harborai前缀
-        assert trace_id.startswith("harborai_")
+        # 应该包含hb前缀
+        assert trace_id.startswith("hb_")
         
         # 应该包含时间戳和随机部分
         parts = trace_id.split("_")
         assert len(parts) == 3
-        assert parts[0] == "harborai"
+        assert parts[0] == "hb"
         assert parts[1].isdigit()  # 时间戳
         assert len(parts[2]) == 8  # 8位随机字符
 
@@ -112,7 +112,7 @@ class TestTraceIdContext:
         # 应该生成新的trace_id
         assert trace_id is not None
         assert isinstance(trace_id, str)
-        assert trace_id.startswith("harborai_")
+        assert trace_id.startswith("hb_")
         
         # 应该设置到上下文中
         assert get_current_trace_id() == trace_id
@@ -223,7 +223,7 @@ class TestTraceContext:
             # 应该自动生成trace_id
             assert trace_id is not None
             assert isinstance(trace_id, str)
-            assert trace_id.startswith("harborai_")
+            assert trace_id.startswith("hb_")
             assert get_current_trace_id() == trace_id
         
         # 退出后应该清除
@@ -496,7 +496,7 @@ class TestIntegration:
         with TraceContext() as ctx_trace_id:
             # ctx_trace_id是TraceContext.__enter__返回的trace_id
             assert isinstance(ctx_trace_id, str)
-            assert ctx_trace_id.startswith("harborai_")
+            assert ctx_trace_id.startswith("hb_")
             
             # 验证当前上下文中的trace_id
             assert get_current_trace_id() == ctx_trace_id

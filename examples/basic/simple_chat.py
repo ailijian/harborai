@@ -107,7 +107,7 @@ def simple_chat_example(client: HarborAI, question: str, model: str = "deepseek-
         
         # 估算成本 (假设价格)
         estimated_cost = (usage.prompt_tokens * 0.0001 + usage.completion_tokens * 0.0002) / 1000
-        print(f"- 估算成本: ${estimated_cost:.6f}")
+        print(f"- 估算成本: ¥{estimated_cost:.6f}")
         
         return {
             "success": True,
@@ -162,7 +162,7 @@ def multi_model_comparison(client: HarborAI, question: str):
         if result["success"]:
             print(f"✅ {result['model']}: {result['elapsed_time']:.2f}s, "
                   f"{result['usage'].total_tokens} tokens, "
-                  f"${result['estimated_cost']:.6f}")
+                  f"¥{result['estimated_cost']:.6f}")
         else:
             print(f"❌ {result['model']}: 调用失败")
 

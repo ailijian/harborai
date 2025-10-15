@@ -136,7 +136,7 @@ def cost_tracking(func: Callable) -> Callable:
                         model_name=model
                     )
                     
-                    cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                    cost_info = f", Cost: ¥{cost:.6f}" if cost is not None else ", Cost: N/A"
                     
                     logger.info(
                         f"[{trace_id}] Cost tracking - Model: {model}, "
@@ -201,7 +201,7 @@ def cost_tracking(func: Callable) -> Callable:
                         model_name=model
                     )
                     
-                    cost_info = f", Cost: ${cost:.6f}" if cost is not None else ", Cost: N/A"
+                    cost_info = f", Cost: ¥{cost:.6f}" if cost is not None else ", Cost: N/A"
                     
                     logger.info(
                         f"[{trace_id}] Cost tracking - Model: {model}, "

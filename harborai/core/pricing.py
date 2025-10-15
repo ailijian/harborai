@@ -9,26 +9,30 @@ from dataclasses import dataclass
 @dataclass
 class ModelPricing:
     """模型价格配置"""
-    input_price: float  # 每1K输入tokens的价格（美元）
-    output_price: float  # 每1K输出tokens的价格（美元）
+    input_price: float  # 每1K输入tokens的价格（人民币）
+    output_price: float  # 每1K输出tokens的价格（人民币）
 
 
 class PricingCalculator:
     """价格计算器"""
     
-    # 模型价格配置（每1K tokens的价格，单位：美元）
+    # 模型价格配置（每1K tokens的价格，单位：人民币）
     MODEL_PRICING: Dict[str, ModelPricing] = {
-        "deepseek-chat": ModelPricing(input_price=0.00014, output_price=0.00028),
-        "ernie-3.5-8k": ModelPricing(input_price=0.0008, output_price=0.002),
-        "ernie-4.0-turbo-8k": ModelPricing(input_price=0.003, output_price=0.009),
-        "ernie-x1-turbo-32k": ModelPricing(input_price=0.008, output_price=0.024),
+        # DeepSeek模型
+        "deepseek-chat": ModelPricing(input_price=0.002, output_price=0.003),
+        "deepseek-reasoner": ModelPricing(input_price=0.002, output_price=0.003),
+        # 百度文心模型
+        "ernie-3.5-8k": ModelPricing(input_price=0.0008, output_price=0.0032),
+        "ernie-4.0-turbo-8k": ModelPricing(input_price=0.0008, output_price=0.0032),
+        "ernie-x1-turbo-32k": ModelPricing(input_price=0.0008, output_price=0.0032),
+        # 字节跳动豆包模型
         "doubao-1-5-pro-32k-character-250715": ModelPricing(input_price=0.0008, output_price=0.002),
-        "doubao-seed-1-6-250615": ModelPricing(input_price=0.0005, output_price=0.001),
-        # OpenAI模型价格
-        "gpt-3.5-turbo": ModelPricing(input_price=0.0015, output_price=0.002),
-        "gpt-4": ModelPricing(input_price=0.03, output_price=0.06),
-        "gpt-4-turbo": ModelPricing(input_price=0.01, output_price=0.03),
-        "gpt-4o": ModelPricing(input_price=0.005, output_price=0.015),
+        "doubao-seed-1-6-250615": ModelPricing(input_price=0.0008, output_price=0.002),
+        # OpenAI模型价格（按汇率1美元=7.2人民币转换）
+        "gpt-3.5-turbo": ModelPricing(input_price=0.0108, output_price=0.0144),
+        "gpt-4": ModelPricing(input_price=0.216, output_price=0.432),
+        "gpt-4-turbo": ModelPricing(input_price=0.072, output_price=0.216),
+        "gpt-4o": ModelPricing(input_price=0.036, output_price=0.108),
         "gpt-4o-mini": ModelPricing(input_price=0.00015, output_price=0.0006),
     }
     
@@ -74,8 +78,8 @@ class PricingCalculator:
         
         Args:
             model_name: 模型名称
-            input_price: 每1K输入tokens的价格（美元）
-            output_price: 每1K输出tokens的价格（美元）
+            input_price: 每1K输入tokens的价格（人民币）
+            output_price: 每1K输出tokens的价格（人民币）
         """
         cls.MODEL_PRICING[model_name] = ModelPricing(
             input_price=input_price,
