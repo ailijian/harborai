@@ -620,46 +620,64 @@ asyncio.run(async_chat())
 ### 3. 日志查询和统计
 
 ```python
-from harborai.observability import get_logs, get_log_by_trace_id, get_log_stats
+# 方式一：使用命令行工具查看日志（推荐）
+import subprocess
 
-# 查询最近的API调用日志
-logs = await get_logs(
-    page=1,
-    size=20,
-    start_time=datetime.now() - timedelta(days=7),
-    provider="deepseek",
-    model="deepseek-chat"
-)
-
-print(f"总计: {logs.total} 条日志")
-for log in logs.data:
-    print(f"Trace ID: {log.hb_trace_id}")
-    print(f"模型: {log.provider}/{log.model}")
-    print(f"Token使用: {log.token_usage.total_tokens}")
-    print(f"成本: {log.cost_info.total_cost} {log.cost_info.currency}")
-    print(f"延迟: {log.performance_metrics.latency_ms}ms")
-    
-    # APM链接 - 直接跳转到Jaeger/Zipkin
-    if log.apm_links:
-        print(f"Jaeger: {log.apm_links.jaeger}")
-        print(f"Zipkin: {log.apm_links.zipkin}")
+# 查看最近的API调用日志
+result = subprocess.run([
+    "python", "view_logs.py", 
+    "--days", "7",
+    "--model", "deepseek-chat",
+    "--limit", "20"
+], capture_output=True, text=True)
+print(result.stdout)
 
 # 根据trace_id查询详细日志
-detailed_log = await get_log_by_trace_id("hb_1703123456789_a1b2c3d4")
-print(f"详细追踪信息: {detailed_log.tracing}")
+result = subprocess.run([
+    "python", "view_logs.py",
+    "--trace-id", "hb_1703123456789_a1b2c3d4"
+], capture_output=True, text=True)
+print(result.stdout)
+
+# 方式二：直接使用LogViewer类（高级用法）
+from view_logs import LogViewer
+
+# 创建日志查看器实例
+log_viewer = LogViewer()
+
+# 查询最近的日志
+logs_result = log_viewer.get_logs(
+    days=7,
+    model="deepseek-chat",
+    limit=20
+)
+
+if logs_result.get("data"):
+    print(f"总计: {len(logs_result['data'])} 条日志")
+    for log in logs_result["data"]:
+        print(f"Trace ID: {log.get('trace_id', 'N/A')}")
+        print(f"模型: {log.get('provider', 'N/A')}/{log.get('model', 'N/A')}")
+        print(f"时间: {log.get('timestamp', 'N/A')}")
+
+# 根据trace_id查询详细日志
+trace_result = log_viewer.query_logs_by_trace_id("hb_1703123456789_a1b2c3d4")
+if trace_result.get("data"):
+    print(f"找到 {len(trace_result['data'])} 条相关日志")
 
 # 获取统计信息
-stats = await get_log_stats(days=30)
-print(f"总调用次数: {stats.total_requests}")
-print(f"总成本: {stats.total_cost} CNY")
-print(f"平均延迟: {stats.avg_latency_ms}ms")
+stats_result = log_viewer.get_log_type_stats(days=30)
+if stats_result.get("data"):
+    stats = stats_result["data"]
+    print(f"总调用次数: {stats.get('total', 0)}")
+    print(f"请求数: {stats.get('request', 0)}")
+    print(f"响应数: {stats.get('response', 0)}")
 ```
 
 ### 4. 分布式追踪使用
 
 ```python
 from harborai import HarborAI
-from harborai.observability import TracingContext
+from harborai.utils.tracer import TraceContext
 
 # 启用分布式追踪
 client = HarborAI(
@@ -673,11 +691,7 @@ client = HarborAI(
 )
 
 # 创建追踪上下文
-with TracingContext(operation_name="user_query_processing") as trace_ctx:
-    # 设置用户会话信息
-    trace_ctx.set_tag("user.id", "user123")
-    trace_ctx.set_tag("session.id", "session_abc")
-    
+with TraceContext() as trace_id:
     # AI调用会自动关联到当前追踪上下文
     response = client.chat.completions.create(
         model="deepseek-chat",
@@ -685,42 +699,72 @@ with TracingContext(operation_name="user_query_processing") as trace_ctx:
     )
     
     # 追踪信息会自动记录到日志中
-    print(f"Trace ID: {trace_ctx.trace_id}")
-    print(f"Span ID: {trace_ctx.span_id}")
+    print(f"Trace ID: {trace_id}")
+    
+    # 可以通过日志查看器查询相关日志
+    # python view_logs.py --trace-id {trace_id}
 ```
 
 ### 5. 成本追踪和监控
 
 ```python
-from harborai.observability import CostTracker, get_cost_analysis
+from harborai.core.cost_tracking import CostTracker
+from harborai.monitoring.cost_analysis import CostAnalyzer, get_cost_analyzer
+from datetime import datetime, timedelta
 
 # 成本追踪器
-cost_tracker = CostTracker(currency="CNY")
+cost_tracker = CostTracker()
 
 # 设置成本预算和告警
-cost_tracker.set_budget(
-    daily_limit=100.0,  # 每日100元限额
-    monthly_limit=2000.0,  # 每月2000元限额
-    alert_threshold=0.8  # 80%时告警
+cost_tracker.set_daily_budget(100.0)  # 每日100元限额
+cost_tracker.set_monthly_budget(2000.0)  # 每月2000元限额
+
+# 获取成本分析器
+cost_analyzer = get_cost_analyzer()
+
+# 生成成本分析报告
+end_date = datetime.now()
+start_date = end_date - timedelta(days=30)
+
+# 获取成本趋势分析
+cost_trends = cost_analyzer.analyze_cost_trends(
+    start_date=start_date,
+    end_date=end_date,
+    group_by="daily"
 )
 
-# 获取成本分析
-cost_analysis = await get_cost_analysis(
-    start_time=datetime.now() - timedelta(days=30),
-    group_by=["provider", "model", "date"]
+print("成本趋势分析:")
+for trend in cost_trends:
+    print(f"日期: {trend.date}")
+    print(f"总成本: {trend.total_cost:.4f} CNY")
+    print(f"请求数: {trend.request_count}")
+    print(f"平均成本/请求: {trend.avg_cost_per_request:.6f} CNY")
+
+# 检查预算告警
+budget_alerts = cost_analyzer.check_budget_alerts(
+    daily_budget=100.0,
+    monthly_budget=2000.0
 )
 
-print("成本分析报告:")
-for item in cost_analysis.breakdown:
-    print(f"{item.provider}/{item.model}: {item.total_cost} CNY")
-    print(f"  Token使用: {item.total_tokens:,}")
-    print(f"  平均成本/1K Token: {item.avg_cost_per_1k_tokens:.4f} CNY")
+if budget_alerts:
+    for alert in budget_alerts:
+        print(f"预算告警: {alert.alert_type}")
+        print(f"当前使用: {alert.current_usage:.2f} CNY")
+        print(f"预算限额: {alert.budget_limit:.2f} CNY")
+        print(f"使用率: {alert.usage_percentage:.1f}%")
 
-# 实时成本监控
-current_costs = cost_tracker.get_current_usage()
-print(f"今日成本: {current_costs.daily_cost} CNY")
-print(f"本月成本: {current_costs.monthly_cost} CNY")
-print(f"预算使用率: {current_costs.budget_usage_rate:.1%}")
+# 生成每日成本报告
+daily_report = cost_analyzer.generate_daily_report()
+print(f"\n今日成本报告:")
+print(f"总成本: {daily_report.total_cost:.4f} CNY")
+print(f"总请求数: {daily_report.total_requests}")
+print(f"平均延迟: {daily_report.avg_latency_ms:.2f}ms")
+
+# 模型效率分析
+for efficiency in daily_report.model_efficiency:
+    print(f"模型: {efficiency.provider}/{efficiency.model}")
+    print(f"  成本效率: {efficiency.cost_efficiency:.4f}")
+    print(f"  性能评分: {efficiency.performance_score:.2f}")
 ```
 
 ### 6. 性能优化使用
@@ -801,10 +845,7 @@ harborai interactive
 harborai batch-process --input-file requests.jsonl
 
 # 启动服务器模式
-harborai server --host 0.0.0.0 --port 8000
-
-# 测试连接
-harborai test-connection --provider deepseek
+harborai serve --host 0.0.0.0 --port 8000
 ```
 
 ## 🚀 性能优化
@@ -2127,7 +2168,7 @@ print(f"服务名称: {os.getenv('OTEL_SERVICE_NAME', 'harborai')}")
 print(f"导出端点: {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4317')}")
 
 # 测试追踪功能
-from harborai.observability.tracing import get_tracer
+from harborai.core.tracing import get_tracer
 tracer = get_tracer()
 with tracer.start_as_current_span("test_span") as span:
     span.set_attribute("test.key", "test_value")
@@ -2284,14 +2325,8 @@ harborai logs --days 1 --level DEBUG
 # 检查系统状态
 harborai stats --format json
 
-# 测试连接
-harborai test-connection --provider deepseek
-
 # 查看数据库状态
 harborai stats --database
-
-# 强制降级测试
-harborai force-fallback
 ```
 
 ## 🤝 贡献指南

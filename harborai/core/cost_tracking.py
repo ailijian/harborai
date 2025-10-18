@@ -6,6 +6,7 @@
 包含Token计数、定价计算、预算管理、成本报告和优化建议等核心功能。
 """
 
+import os
 import uuid
 import json
 from typing import Dict, List, Optional, Any, Tuple
@@ -373,6 +374,8 @@ class CostTracker:
         self.current_costs: Dict[str, Decimal] = defaultdict(lambda: Decimal('0'))
         self.daily_costs: Dict[str, Decimal] = defaultdict(lambda: Decimal('0'))
         self.monthly_costs: Dict[str, Decimal] = defaultdict(lambda: Decimal('0'))
+        # 从环境变量读取默认货币，如果未设置则使用 RMB
+        self.default_currency = os.getenv('COST_CURRENCY', 'RMB')
     
     def track_api_call(self, provider: str, model: str, endpoint: str, 
                       messages: List[Dict[str, Any]], response: str,
@@ -480,7 +483,7 @@ class CostTracker:
             "total_tokens": total_tokens,
             "average_cost_per_call": avg_cost_per_call,
             "average_cost_per_token": avg_cost_per_token,
-            "currency": "USD",
+            "currency": self.default_currency,
             "calls": calls_list
         }
     
