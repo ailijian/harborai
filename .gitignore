@@ -178,6 +178,7 @@ cython_debug/
 .env.local
 .env.production
 .env.staging
+.env.test
 
 # Database files
 *.db
