@@ -146,7 +146,7 @@ class TestFallbackLoggerInitialization:
             # 根据实际代码逻辑，PostgreSQL失败后会调用_handle_postgres_failure
             # 然后调用_switch_to_file_fallback，状态应该是FILE_FALLBACK
             assert logger.get_state() == LoggerState.FILE_FALLBACK
-            assert logger._postgres_failure_count >= 1  # 至少失败一次
+            assert logger._stats["postgres_failures"] >= 1  # 至少失败一次
             mock_fs_instance.start.assert_called_once()
             # 验证PostgreSQL初始化被尝试
             mock_pg.assert_called_once()
@@ -638,13 +638,14 @@ class TestFallbackLoggerEdgeCases:
             
             logger = FallbackLogger("postgresql://test:test@localhost/test")
             logger._state = LoggerState.POSTGRES_ACTIVE
+            logger._stats["postgres_failures"] = 0  # 重置统计
             
-            # When: 处理日志失败
+            # When: 处理日志失败（一般错误）
             error = Exception("Logging failed")
             logger._handle_logging_failure(error)
             
-            # Then: 应该调用PostgreSQL失败处理
-            assert logger._postgres_failure_count == 1
+            # Then: 应该调用PostgreSQL失败处理，增加失败统计
+            assert logger._stats["postgres_failures"] == 1
     
     def test_handle_logging_failure_in_file_mode(self):
         """测试在文件模式下处理日志失败"""
@@ -660,12 +661,12 @@ class TestFallbackLoggerEdgeCases:
             logger = FallbackLogger("postgresql://test:test@localhost/test")
             logger._state = LoggerState.FILE_FALLBACK
             
-            # When: 处理日志失败
-            error = Exception("Logging failed")
+            # When: 处理文件日志失败（磁盘空间错误）
+            error = Exception("disk space error")
             logger._handle_logging_failure(error)
             
-            # Then: 不应该增加PostgreSQL失败计数
-            assert logger._postgres_failure_count == 0
+            # Then: 应该切换到错误状态
+            assert logger._state == LoggerState.ERROR
     
     def test_postgres_failure_with_test_error(self):
         """测试包含'test'关键字的PostgreSQL失败"""
@@ -679,13 +680,14 @@ class TestFallbackLoggerEdgeCases:
             mock_fs.return_value = mock_fs_instance
             
             logger = FallbackLogger("postgresql://test:test@localhost/test")
+            logger._stats["postgres_failures"] = 0  # 重置统计
             
             # When: 处理包含'test'的错误
             error = Exception("test connection failed")
             logger._handle_postgres_failure(error)
             
-            # Then: 应该使用debug级别日志
-            assert logger._postgres_failure_count == 1
+            # Then: 应该增加失败统计
+            assert logger._stats["postgres_failures"] == 1
     
     def test_attempt_postgres_recovery_success(self):
         """测试PostgreSQL恢复成功"""

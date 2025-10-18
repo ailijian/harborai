@@ -1,0 +1,471 @@
+# HarborAI 增强告警规则配置
+# 包含智能阈值调整、数据质量异常告警、自适应抑制等高级功能
+
+# 全局配置
+global:
+  # 告警评估间隔
+  evaluation_interval: 30s
+  # 告警发送间隔
+  alert_send_interval: 60s
+  # 智能阈值调整启用
+  intelligent_thresholds_enabled: true
+  # 数据质量检查启用
+  data_quality_checks_enabled: true
+  # 自适应抑制启用
+  adaptive_suppression_enabled: true
+
+# 智能阈值规则组
+intelligent_threshold_rules:
+  # API性能相关阈值
+  api_performance:
+    - name: "API响应时间P95智能阈值"
+      metric: "api_response_time_p95"
+      threshold_type: "adaptive"  # adaptive, dynamic, static, ml_based
+      base_value: 2.0  # 基础阈值（秒）
+      sensitivity: 1.2  # 敏感度系数
+      detection_method: "statistical"  # statistical, zscore, iqr, ml
+      min_samples: 100  # 最小样本数
+      adjustment_interval: 300  # 调整间隔（秒）
+      severity: "high"
+      description: "基于历史数据自适应调整API响应时间阈值"
+      
+    - name: "API错误率动态阈值"
+      metric: "api_error_rate"
+      threshold_type: "dynamic"
+      base_value: 0.05  # 5%基础错误率
+      sensitivity: 1.5
+      detection_method: "zscore"
+      trend_window: 3600  # 趋势分析窗口（秒）
+      severity: "critical"
+      description: "基于趋势分析动态调整API错误率阈值"
+      
+    - name: "API并发连接数ML阈值"
+      metric: "api_concurrent_connections"
+      threshold_type: "ml_based"
+      base_value: 1000
+      sensitivity: 2.0
+      detection_method: "ml"
+      model_type: "isolation_forest"  # isolation_forest, one_class_svm, local_outlier_factor
+      training_window: 86400  # 训练窗口（秒）
+      severity: "medium"
+      description: "使用机器学习检测API并发连接异常"
+
+  # 系统资源相关阈值
+  system_resources:
+    - name: "内存使用率智能阈值"
+      metric: "memory_usage_percent"
+      threshold_type: "adaptive"
+      base_value: 80.0  # 80%基础阈值
+      sensitivity: 1.1
+      detection_method: "iqr"
+      component_specific: true  # 按组件分别设置阈值
+      severity: "high"
+      description: "按组件自适应调整内存使用率阈值"
+      
+    - name: "CPU使用率动态阈值"
+      metric: "cpu_usage_percent"
+      threshold_type: "dynamic"
+      base_value: 75.0
+      sensitivity: 1.3
+      detection_method: "statistical"
+      load_aware: true  # 负载感知调整
+      severity: "medium"
+      description: "基于系统负载动态调整CPU使用率阈值"
+
+  # 数据库相关阈值
+  database_performance:
+    - name: "数据库连接池使用率阈值"
+      metric: "database_connection_pool_usage"
+      threshold_type: "adaptive"
+      base_value: 0.85  # 85%基础阈值
+      sensitivity: 1.2
+      detection_method: "statistical"
+      pool_specific: true  # 按连接池分别设置
+      severity: "high"
+      description: "按连接池自适应调整使用率阈值"
+      
+    - name: "数据库查询延迟P99阈值"
+      metric: "database_query_duration_p99"
+      threshold_type: "ml_based"
+      base_value: 5.0  # 5秒基础阈值
+      sensitivity: 1.5
+      detection_method: "ml"
+      model_type: "one_class_svm"
+      query_type_specific: true  # 按查询类型分别设置
+      severity: "critical"
+      description: "使用ML检测数据库查询延迟异常"
+
+# 数据质量告警规则
+data_quality_rules:
+  # Token数据质量
+  token_data_quality:
+    - rule_id: "token_completeness_enhanced"
+      name: "Token数据完整性增强检查"
+      description: "检查Token相关字段的完整性，包括智能缺失检测"
+      table_name: "api_logs"
+      rule_type: "completeness"
+      threshold: 0.95  # 95%完整性要求
+      severity: "high"
+      check_interval: 300  # 检查间隔（秒）
+      columns:
+        - "input_tokens"
+        - "output_tokens"
+        - "total_tokens"
+        - "model_name"
+        - "provider"
+      smart_detection:
+        enabled: true
+        pattern_analysis: true  # 模式分析
+        anomaly_detection: true  # 异常检测
+        trend_monitoring: true  # 趋势监控
+      
+    - rule_id: "token_consistency_check"
+      name: "Token数据一致性检查"
+      description: "检查Token计算的一致性"
+      table_name: "api_logs"
+      rule_type: "consistency"
+      threshold: 0.98
+      severity: "medium"
+      check_interval: 600
+      consistency_rules:
+        - "total_tokens = input_tokens + output_tokens"
+        - "cost > 0 when tokens > 0"
+        - "response_time > 0 when status = 'success'"
+      
+    - rule_id: "token_accuracy_validation"
+      name: "Token数据准确性验证"
+      description: "验证Token数据的准确性"
+      table_name: "api_logs"
+      rule_type: "accuracy"
+      threshold: 0.97
+      severity: "high"
+      check_interval: 900
+      validation_rules:
+        - type: "range_check"
+          field: "input_tokens"
+          min: 0
+          max: 1000000
+        - type: "format_check"
+          field: "model_name"
+          pattern: "^[a-zA-Z0-9_-]+$"
+        - type: "reference_check"
+          field: "provider"
+          reference_table: "supported_providers"
+
+  # 成本数据质量
+  cost_data_quality:
+    - rule_id: "cost_completeness_check"
+      name: "成本数据完整性检查"
+      description: "检查成本相关字段的完整性"
+      table_name: "api_logs"
+      rule_type: "completeness"
+      threshold: 0.99
+      severity: "critical"
+      check_interval: 180
+      columns:
+        - "input_cost"
+        - "output_cost"
+        - "total_cost"
+        - "pricing_model"
+      
+    - rule_id: "cost_consistency_validation"
+      name: "成本数据一致性验证"
+      description: "验证成本计算的一致性"
+      table_name: "api_logs"
+      rule_type: "consistency"
+      threshold: 0.995
+      severity: "critical"
+      check_interval: 300
+      consistency_rules:
+        - "total_cost = input_cost + output_cost"
+        - "cost_per_token = total_cost / total_tokens"
+        - "cost > 0 when tokens > 0"
+
+  # 性能数据质量
+  performance_data_quality:
+    - rule_id: "response_time_validity"
+      name: "响应时间数据有效性检查"
+      description: "检查响应时间数据的有效性"
+      table_name: "api_logs"
+      rule_type: "validity"
+      threshold: 0.98
+      severity: "medium"
+      check_interval: 600
+      validity_rules:
+        - type: "positive_check"
+          field: "response_time"
+        - type: "reasonable_range"
+          field: "response_time"
+          min: 0.001  # 1ms
+          max: 300.0  # 5分钟
+        - type: "correlation_check"
+          fields: ["response_time", "total_tokens"]
+          correlation_threshold: 0.3
+
+# 自适应告警抑制规则
+adaptive_suppression_rules:
+  # 高频告警抑制
+  high_frequency_suppression:
+    - rule_id: "api_error_burst_suppression"
+      name: "API错误突发抑制"
+      description: "抑制短时间内的大量API错误告警"
+      conditions:
+        metric_pattern: "api_error_*"
+        frequency: "> 10/min"
+        severity: ["medium", "high"]
+      suppression_strategy:
+        type: "adaptive"  # adaptive, fixed, exponential
+        initial_duration: 300  # 初始抑制时间（秒）
+        max_duration: 3600  # 最大抑制时间
+        escalation_threshold: 50  # 升级阈值
+        decay_factor: 0.8  # 衰减因子
+      
+    - rule_id: "resource_alert_grouping"
+      name: "资源告警分组抑制"
+      description: "将相关的资源告警分组处理"
+      conditions:
+        metric_pattern: ["memory_usage_*", "cpu_usage_*", "disk_usage_*"]
+        time_window: 120  # 时间窗口（秒）
+        correlation_threshold: 0.7  # 相关性阈值
+      suppression_strategy:
+        type: "grouping"
+        group_by: ["component", "severity"]
+        max_group_size: 5
+        group_duration: 600
+
+  # 维护期间抑制
+  maintenance_suppression:
+    - rule_id: "scheduled_maintenance_suppression"
+      name: "计划维护期间告警抑制"
+      description: "在计划维护期间抑制相关告警"
+      conditions:
+        maintenance_window: true
+        affected_components: ["database", "cache", "storage"]
+      suppression_strategy:
+        type: "maintenance"
+        auto_enable: true
+        notification_channels: ["maintenance_team"]
+
+  # 级联故障抑制
+  cascade_failure_suppression:
+    - rule_id: "downstream_dependency_suppression"
+      name: "下游依赖故障抑制"
+      description: "当上游服务故障时抑制下游告警"
+      conditions:
+        dependency_map:
+          database: ["api_service", "batch_processor"]
+          cache: ["api_service", "user_service"]
+          external_api: ["model_service", "pricing_service"]
+      suppression_strategy:
+        type: "cascade"
+        propagation_delay: 60  # 传播延迟（秒）
+        auto_recovery: true
+        recovery_threshold: 0.8
+
+# 告警升级策略
+escalation_strategies:
+  # 严重性升级
+  severity_escalation:
+    - name: "API服务严重性升级"
+      conditions:
+        service: "api_service"
+        duration: 900  # 15分钟
+        severity: "medium"
+      escalation:
+        to_severity: "high"
+        notification_channels: ["ops_team", "on_call"]
+        
+    - name: "数据库服务紧急升级"
+      conditions:
+        service: "database"
+        duration: 300  # 5分钟
+        severity: "high"
+      escalation:
+        to_severity: "critical"
+        notification_channels: ["dba_team", "emergency"]
+        auto_actions: ["create_incident", "page_oncall"]
+
+  # 频率升级
+  frequency_escalation:
+    - name: "高频错误升级"
+      conditions:
+        error_rate: "> 0.1"  # 10%错误率
+        duration: 600  # 10分钟
+        frequency: "> 100/min"
+      escalation:
+        to_severity: "critical"
+        notification_channels: ["incident_response"]
+        auto_actions: ["enable_circuit_breaker"]
+
+# 通知渠道配置
+notification_channels:
+  # 邮件通知
+  email:
+    ops_team:
+      addresses: ["ops@harborai.com"]
+      severity_filter: ["medium", "high", "critical"]
+      rate_limit: "5/hour"
+      
+    dba_team:
+      addresses: ["dba@harborai.com"]
+      severity_filter: ["high", "critical"]
+      service_filter: ["database", "storage"]
+      
+    emergency:
+      addresses: ["emergency@harborai.com"]
+      severity_filter: ["critical"]
+      immediate: true
+
+  # Slack通知
+  slack:
+    ops_channel:
+      webhook_url: "${SLACK_OPS_WEBHOOK}"
+      channel: "#ops-alerts"
+      severity_filter: ["high", "critical"]
+      
+    dev_channel:
+      webhook_url: "${SLACK_DEV_WEBHOOK}"
+      channel: "#dev-alerts"
+      severity_filter: ["medium", "high"]
+      business_hours_only: true
+
+  # 钉钉通知
+  dingtalk:
+    ops_group:
+      webhook_url: "${DINGTALK_OPS_WEBHOOK}"
+      at_all: false
+      severity_filter: ["critical"]
+      
+  # PagerDuty集成
+  pagerduty:
+    on_call:
+      integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+      severity_filter: ["critical"]
+      auto_resolve: true
+
+# 告警模板
+alert_templates:
+  # 智能阈值告警模板
+  intelligent_threshold:
+    title: "智能阈值告警: {{ .metric_name }}"
+    description: |
+      指标 {{ .metric_name }} 超过智能阈值
+      
+      当前值: {{ .current_value }}
+      智能阈值: {{ .threshold_value }}
+      阈值类型: {{ .threshold_type }}
+      检测方法: {{ .detection_method }}
+      
+      历史趋势: {{ .trend_analysis }}
+      置信度: {{ .confidence_level }}
+      
+      建议操作: {{ .recommended_actions }}
+    severity: "{{ .severity }}"
+    labels:
+      alert_type: "intelligent_threshold"
+      metric: "{{ .metric_name }}"
+      threshold_type: "{{ .threshold_type }}"
+
+  # 数据质量告警模板
+  data_quality:
+    title: "数据质量告警: {{ .rule_name }}"
+    description: |
+      数据质量检查失败
+      
+      规则: {{ .rule_name }}
+      表: {{ .table_name }}
+      质量类型: {{ .rule_type }}
+      
+      当前得分: {{ .current_score }}
+      阈值: {{ .threshold }}
+      影响记录数: {{ .affected_records }}
+      
+      质量趋势: {{ .quality_trend }}
+      根本原因分析: {{ .root_cause_analysis }}
+      
+      修复建议: {{ .fix_recommendations }}
+    severity: "{{ .severity }}"
+    labels:
+      alert_type: "data_quality"
+      rule_id: "{{ .rule_id }}"
+      table_name: "{{ .table_name }}"
+
+  # 性能异常告警模板
+  performance_anomaly:
+    title: "性能异常检测: {{ .component }}"
+    description: |
+      检测到性能异常
+      
+      组件: {{ .component }}
+      异常类型: {{ .anomaly_type }}
+      异常得分: {{ .anomaly_score }}
+      
+      性能指标:
+      - 响应时间: {{ .response_time }}
+      - 吞吐量: {{ .throughput }}
+      - 错误率: {{ .error_rate }}
+      
+      异常模式: {{ .anomaly_pattern }}
+      影响评估: {{ .impact_assessment }}
+      
+      优化建议: {{ .optimization_suggestions }}
+    severity: "{{ .severity }}"
+    labels:
+      alert_type: "performance_anomaly"
+      component: "{{ .component }}"
+      anomaly_type: "{{ .anomaly_type }}"
+
+# 仪表板集成
+dashboard_integration:
+  grafana:
+    # 智能告警仪表板
+    intelligent_alerts_dashboard:
+      title: "HarborAI 智能告警监控"
+      panels:
+        - title: "智能阈值状态"
+          type: "stat"
+          targets:
+            - expr: "intelligent_threshold_adjustments_total"
+            - expr: "intelligent_threshold_violations_total"
+            
+        - title: "数据质量得分"
+          type: "gauge"
+          targets:
+            - expr: "data_quality_score"
+            
+        - title: "告警抑制统计"
+          type: "graph"
+          targets:
+            - expr: "alert_suppressions_total"
+            - expr: "alert_escalations_total"
+            
+        - title: "ML异常检测"
+          type: "heatmap"
+          targets:
+            - expr: "ml_anomaly_scores"
+
+# 性能优化配置
+performance_optimization:
+  # 批量处理配置
+  batch_processing:
+    enabled: true
+    batch_size: 100
+    flush_interval: 30  # 秒
+    max_queue_size: 10000
+    
+  # 缓存配置
+  caching:
+    enabled: true
+    ttl: 300  # 秒
+    max_size: 1000
+    
+  # 并发配置
+  concurrency:
+    max_workers: 10
+    queue_timeout: 60  # 秒
+    
+  # 数据库优化
+  database:
+    connection_pool_size: 20
+    query_timeout: 30  # 秒
+    batch_insert_size: 1000

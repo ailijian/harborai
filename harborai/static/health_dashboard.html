@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HarborAI 系统健康监控仪表板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .status-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .status-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .status-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .status-card.healthy {
+            border-left: 5px solid #27ae60;
+        }
+
+        .status-card.degraded {
+            border-left: 5px solid #f39c12;
+        }
+
+        .status-card.unhealthy {
+            border-left: 5px solid #e74c3c;
+        }
+
+        .status-card.unavailable {
+            border-left: 5px solid #95a5a6;
+        }
+
+        .status-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .status-card.healthy .status-icon {
+            color: #27ae60;
+        }
+
+        .status-card.degraded .status-icon {
+            color: #f39c12;
+        }
+
+        .status-card.unhealthy .status-icon {
+            color: #e74c3c;
+        }
+
+        .status-card.unavailable .status-icon {
+            color: #95a5a6;
+        }
+
+        .status-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .status-value {
+            font-size: 2em;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .status-description {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .metric-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-panel h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #f39c12, #e67e22);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2980b9, #1f4e79);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #229954, #1e8449);
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #e67e22, #d35400);
+            transform: translateY(-2px);
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+
+        .auto-refresh label {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .auto-refresh input[type="checkbox"] {
+            transform: scale(1.2);
+        }
+
+        .last-updated {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #c0392b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .status-overview {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .auto-refresh {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚢 HarborAI 系统健康监控</h1>
+            <div class="subtitle">分布式追踪与日志系统实时监控仪表板</div>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="refreshData()">🔄 刷新数据</button>
+            <button class="btn btn-success" onclick="forceHealthCheck()">🔍 强制健康检查</button>
+            <button class="btn btn-warning" onclick="viewDetailedStatus()">📊 详细状态</button>
+            <div class="auto-refresh">
+                <label for="auto-refresh-toggle">自动刷新:</label>
+                <input type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div>⏳ 正在加载系统状态...</div>
+        </div>
+
+        <div id="dashboard-content" style="display: none;">
+            <div class="status-overview" id="status-overview">
+                <!-- 状态卡片将在这里动态生成 -->
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-panel">
+                    <h3>🖥️ 系统资源</h3>
+                    <div id="system-metrics">
+                        <!-- 系统指标将在这里动态生成 -->
+                    </div>
+                </div>
+
+                <div class="metric-panel">
+                    <h3>💾 存储性能</h3>
+                    <div id="storage-metrics">
+                        <!-- 存储指标将在这里动态生成 -->
+                    </div>
+                </div>
+
+                <div class="metric-panel">
+                    <h3>🔍 追踪系统</h3>
+                    <div id="tracing-metrics">
+                        <!-- 追踪指标将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-updated" id="last-updated"></div>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+        let lastUpdateTime = null;
+
+        // 初始化仪表板
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+        });
+
+        // 刷新数据
+        async function refreshData() {
+            try {
+                showLoading(true);
+                clearError();
+
+                const response = await fetch('/health/');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                updateDashboard(data);
+                lastUpdateTime = new Date();
+                updateLastUpdatedTime();
+
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+                showError(`数据刷新失败: ${error.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // 更新仪表板
+        function updateDashboard(data) {
+            updateStatusOverview(data);
+            updateSystemMetrics(data.system_metrics);
+            updateStorageMetrics(data.storage_metrics);
+            updateTracingMetrics(data.tracing_metrics);
+        }
+
+        // 更新状态概览
+        function updateStatusOverview(data) {
+            const container = document.getElementById('status-overview');
+            container.innerHTML = '';
+
+            // 整体状态卡片
+            const overallCard = createStatusCard(
+                '🎯 整体状态',
+                data.status,
+                getStatusIcon(data.status),
+                getStatusDescription(data.status)
+            );
+            container.appendChild(overallCard);
+
+            // 组件状态卡片
+            Object.entries(data.components).forEach(([name, status]) => {
+                const card = createStatusCard(
+                    getComponentDisplayName(name),
+                    status.status,
+                    getStatusIcon(status.status),
+                    status.message || getStatusDescription(status.status)
+                );
+                container.appendChild(card);
+            });
+        }
+
+        // 创建状态卡片
+        function createStatusCard(title, status, icon, description) {
+            const card = document.createElement('div');
+            card.className = `status-card ${status}`;
+            card.innerHTML = `
+                <div class="status-icon">${icon}</div>
+                <div class="status-title">${title}</div>
+                <div class="status-value">${status.toUpperCase()}</div>
+                <div class="status-description">${description}</div>
+            `;
+            return card;
+        }
+
+        // 更新系统指标
+        function updateSystemMetrics(metrics) {
+            const container = document.getElementById('system-metrics');
+            container.innerHTML = '';
+
+            const systemMetrics = [
+                { label: 'CPU 使用率', value: `${metrics.cpu_percent?.toFixed(1) || 0}%`, progress: metrics.cpu_percent || 0 },
+                { label: '内存使用率', value: `${metrics.memory_percent?.toFixed(1) || 0}%`, progress: metrics.memory_percent || 0 },
+                { label: '磁盘使用率', value: `${metrics.disk_usage_percent?.toFixed(1) || 0}%`, progress: metrics.disk_usage_percent || 0 },
+                { label: '可用内存', value: `${(metrics.memory_available_mb / 1024)?.toFixed(1) || 0} GB` },
+                { label: '可用磁盘', value: `${metrics.disk_free_gb?.toFixed(1) || 0} GB` },
+                { label: '进程数', value: metrics.process_count || 0 },
+                { label: '线程数', value: metrics.thread_count || 0 }
+            ];
+
+            systemMetrics.forEach(metric => {
+                const item = createMetricItem(metric.label, metric.value, metric.progress);
+                container.appendChild(item);
+            });
+        }
+
+        // 更新存储指标
+        function updateStorageMetrics(metrics) {
+            const container = document.getElementById('storage-metrics');
+            container.innerHTML = '';
+
+            if (!metrics || Object.keys(metrics).length === 0) {
+                container.innerHTML = '<div class="metric-item"><span class="metric-label">暂无数据</span></div>';
+                return;
+            }
+
+            const storageMetrics = [
+                { label: 'PostgreSQL 日志', value: metrics.postgres_logs || 0 },
+                { label: '文件日志', value: metrics.file_logs || 0 },
+                { label: '总错误数', value: metrics.total_errors || 0 },
+                { label: '状态变更', value: metrics.state_changes || 0 },
+                { label: '恢复尝试', value: metrics.recovery_attempts || 0 },
+                { label: '成功恢复', value: metrics.successful_recoveries || 0 },
+                { label: '运行时间', value: `${(metrics.uptime_hours || 0).toFixed(1)} 小时` }
+            ];
+
+            storageMetrics.forEach(metric => {
+                const item = createMetricItem(metric.label, metric.value);
+                container.appendChild(item);
+            });
+        }
+
+        // 更新追踪指标
+        function updateTracingMetrics(metrics) {
+            const container = document.getElementById('tracing-metrics');
+            container.innerHTML = '';
+
+            if (!metrics || Object.keys(metrics).length === 0) {
+                container.innerHTML = '<div class="metric-item"><span class="metric-label">暂无数据</span></div>';
+                return;
+            }
+
+            const tracingMetrics = [
+                { label: '收集的追踪', value: metrics.traces_collected || 0 },
+                { label: '创建的Span', value: metrics.spans_created || 0 },
+                { label: '处理错误', value: metrics.processing_errors || 0 },
+                { label: '队列大小', value: metrics.queue_size || 0 },
+                { label: '平均延迟', value: `${(metrics.avg_latency_ms || 0).toFixed(1)} ms` },
+                { label: '成功率', value: `${((metrics.success_rate || 0) * 100).toFixed(1)}%` }
+            ];
+
+            tracingMetrics.forEach(metric => {
+                const item = createMetricItem(metric.label, metric.value);
+                container.appendChild(item);
+            });
+        }
+
+        // 创建指标项
+        function createMetricItem(label, value, progress = null) {
+            const item = document.createElement('div');
+            item.className = 'metric-item';
+            
+            let progressBar = '';
+            if (progress !== null) {
+                const progressClass = progress > 80 ? 'danger' : progress > 60 ? 'warning' : '';
+                progressBar = `
+                    <div class="progress-bar">
+                        <div class="progress-fill ${progressClass}" style="width: ${progress}%"></div>
+                    </div>
+                `;
+            }
+
+            item.innerHTML = `
+                <span class="metric-label">${label}</span>
+                <span class="metric-value">${value}</span>
+                ${progressBar}
+            `;
+            return item;
+        }
+
+        // 强制健康检查
+        async function forceHealthCheck() {
+            try {
+                const response = await fetch('/health/force-check', { method: 'POST' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                showSuccess('健康检查已执行');
+                setTimeout(refreshData, 1000); // 1秒后刷新数据
+
+            } catch (error) {
+                console.error('Force health check failed:', error);
+                showError(`强制健康检查失败: ${error.message}`);
+            }
+        }
+
+        // 查看详细状态
+        async function viewDetailedStatus() {
+            try {
+                const response = await fetch('/health/detailed');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // 在新窗口中显示详细信息
+                const detailWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+                detailWindow.document.write(`
+                    <html>
+                        <head>
+                            <title>HarborAI 详细状态</title>
+                            <style>
+                                body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+                                pre { background: white; padding: 15px; border-radius: 5px; overflow: auto; }
+                            </style>
+                        </head>
+                        <body>
+                            <h1>HarborAI 详细状态</h1>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </body>
+                    </html>
+                `);
+
+            } catch (error) {
+                console.error('View detailed status failed:', error);
+                showError(`获取详细状态失败: ${error.message}`);
+            }
+        }
+
+        // 切换自动刷新
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('auto-refresh-toggle');
+            
+            if (checkbox.checked) {
+                autoRefreshInterval = setInterval(refreshData, 30000); // 30秒刷新一次
+                showSuccess('自动刷新已启用 (30秒间隔)');
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                showSuccess('自动刷新已禁用');
+            }
+        }
+
+        // 显示/隐藏加载状态
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            document.getElementById('dashboard-content').style.display = show ? 'none' : 'block';
+        }
+
+        // 显示错误
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        // 显示成功消息
+        function showSuccess(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div style="background: #e8f5e8; color: #27ae60; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #27ae60;">✅ ${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 3000);
+        }
+
+        // 清除错误
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
+        }
+
+        // 更新最后更新时间
+        function updateLastUpdatedTime() {
+            if (lastUpdateTime) {
+                document.getElementById('last-updated').textContent = 
+                    `最后更新: ${lastUpdateTime.toLocaleString('zh-CN')}`;
+            }
+        }
+
+        // 获取状态图标
+        function getStatusIcon(status) {
+            const icons = {
+                'healthy': '✅',
+                'degraded': '⚠️',
+                'unhealthy': '❌',
+                'unavailable': '⚫',
+                'error': '💥',
+                'unknown': '❓'
+            };
+            return icons[status] || '❓';
+        }
+
+        // 获取状态描述
+        function getStatusDescription(status) {
+            const descriptions = {
+                'healthy': '系统运行正常',
+                'degraded': '系统性能下降',
+                'unhealthy': '系统存在问题',
+                'unavailable': '组件不可用',
+                'error': '组件错误',
+                'unknown': '状态未知'
+            };
+            return descriptions[status] || '状态未知';
+        }
+
+        // 获取组件显示名称
+        function getComponentDisplayName(name) {
+            const displayNames = {
+                'fallback_logger': '🔄 降级日志器',
+                'postgres_logger': '🐘 PostgreSQL日志器',
+                'file_logger': '📁 文件日志器',
+                'tracing_collector': '🔍 追踪收集器'
+            };
+            return displayNames[name] || name;
+        }
+
+        // 定期更新最后更新时间显示
+        setInterval(updateLastUpdatedTime, 1000);
+    </script>
+</body>
+</html>

@@ -422,7 +422,7 @@ class TestDoubaoPluginAsyncChatCompletion:
         """测试成功的异步聊天完成"""
         # 设置mock
         mock_client = AsyncMock()
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {"role": "assistant", "content": "Hello async!"},
@@ -468,6 +468,13 @@ class TestDoubaoPluginStreamingResponse:
         
         mock_response.iter_lines.return_value = stream_data
         mock_response.raise_for_status.return_value = None
+        
+        # 设置上下文管理器支持
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        mock_client.stream.return_value = mock_stream_context
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -497,6 +504,13 @@ class TestDoubaoPluginStreamingResponse:
         
         mock_response.iter_lines.return_value = stream_data
         mock_response.raise_for_status.return_value = None
+        
+        # 设置上下文管理器支持
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        mock_client.stream.return_value = mock_stream_context
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -527,6 +541,13 @@ class TestDoubaoPluginStreamingResponse:
         
         mock_response.iter_lines.return_value = stream_data
         mock_response.raise_for_status.return_value = None
+        
+        # 设置上下文管理器支持
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        mock_client.stream.return_value = mock_stream_context
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -546,7 +567,7 @@ class TestDoubaoPluginStreamingResponse:
         """测试异步流式响应处理"""
         # 创建mock异步流式响应
         mock_client = AsyncMock()
-        mock_response = AsyncMock()
+        mock_response = AsyncMock()  # 使用AsyncMock而不是普通Mock
         
         # 模拟异步流式数据
         async def mock_aiter_lines():
@@ -559,7 +580,14 @@ class TestDoubaoPluginStreamingResponse:
                 yield line
         
         mock_response.aiter_lines = mock_aiter_lines
-        mock_response.raise_for_status.return_value = None
+        mock_response.raise_for_status = AsyncMock()
+        
+        # 设置异步上下文管理器支持
+        mock_async_stream_context = AsyncMock()
+        mock_async_stream_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_async_stream_context.__aexit__ = AsyncMock(return_value=None)
+        mock_client.stream = Mock(return_value=mock_async_stream_context)
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -591,6 +619,13 @@ class TestDoubaoPluginStreamingResponse:
         
         mock_response.iter_lines.return_value = stream_data
         mock_response.raise_for_status.return_value = None
+        
+        # 设置上下文管理器支持
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        mock_client.stream.return_value = mock_stream_context
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -630,7 +665,7 @@ class TestDoubaoPluginErrorHandling:
     async def test_async_http_error_handling(self, mock_client_class):
         """测试异步HTTP错误处理"""
         mock_client = AsyncMock()
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
             "HTTP Error", request=Mock(), response=Mock()
         )
@@ -993,14 +1028,15 @@ class TestDoubaoPluginErrorHandling:
                 "json_schema": {"name": "test", "schema": {"type": "object"}}
             }
             
-            with pytest.raises(PluginError) as exc_info:
-                plugin._handle_native_structured_output(
-                    "doubao-1-5-pro-32k-character-250715", 
-                    messages, 
-                    response_format=response_format
-                )
+            result = plugin._handle_native_structured_output(
+                "doubao-1-5-pro-32k-character-250715", 
+                messages, 
+                response_format=response_format
+            )
             
-            assert "不是有效JSON" in str(exc_info.value)
+            # 检查返回的是错误响应
+            assert result.choices[0].message.content is not None
+            assert "不是有效JSON" in result.choices[0].message.content
     
     def test_structured_output_missing_required_fields(self):
         """测试结构化输出缺少必需字段的错误处理"""
@@ -1034,14 +1070,15 @@ class TestDoubaoPluginErrorHandling:
                 }
             }
             
-            with pytest.raises(PluginError) as exc_info:
-                plugin._handle_native_structured_output(
-                    "doubao-1-5-pro-32k-character-250715", 
-                    messages, 
-                    response_format=response_format
-                )
+            result = plugin._handle_native_structured_output(
+                "doubao-1-5-pro-32k-character-250715", 
+                messages, 
+                response_format=response_format
+            )
             
-            assert "缺少必需字段" in str(exc_info.value)
+            # 检查返回的是错误响应
+            assert result.choices[0].message.content is not None
+            assert "缺少必需字段" in result.choices[0].message.content
     
     def test_structured_output_no_content(self):
         """测试结构化输出无内容的错误处理"""
@@ -1068,14 +1105,15 @@ class TestDoubaoPluginErrorHandling:
                 "json_schema": {"name": "test", "schema": {"type": "object"}}
             }
             
-            with pytest.raises(PluginError) as exc_info:
-                plugin._handle_native_structured_output(
-                    "doubao-1-5-pro-32k-character-250715", 
-                    messages, 
-                    response_format=response_format
-                )
+            result = plugin._handle_native_structured_output(
+                "doubao-1-5-pro-32k-character-250715", 
+                messages, 
+                response_format=response_format
+            )
             
-            assert "未返回有效的响应内容" in str(exc_info.value)
+            # 检查返回的是错误响应
+            assert result.choices[0].message.content is not None
+            assert "未返回有效的响应内容" in result.choices[0].message.content
     
     @pytest.mark.asyncio
     async def test_async_structured_output_invalid_json(self):
@@ -1084,7 +1122,7 @@ class TestDoubaoPluginErrorHandling:
         
         with patch.object(plugin, '_get_async_client') as mock_get_async_client:
             mock_client = AsyncMock()
-            mock_response = AsyncMock()
+            mock_response = Mock()  # 使用普通Mock而不是AsyncMock
             mock_response.json.return_value = {
                 "choices": [{
                     "message": {"role": "assistant", "content": "invalid json {"},
@@ -1103,14 +1141,16 @@ class TestDoubaoPluginErrorHandling:
                 "json_schema": {"name": "test", "schema": {"type": "object"}}
             }
             
-            with pytest.raises(PluginError) as exc_info:
-                await plugin._handle_native_structured_output_async(
-                    "doubao-1-5-pro-32k-character-250715", 
-                    messages, 
-                    response_format=response_format
-                )
+            # 现在期望返回错误响应而不是抛出异常
+            response = await plugin._handle_native_structured_output_async(
+                "doubao-1-5-pro-32k-character-250715", 
+                messages, 
+                response_format=response_format
+            )
             
-            assert "不是有效JSON" in str(exc_info.value)
+            # 验证返回的是错误响应
+            assert response.choices[0].message.content.startswith("Error:")
+            assert "不是有效JSON" in response.choices[0].message.content
     
     def test_general_exception_handling(self):
         """测试一般异常处理"""
@@ -1144,14 +1184,17 @@ class TestDoubaoPluginErrorHandling:
                 "json_schema": {"name": "test", "schema": {"type": "object"}}
             }
             
-            with pytest.raises(PluginError) as exc_info:
-                await plugin._handle_native_structured_output_async(
-                    "doubao-1-5-pro-32k-character-250715", 
-                    messages, 
-                    response_format=response_format
-                )
+            # 现在期望返回错误响应而不是抛出异常
+            result = await plugin._handle_native_structured_output_async(
+                "doubao-1-5-pro-32k-character-250715", 
+                messages, 
+                response_format=response_format
+            )
             
-            assert "异步原生结构化输出失败" in str(exc_info.value)
+            # 检查返回的错误响应
+            assert result.choices[0].message.content is not None
+            assert "Error:" in result.choices[0].message.content
+            assert "Network error" in result.choices[0].message.content
 
 
 class TestDoubaoPluginEdgeCases:
@@ -1290,7 +1333,13 @@ class TestDoubaoPluginEdgeCases:
         }
         mock_response.status_code = 200
         
+        # 设置上下文管理器支持
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        
         mock_client = Mock()
+        mock_client.stream.return_value = mock_stream_context
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -1334,7 +1383,7 @@ class TestDoubaoPluginEdgeCases:
         ---
         """
         # 设置mock响应
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {
@@ -1390,7 +1439,7 @@ class TestDoubaoPluginEdgeCases:
         ---
         """
         # 设置mock响应 - 无效JSON
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {
@@ -1502,8 +1551,13 @@ class TestDoubaoPluginEdgeCases:
         mock_response.iter_lines.return_value = stream_data
         mock_response.status_code = 200
         
+        # 设置同步流式上下文管理器
+        mock_stream_context = Mock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_response)
+        mock_stream_context.__exit__ = Mock(return_value=None)
+        
         mock_client = Mock()
-        mock_client.post.return_value = mock_response
+        mock_client.stream = Mock(return_value=mock_stream_context)
         mock_client_class.return_value = mock_client
         
         plugin = DoubaoPlugin(name="doubao", api_key="test_key")
@@ -1546,7 +1600,14 @@ class TestDoubaoPluginEdgeCases:
                 yield line
         
         mock_response.aiter_lines = mock_aiter_lines
-        mock_response.raise_for_status.return_value = None
+        mock_response.raise_for_status = AsyncMock()
+        
+        # 设置异步上下文管理器支持
+        mock_async_stream_context = AsyncMock()
+        mock_async_stream_context.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_async_stream_context.__aexit__ = AsyncMock(return_value=None)
+        mock_client.stream = Mock(return_value=mock_async_stream_context)
+        
         mock_client.post.return_value = mock_response
         mock_client_class.return_value = mock_client
         
@@ -1601,14 +1662,17 @@ class TestDoubaoPluginEdgeCases:
             "json_schema": {"name": "test", "schema": {"type": "object"}}
         }
         
-        with pytest.raises(PluginError) as exc_info:
-            plugin._handle_native_structured_output(
-                "doubao-1-5-pro-32k-character-250715", 
-                messages, 
-                response_format=response_format
-            )
+        # 现在期望返回错误响应而不是抛出异常
+        result = plugin._handle_native_structured_output(
+            "doubao-1-5-pro-32k-character-250715", 
+            messages, 
+            response_format=response_format
+        )
         
-        assert "豆包返回的内容不是有效JSON" in str(exc_info.value)
+        # 检查返回的错误响应
+        assert result.choices[0].message.content is not None
+        assert "Error:" in result.choices[0].message.content
+        assert "豆包返回的内容不是有效JSON" in result.choices[0].message.content
 
     @patch('httpx.Client')
     def test_native_structured_output_schema_validation_error(self, mock_client_class):
@@ -1653,14 +1717,15 @@ class TestDoubaoPluginEdgeCases:
             }
         }
         
-        with pytest.raises(PluginError) as exc_info:
-            plugin._handle_native_structured_output(
-                "doubao-1-5-pro-32k-character-250715", 
-                messages, 
-                response_format=response_format
-            )
+        result = plugin._handle_native_structured_output(
+            "doubao-1-5-pro-32k-character-250715", 
+            messages, 
+            response_format=response_format
+        )
         
-        assert "豆包返回的JSON缺少必需字段" in str(exc_info.value)
+        # 验证返回的是错误响应
+        assert "Error:" in result.choices[0].message.content
+        assert "豆包返回的JSON缺少必需字段" in result.choices[0].message.content
 
 
 class TestDoubaoPluginAdditionalCoverage:
@@ -1820,7 +1885,7 @@ class TestDoubaoPluginAdditionalCoverage:
         plugin = DoubaoPlugin(name="doubao", api_key="test_key")
         
         # 模拟异步响应
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {
@@ -1904,7 +1969,7 @@ class TestDoubaoPluginAdditionalCoverage:
         plugin = DoubaoPlugin(name="doubao", api_key="test_key")
         
         # 模拟返回有效JSON的异步响应（无schema验证）
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {
@@ -1947,7 +2012,7 @@ class TestDoubaoPluginAdditionalCoverage:
         plugin = DoubaoPlugin(name="doubao", api_key="test_key")
         
         # 模拟返回空内容的异步响应
-        mock_response = AsyncMock()
+        mock_response = Mock()  # 使用普通Mock而不是AsyncMock
         mock_response.json.return_value = {
             "choices": [{
                 "message": {
@@ -1968,14 +2033,15 @@ class TestDoubaoPluginAdditionalCoverage:
             "json_schema": {"name": "test", "schema": {"type": "object"}}
         }
         
-        with pytest.raises(PluginError) as exc_info:
-            await plugin._handle_native_structured_output_async(
-                "doubao-1-5-pro-32k-character-250715", 
-                messages, 
-                response_format=response_format
-            )
+        result = await plugin._handle_native_structured_output_async(
+            "doubao-1-5-pro-32k-character-250715", 
+            messages, 
+            response_format=response_format
+        )
         
-        assert "豆包未返回有效的响应内容" in str(exc_info.value)
+        # 验证返回的是错误响应
+        assert "Error:" in result.choices[0].message.content
+        assert "豆包未返回有效的响应内容" in result.choices[0].message.content
 
     def test_temperature_validation_edge_cases(self):
         """

@@ -202,7 +202,7 @@ class TokenStatisticsAPI:
                     "total_requests": stats.total_requests,
                     "total_tokens": stats.total_tokens,
                     "total_cost": round(stats.total_cost, 6),
-                    "models_used": stats.models_used
+                    "unique_models": stats.unique_models
                 })
             
             return jsonify({
@@ -255,15 +255,16 @@ class TokenStatisticsAPI:
             for record in records:
                 serializable_records.append({
                     "timestamp": record.timestamp.isoformat(),
-                    "trace_id": record.trace_id,
-                    "model": record.model,
+                    "trace_id": record.request_id,
+                    "model": record.model_name,
+                    "provider": record.provider,
                     "input_tokens": record.input_tokens,
                     "output_tokens": record.output_tokens,
                     "total_tokens": record.total_tokens,
                     "cost": round(record.cost, 6) if record.cost else None,
-                    "duration": round(record.duration, 3),
+                    "duration": round(record.latency_ms / 1000, 3),
                     "success": record.success,
-                    "error": record.error
+                    "error": record.error_message
                 })
             
             return jsonify({

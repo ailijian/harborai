@@ -308,6 +308,7 @@ class FallbackLogger:
         Args:
             error: 异常对象
         """
+        self._postgres_failure_count += 1
         self._stats["postgres_failures"] += 1
         
         # 详细的错误分类和处理
@@ -325,6 +326,12 @@ class FallbackLogger:
                 "timestamp": time.time()
             }
         )
+        
+        # 检查是否达到失败阈值
+        if self._postgres_failure_count >= self.max_postgres_failures:
+            logger.warning(f"PostgreSQL failure count ({self._postgres_failure_count}) reached threshold ({self.max_postgres_failures}), switching to file fallback")
+            self._switch_to_file_fallback()
+            return
         
         # 根据错误类型决定处理策略
         if "connection" in error_msg.lower() or "timeout" in error_msg.lower():

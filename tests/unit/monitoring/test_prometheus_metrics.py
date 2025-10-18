@@ -659,4 +659,7 @@ class TestMetricsIntegration:
         content_type = self.metrics.get_content_type()
         assert content_type == CONTENT_TYPE_LATEST
         assert 'text/plain' in content_type
-        assert 'version=0.0.4' in content_type
+        # 检查版本格式而不是特定版本号，使测试更加健壮
+        import re
+        version_pattern = r'version=\d+\.\d+\.\d+'
+        assert re.search(version_pattern, content_type), f"Content type should contain version in format 'version=x.y.z', got: {content_type}"

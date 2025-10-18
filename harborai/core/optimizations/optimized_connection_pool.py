@@ -462,16 +462,19 @@ class OptimizedConnectionPool:
             pool_key: 连接池键
             skip_state_update: 是否跳过状态计数器更新（当调用者已经更新时）
         """
+        # 更新状态
+        old_state = connection.state.get()
+        connection.state.set(ConnectionState.CLOSED)
+        
+        # 尝试关闭会话
         try:
-            # 更新状态
-            old_state = connection.state.get()
-            connection.state.set(ConnectionState.CLOSED)
-            
-            # 关闭会话
             if not connection.session.closed:
                 await connection.session.close()
-            
-            # 从池中移除
+        except Exception as e:
+            logger.error("关闭连接失败 %s: %s", connection.endpoint, str(e))
+        
+        # 无论关闭会话是否成功，都要从池中移除连接
+        try:
             if connection in self._pools[pool_key]:
                 self._pools[pool_key].remove(connection)
                 self._stats['total_connections'].decrement()
@@ -488,7 +491,7 @@ class OptimizedConnectionPool:
             logger.debug("关闭连接: %s", connection.endpoint)
             
         except Exception as e:
-            logger.error("关闭连接失败 %s: %s", connection.endpoint, str(e))
+            logger.error("从池中移除连接失败 %s: %s", connection.endpoint, str(e))
     
     async def _close_all_connections(self):
         """关闭所有连接"""

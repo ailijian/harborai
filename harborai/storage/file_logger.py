@@ -115,7 +115,8 @@ class FileSystemLogger:
             logger.error(f"1. 检查目录权限: {self.log_dir.parent}")
             logger.error("2. 手动创建目录或使用其他位置")
             logger.error("3. 设置环境变量 HARBORAI_LOG_DIR 指定其他目录")
-            # 不抛出异常，允许程序继续运行，但日志功能可能受限
+            # 重新抛出异常，确保调用者能够处理
+            raise
         
     def start(self):
         """启动日志记录器。"""

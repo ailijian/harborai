@@ -1,0 +1,681 @@
+# HarborAI 告警系统配置文件
+# 统一管理所有告警规则、阈值、通知和抑制配置
+
+# 全局配置
+global:
+  # 告警系统启用状态
+  enabled: true
+  
+  # 默认配置
+  defaults:
+    # 默认检查间隔（秒）
+    check_interval: 60
+    # 默认评估窗口（秒）
+    evaluation_window: 300
+    # 默认告警保留时间（小时）
+    retention_hours: 168  # 7天
+    # 默认时区
+    timezone: "Asia/Shanghai"
+  
+  # 数据源配置
+  datasources:
+    prometheus:
+      enabled: true
+      url: "http://localhost:9090"
+      timeout: 30
+    
+    database:
+      enabled: true
+      connection_string: "${DATABASE_URL}"
+      query_timeout: 30
+    
+    log_files:
+      enabled: true
+      paths:
+        - "/var/log/harborai/*.log"
+        - "/app/logs/*.log"
+
+# 告警规则配置
+alert_rules:
+  # 系统资源告警
+  system_resources:
+    # CPU使用率告警
+    - id: "cpu_usage_high"
+      name: "CPU使用率过高"
+      description: "系统CPU使用率超过阈值"
+      type: "threshold"
+      severity: "high"
+      enabled: true
+      metric: "system.cpu.usage_percent"
+      conditions:
+        - operator: ">"
+          threshold: 80
+          duration: "5m"
+      labels:
+        category: "system"
+        component: "cpu"
+      annotations:
+        summary: "CPU使用率过高: {{ $value }}%"
+        description: "系统CPU使用率已达到 {{ $value }}%，超过80%阈值"
+        runbook_url: "https://docs.harborai.com/alerts/cpu-high"
+    
+    # 内存使用率告警
+    - id: "memory_usage_high"
+      name: "内存使用率过高"
+      description: "系统内存使用率超过阈值"
+      type: "threshold"
+      severity: "high"
+      enabled: true
+      metric: "system.memory.usage_percent"
+      conditions:
+        - operator: ">"
+          threshold: 85
+          duration: "3m"
+      labels:
+        category: "system"
+        component: "memory"
+      annotations:
+        summary: "内存使用率过高: {{ $value }}%"
+        description: "系统内存使用率已达到 {{ $value }}%，超过85%阈值"
+    
+    # 磁盘使用率告警
+    - id: "disk_usage_high"
+      name: "磁盘使用率过高"
+      description: "磁盘使用率超过阈值"
+      type: "threshold"
+      severity: "medium"
+      enabled: true
+      metric: "system.disk.usage_percent"
+      conditions:
+        - operator: ">"
+          threshold: 90
+          duration: "10m"
+      labels:
+        category: "system"
+        component: "disk"
+      annotations:
+        summary: "磁盘使用率过高: {{ $value }}%"
+        description: "磁盘使用率已达到 {{ $value }}%，超过90%阈值"
+
+  # 应用性能告警
+  application_performance:
+    # API响应时间告警
+    - id: "api_response_time_high"
+      name: "API响应时间过长"
+      description: "API平均响应时间超过阈值"
+      type: "threshold"
+      severity: "high"
+      enabled: true
+      metric: "harborai.api.response_time_ms"
+      conditions:
+        - operator: ">"
+          threshold: 1000
+          duration: "2m"
+      labels:
+        category: "application"
+        component: "api"
+      annotations:
+        summary: "API响应时间过长: {{ $value }}ms"
+        description: "API平均响应时间已达到 {{ $value }}ms，超过1000ms阈值"
+    
+    # API错误率告警
+    - id: "api_error_rate_high"
+      name: "API错误率过高"
+      description: "API错误率超过阈值"
+      type: "threshold"
+      severity: "critical"
+      enabled: true
+      metric: "harborai.api.error_rate_percent"
+      conditions:
+        - operator: ">"
+          threshold: 5
+          duration: "1m"
+      labels:
+        category: "application"
+        component: "api"
+      annotations:
+        summary: "API错误率过高: {{ $value }}%"
+        description: "API错误率已达到 {{ $value }}%，超过5%阈值"
+    
+    # 请求量异常告警
+    - id: "api_request_volume_anomaly"
+      name: "API请求量异常"
+      description: "API请求量出现异常波动"
+      type: "anomaly"
+      severity: "medium"
+      enabled: true
+      metric: "harborai.api.request_count"
+      conditions:
+        - type: "anomaly_detection"
+          sensitivity: 0.8
+          duration: "5m"
+      labels:
+        category: "application"
+        component: "api"
+      annotations:
+        summary: "API请求量异常: {{ $value }}"
+        description: "API请求量出现异常波动，当前值: {{ $value }}"
+
+  # 数据库告警
+  database:
+    # 数据库连接数告警
+    - id: "db_connections_high"
+      name: "数据库连接数过高"
+      description: "数据库活跃连接数超过阈值"
+      type: "threshold"
+      severity: "high"
+      enabled: true
+      metric: "harborai.database.active_connections"
+      conditions:
+        - operator: ">"
+          threshold: 80
+          duration: "3m"
+      labels:
+        category: "database"
+        component: "postgresql"
+      annotations:
+        summary: "数据库连接数过高: {{ $value }}"
+        description: "数据库活跃连接数已达到 {{ $value }}，超过80个连接阈值"
+    
+    # 数据库查询时间告警
+    - id: "db_query_time_high"
+      name: "数据库查询时间过长"
+      description: "数据库平均查询时间超过阈值"
+      type: "threshold"
+      severity: "medium"
+      enabled: true
+      metric: "harborai.database.avg_query_time_ms"
+      conditions:
+        - operator: ">"
+          threshold: 500
+          duration: "5m"
+      labels:
+        category: "database"
+        component: "postgresql"
+      annotations:
+        summary: "数据库查询时间过长: {{ $value }}ms"
+        description: "数据库平均查询时间已达到 {{ $value }}ms，超过500ms阈值"
+
+  # 业务指标告警
+  business_metrics:
+    # Token使用量告警
+    - id: "token_usage_high"
+      name: "Token使用量过高"
+      description: "每小时Token使用量超过预算"
+      type: "threshold"
+      severity: "medium"
+      enabled: true
+      metric: "harborai.tokens.hourly_usage"
+      conditions:
+        - operator: ">"
+          threshold: 1000000
+          duration: "1h"
+      labels:
+        category: "business"
+        component: "tokens"
+      annotations:
+        summary: "Token使用量过高: {{ $value }}"
+        description: "每小时Token使用量已达到 {{ $value }}，超过100万Token预算"
+    
+    # 成本告警
+    - id: "cost_budget_exceeded"
+      name: "成本预算超标"
+      description: "每日成本超过预算阈值"
+      type: "threshold"
+      severity: "high"
+      enabled: true
+      metric: "harborai.cost.daily_total"
+      conditions:
+        - operator: ">"
+          threshold: 1000
+          duration: "1d"
+      labels:
+        category: "business"
+        component: "cost"
+      annotations:
+        summary: "成本预算超标: ¥{{ $value }}"
+        description: "每日成本已达到 ¥{{ $value }}，超过¥1000预算"
+
+# 告警阈值配置
+thresholds:
+  # 静态阈值
+  static:
+    cpu_usage: 80
+    memory_usage: 85
+    disk_usage: 90
+    api_response_time: 1000
+    api_error_rate: 5
+    db_connections: 80
+    db_query_time: 500
+  
+  # 动态阈值（基于历史数据）
+  dynamic:
+    enabled: true
+    learning_period_days: 7
+    sensitivity: 0.8
+    metrics:
+      - "harborai.api.request_count"
+      - "harborai.tokens.usage_rate"
+      - "harborai.cost.hourly_rate"
+  
+  # 业务时间阈值
+  business_hours:
+    enabled: true
+    timezone: "Asia/Shanghai"
+    weekdays:
+      start: "09:00"
+      end: "18:00"
+      multiplier: 1.0
+    weekends:
+      start: "10:00"
+      end: "16:00"
+      multiplier: 0.5
+
+# 通知配置
+notifications:
+  # 通知渠道
+  channels:
+    email:
+      enabled: true
+      smtp_server: "${SMTP_SERVER}"
+      smtp_port: 587
+      username: "${SMTP_USERNAME}"
+      password: "${SMTP_PASSWORD}"
+      from_address: "alerts@harborai.com"
+      use_tls: true
+    
+    dingtalk:
+      enabled: true
+      webhook_url: "${DINGTALK_WEBHOOK_URL}"
+      secret: "${DINGTALK_SECRET}"
+      at_all: false
+    
+    slack:
+      enabled: true
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      channel: "#alerts"
+      username: "HarborAI-Alerts"
+    
+    webhook:
+      enabled: true
+      url: "${CUSTOM_WEBHOOK_URL}"
+      headers:
+        Content-Type: "application/json"
+        Authorization: "Bearer ${WEBHOOK_TOKEN}"
+    
+    console:
+      enabled: true
+      log_level: "INFO"
+  
+  # 通知规则
+  rules:
+    # 关键告警规则
+    - id: "critical_alerts"
+      name: "关键告警通知"
+      description: "处理关键级别告警"
+      severity_levels: ["critical"]
+      channels: ["email", "dingtalk", "slack"]
+      recipients:
+        email: ["admin@harborai.com", "ops@harborai.com"]
+        dingtalk: ["all"]
+        slack: ["#critical-alerts"]
+      rate_limit:
+        max_notifications: 10
+        time_window: "1h"
+      escalation:
+        enabled: true
+        levels:
+          - delay: "5m"
+            channels: ["email"]
+            recipients: ["manager@harborai.com"]
+          - delay: "15m"
+            channels: ["dingtalk"]
+            recipients: ["all"]
+    
+    # 高级告警规则
+    - id: "high_alerts"
+      name: "高级告警通知"
+      description: "处理高级别告警"
+      severity_levels: ["high"]
+      channels: ["email", "dingtalk"]
+      recipients:
+        email: ["ops@harborai.com"]
+        dingtalk: ["ops-team"]
+      rate_limit:
+        max_notifications: 20
+        time_window: "1h"
+      quiet_hours:
+        enabled: true
+        start: "22:00"
+        end: "08:00"
+        timezone: "Asia/Shanghai"
+    
+    # 中级告警规则
+    - id: "medium_alerts"
+      name: "中级告警通知"
+      description: "处理中级别告警"
+      severity_levels: ["medium"]
+      channels: ["email"]
+      recipients:
+        email: ["dev@harborai.com"]
+      rate_limit:
+        max_notifications: 50
+        time_window: "1h"
+      aggregation:
+        enabled: true
+        window: "10m"
+        max_alerts: 5
+    
+    # 业务时间告警规则
+    - id: "business_hours_alerts"
+      name: "业务时间告警"
+      description: "仅在业务时间发送的告警"
+      severity_levels: ["low", "info"]
+      channels: ["email"]
+      recipients:
+        email: ["dev@harborai.com"]
+      time_restrictions:
+        business_hours_only: true
+        timezone: "Asia/Shanghai"
+        weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        hours:
+          start: "09:00"
+          end: "18:00"
+
+# 抑制规则配置
+suppression:
+  # 全局抑制设置
+  global:
+    enabled: true
+    default_duration: "1h"
+    max_suppression_time: "24h"
+  
+  # 抑制规则
+  rules:
+    # 重复告警抑制
+    - id: "duplicate_suppression"
+      name: "重复告警抑制"
+      description: "抑制相同告警的重复触发"
+      type: "duplicate"
+      enabled: true
+      conditions:
+        same_rule: true
+        same_labels: true
+        time_window: "5m"
+      action: "suppress"
+      duration: "30m"
+    
+    # 维护窗口抑制
+    - id: "maintenance_window"
+      name: "维护窗口抑制"
+      description: "在维护窗口期间抑制告警"
+      type: "maintenance"
+      enabled: true
+      schedules:
+        - name: "weekly_maintenance"
+          day_of_week: "sunday"
+          start_time: "02:00"
+          end_time: "04:00"
+          timezone: "Asia/Shanghai"
+        - name: "monthly_maintenance"
+          day_of_month: 1
+          start_time: "01:00"
+          end_time: "03:00"
+          timezone: "Asia/Shanghai"
+      action: "suppress"
+      affected_rules: ["*"]
+    
+    # 依赖关系抑制
+    - id: "dependency_suppression"
+      name: "依赖关系抑制"
+      description: "当父级服务告警时抑制子级告警"
+      type: "dependency"
+      enabled: true
+      dependencies:
+        - parent: "database_down"
+          children: ["api_error_rate_high", "api_response_time_high"]
+        - parent: "network_connectivity"
+          children: ["external_api_*"]
+      action: "suppress"
+      duration: "until_parent_resolved"
+    
+    # 频率限制抑制
+    - id: "frequency_suppression"
+      name: "频率限制抑制"
+      description: "限制告警触发频率"
+      type: "frequency"
+      enabled: true
+      conditions:
+        max_alerts: 5
+        time_window: "10m"
+        same_rule: true
+      action: "suppress"
+      duration: "1h"
+    
+    # 级联告警抑制
+    - id: "cascade_suppression"
+      name: "级联告警抑制"
+      description: "抑制由同一根因引起的级联告警"
+      type: "correlation"
+      enabled: true
+      correlation_rules:
+        - trigger: "cpu_usage_high"
+          suppress: ["api_response_time_high"]
+          correlation_window: "5m"
+        - trigger: "memory_usage_high"
+          suppress: ["api_error_rate_high"]
+          correlation_window: "3m"
+      action: "suppress"
+      duration: "30m"
+
+# 升级策略配置
+escalation:
+  # 全局升级设置
+  global:
+    enabled: true
+    max_escalation_level: 3
+    escalation_timeout: "24h"
+  
+  # 升级策略
+  policies:
+    # 关键告警升级策略
+    - id: "critical_escalation"
+      name: "关键告警升级"
+      description: "关键告警的升级策略"
+      trigger_severities: ["critical"]
+      levels:
+        - level: 1
+          delay: "5m"
+          channels: ["email"]
+          recipients: ["manager@harborai.com"]
+          message_template: "critical_escalation_l1"
+        - level: 2
+          delay: "15m"
+          channels: ["dingtalk", "slack"]
+          recipients: ["all", "#emergency"]
+          message_template: "critical_escalation_l2"
+        - level: 3
+          delay: "30m"
+          channels: ["email", "dingtalk"]
+          recipients: ["cto@harborai.com", "all"]
+          message_template: "critical_escalation_l3"
+    
+    # 高级告警升级策略
+    - id: "high_escalation"
+      name: "高级告警升级"
+      description: "高级告警的升级策略"
+      trigger_severities: ["high"]
+      levels:
+        - level: 1
+          delay: "30m"
+          channels: ["email"]
+          recipients: ["lead@harborai.com"]
+          message_template: "high_escalation_l1"
+        - level: 2
+          delay: "2h"
+          channels: ["dingtalk"]
+          recipients: ["manager@harborai.com"]
+          message_template: "high_escalation_l2"
+
+# 消息模板配置
+templates:
+  # 邮件模板
+  email:
+    # 通用告警模板
+    general_alert:
+      subject: "[{{ .Severity | upper }}] {{ .RuleName }}"
+      body: |
+        告警详情:
+        
+        规则名称: {{ .RuleName }}
+        告警级别: {{ .Severity }}
+        触发时间: {{ .Timestamp }}
+        当前值: {{ .Value }}
+        阈值: {{ .Threshold }}
+        
+        描述: {{ .Description }}
+        
+        标签:
+        {{- range $key, $value := .Labels }}
+        - {{ $key }}: {{ $value }}
+        {{- end }}
+        
+        处理建议: {{ .Runbook }}
+        
+        ---
+        HarborAI 告警系统
+    
+    # 升级告警模板
+    escalation:
+      subject: "[升级] {{ .RuleName }} - 级别 {{ .EscalationLevel }}"
+      body: |
+        告警升级通知:
+        
+        规则名称: {{ .RuleName }}
+        升级级别: {{ .EscalationLevel }}
+        原始触发时间: {{ .OriginalTimestamp }}
+        升级时间: {{ .EscalationTimestamp }}
+        持续时间: {{ .Duration }}
+        
+        当前状态: {{ .Status }}
+        当前值: {{ .Value }}
+        
+        请立即处理此告警！
+        
+        ---
+        HarborAI 告警系统
+  
+  # 钉钉模板
+  dingtalk:
+    general_alert:
+      title: "{{ .Severity | upper }} 告警"
+      text: |
+        ## {{ .RuleName }}
+        
+        **级别**: {{ .Severity }}
+        **时间**: {{ .Timestamp }}
+        **当前值**: {{ .Value }}
+        **阈值**: {{ .Threshold }}
+        
+        {{ .Description }}
+        
+        [查看详情]({{ .DashboardURL }})
+  
+  # Slack模板
+  slack:
+    general_alert:
+      text: |
+        :warning: *{{ .Severity | upper }}* {{ .RuleName }}
+        
+        *时间*: {{ .Timestamp }}
+        *当前值*: {{ .Value }}
+        *阈值*: {{ .Threshold }}
+        
+        {{ .Description }}
+        
+        <{{ .DashboardURL }}|查看详情>
+
+# 集成配置
+integrations:
+  # Prometheus集成
+  prometheus:
+    enabled: true
+    url: "http://localhost:9090"
+    query_timeout: 30
+    scrape_interval: 15
+  
+  # Grafana集成
+  grafana:
+    enabled: true
+    url: "http://localhost:3000"
+    api_key: "${GRAFANA_API_KEY}"
+    dashboard_base_url: "http://localhost:3000/d"
+  
+  # Jaeger集成
+  jaeger:
+    enabled: true
+    url: "http://localhost:16686"
+    trace_base_url: "http://localhost:16686/trace"
+  
+  # 外部webhook集成
+  webhooks:
+    - name: "external_monitoring"
+      url: "${EXTERNAL_WEBHOOK_URL}"
+      headers:
+        Authorization: "Bearer ${EXTERNAL_TOKEN}"
+      events: ["alert.fired", "alert.resolved"]
+      retry_count: 3
+      timeout: 10
+
+# 存储配置
+storage:
+  # 告警历史存储
+  history:
+    enabled: true
+    backend: "postgresql"
+    retention_days: 90
+    cleanup_interval: "24h"
+  
+  # 配置备份
+  backup:
+    enabled: true
+    interval: "6h"
+    retention_count: 10
+    storage_path: "/var/lib/harborai/alerts/backups"
+
+# 性能配置
+performance:
+  # 评估性能
+  evaluation:
+    max_concurrent_rules: 100
+    evaluation_timeout: 30
+    batch_size: 50
+  
+  # 通知性能
+  notification:
+    max_concurrent_notifications: 20
+    notification_timeout: 30
+    retry_count: 3
+    retry_delay: 5
+
+# 安全配置
+security:
+  # 访问控制
+  access_control:
+    enabled: true
+    require_authentication: true
+    allowed_roles: ["admin", "operator", "viewer"]
+  
+  # 敏感信息保护
+  sensitive_data:
+    mask_in_logs: true
+    mask_in_notifications: true
+    masked_fields: ["password", "token", "secret", "key"]
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "json"
+  output: "stdout"
+  include_caller: true
+  include_stacktrace: false

@@ -52,26 +52,28 @@ class TestOpenTelemetryTracer:
     @pytest.mark.skipif(not OTEL_AVAILABLE, reason="OpenTelemetry not available")
     def test_init_with_jaeger_endpoint(self):
         """测试使用Jaeger端点初始化"""
-        with patch('harborai.monitoring.opentelemetry_tracer.JaegerExporter') as mock_jaeger:
-            with patch('harborai.monitoring.opentelemetry_tracer.BatchSpanProcessor') as mock_processor:
-                tracer = OpenTelemetryTracer(
-                    jaeger_endpoint="http://localhost:14268/api/traces"
-                )
-                assert tracer.enabled is True
-                mock_jaeger.assert_called_once()
-                mock_processor.assert_called()
+        with patch('harborai.monitoring.opentelemetry_tracer.JAEGER_THRIFT_AVAILABLE', True):
+            with patch('harborai.monitoring.opentelemetry_tracer.JaegerExporter') as mock_jaeger:
+                with patch('harborai.monitoring.opentelemetry_tracer.BatchSpanProcessor') as mock_processor:
+                    tracer = OpenTelemetryTracer(
+                        jaeger_endpoint="http://localhost:14268/api/traces"
+                    )
+                    assert tracer.enabled is True
+                    mock_jaeger.assert_called_once()
+                    mock_processor.assert_called()
     
     @pytest.mark.skipif(not OTEL_AVAILABLE, reason="OpenTelemetry not available")
     def test_init_with_otlp_endpoint(self):
         """测试使用OTLP端点初始化"""
-        with patch('harborai.monitoring.opentelemetry_tracer.OTLPSpanExporter') as mock_otlp:
-            with patch('harborai.monitoring.opentelemetry_tracer.BatchSpanProcessor') as mock_processor:
-                tracer = OpenTelemetryTracer(
-                    otlp_endpoint="http://localhost:4317"
-                )
-                assert tracer.enabled is True
-                mock_otlp.assert_called_once()
-                mock_processor.assert_called()
+        with patch('harborai.monitoring.opentelemetry_tracer.OTLP_AVAILABLE', True):
+            with patch('harborai.monitoring.opentelemetry_tracer.OTLPSpanExporter') as mock_otlp:
+                with patch('harborai.monitoring.opentelemetry_tracer.BatchSpanProcessor') as mock_processor:
+                    tracer = OpenTelemetryTracer(
+                        otlp_endpoint="http://localhost:4317"
+                    )
+                    assert tracer.enabled is True
+                    mock_otlp.assert_called_once()
+                    mock_processor.assert_called()
     
     @pytest.mark.skipif(not OTEL_AVAILABLE, reason="OpenTelemetry not available")
     def test_init_with_exporter_error(self):
@@ -400,7 +402,7 @@ class TestOtelTraceDecorator:
         mock_result.usage = mock_usage
         
         with patch('harborai.monitoring.opentelemetry_tracer.get_otel_tracer', return_value=mock_tracer):
-            with patch('harborai.monitoring.opentelemetry_tracer.PricingCalculator') as mock_pricing:
+            with patch('harborai.core.pricing.PricingCalculator') as mock_pricing:
                 mock_pricing.calculate_cost.return_value = 0.05
                 
                 @otel_trace()

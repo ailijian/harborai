@@ -1,0 +1,341 @@
+{
+  "alert_rules": [
+    {
+      "id": "database_connection_failure",
+      "name": "数据库连接失败",
+      "description": "数据库连接失败或超时",
+      "severity": "medium",
+      "condition": "threshold",
+      "metric": "database.connection.failures",
+      "threshold": 3,
+      "duration": 300,
+      "labels": {
+        "component": "database",
+        "type": "connection",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境数据库连接失败",
+        "description": "开发环境数据库连接失败，可能影响开发调试",
+        "runbook_url": "https://docs.harborai.com/runbooks/database-connection"
+      }
+    },
+    {
+      "id": "high_api_response_time",
+      "name": "API响应时间过高",
+      "description": "API平均响应时间超过阈值",
+      "severity": "low",
+      "condition": "threshold",
+      "metric": "api.response_time.avg",
+      "threshold": 5000,
+      "duration": 600,
+      "labels": {
+        "component": "api",
+        "type": "performance",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境API响应时间过高",
+        "description": "API平均响应时间超过5秒，可能影响开发体验",
+        "runbook_url": "https://docs.harborai.com/runbooks/api-performance"
+      }
+    },
+    {
+      "id": "high_error_rate",
+      "name": "错误率过高",
+      "description": "API错误率超过阈值",
+      "severity": "medium",
+      "condition": "threshold",
+      "metric": "api.error_rate",
+      "threshold": 0.1,
+      "duration": 600,
+      "labels": {
+        "component": "api",
+        "type": "error",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境API错误率过高",
+        "description": "API错误率超过10%，可能存在代码问题",
+        "runbook_url": "https://docs.harborai.com/runbooks/error-rate"
+      }
+    },
+    {
+      "id": "high_memory_usage",
+      "name": "内存使用率过高",
+      "description": "系统内存使用率超过阈值",
+      "severity": "low",
+      "condition": "threshold",
+      "metric": "system.memory.usage_percent",
+      "threshold": 90,
+      "duration": 900,
+      "labels": {
+        "component": "system",
+        "type": "resource",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境内存使用率过高",
+        "description": "系统内存使用率超过90%，可能影响开发性能",
+        "runbook_url": "https://docs.harborai.com/runbooks/memory-usage"
+      }
+    },
+    {
+      "id": "low_disk_space",
+      "name": "磁盘空间不足",
+      "description": "磁盘可用空间低于阈值",
+      "severity": "low",
+      "condition": "threshold",
+      "metric": "system.disk.free_percent",
+      "threshold": 10,
+      "duration": 600,
+      "labels": {
+        "component": "system",
+        "type": "resource",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境磁盘空间不足",
+        "description": "磁盘可用空间低于10%，建议清理临时文件",
+        "runbook_url": "https://docs.harborai.com/runbooks/disk-space"
+      }
+    },
+    {
+      "id": "token_usage_anomaly",
+      "name": "Token使用异常",
+      "description": "Token使用量出现异常波动",
+      "severity": "low",
+      "condition": "anomaly",
+      "metric": "tokens.usage.total",
+      "threshold": 4.0,
+      "duration": 1800,
+      "labels": {
+        "component": "tokens",
+        "type": "usage",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境Token使用异常",
+        "description": "Token使用量出现异常波动，可能是测试代码问题",
+        "runbook_url": "https://docs.harborai.com/runbooks/token-anomaly"
+      }
+    },
+    {
+      "id": "cost_spike",
+      "name": "成本激增",
+      "description": "成本增长超过预期",
+      "severity": "medium",
+      "condition": "threshold",
+      "metric": "cost.hourly_rate",
+      "threshold": 10,
+      "duration": 600,
+      "labels": {
+        "component": "cost",
+        "type": "budget",
+        "environment": "development"
+      },
+      "annotations": {
+        "summary": "开发环境成本激增",
+        "description": "小时成本超过10美元，请检查测试代码",
+        "runbook_url": "https://docs.harborai.com/runbooks/cost-spike"
+      }
+    }
+  ],
+  "notification": {
+    "channels": [
+      {
+        "id": "console",
+        "name": "控制台输出",
+        "type": "console",
+        "config": {
+          "format": "text",
+          "color": true
+        },
+        "enabled": true
+      },
+      {
+        "id": "file_log",
+        "name": "文件日志",
+        "type": "file",
+        "config": {
+          "path": "alerts.log",
+          "format": "json"
+        },
+        "enabled": true
+      },
+      {
+        "id": "webhook_dev",
+        "name": "开发Webhook",
+        "type": "webhook",
+        "config": {
+          "url": "http://localhost:3000/webhook/alerts",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Environment": "development"
+          },
+          "timeout": 5
+        },
+        "enabled": false
+      }
+    ],
+    "routing": [
+      {
+        "match": {
+          "severity": ["critical", "high", "medium"]
+        },
+        "channels": ["console", "file_log"]
+      },
+      {
+        "match": {
+          "severity": ["low"]
+        },
+        "channels": ["console"]
+      }
+    ],
+    "rate_limits": {
+      "global": {
+        "max_notifications": 50,
+        "window_seconds": 3600
+      },
+      "per_channel": {
+        "max_notifications": 30,
+        "window_seconds": 3600
+      },
+      "per_rule": {
+        "max_notifications": 5,
+        "window_seconds": 3600
+      }
+    }
+  },
+  "suppression_rules": [
+    {
+      "id": "suppress_dev_noise",
+      "name": "抑制开发噪音",
+      "type": "label_based",
+      "target_labels": {
+        "environment": "development",
+        "type": "test"
+      },
+      "reason": "抑制开发测试产生的告警",
+      "enabled": true
+    },
+    {
+      "id": "rate_limit_dev",
+      "name": "开发环境频率限制",
+      "type": "rate_limit",
+      "target_labels": {
+        "environment": "development"
+      },
+      "config": {
+        "max_alerts": 3,
+        "window_seconds": 300
+      },
+      "reason": "限制开发环境告警频率",
+      "enabled": true
+    }
+  ],
+  "escalation": {
+    "policies": [
+      {
+        "id": "dev_escalation",
+        "name": "开发环境升级策略",
+        "match": {
+          "severity": ["critical", "high"]
+        },
+        "steps": [
+          {
+            "delay_seconds": 0,
+            "channels": ["console"]
+          },
+          {
+            "delay_seconds": 600,
+            "channels": ["file_log"]
+          }
+        ]
+      }
+    ]
+  },
+  "aggregation": {
+    "rules": [
+      {
+        "id": "group_by_component",
+        "name": "按组件分组",
+        "group_by": ["component"],
+        "group_wait": 60,
+        "group_interval": 600,
+        "repeat_interval": 3600
+      }
+    ]
+  },
+  "metrics": {
+    "collection_interval": 120,
+    "retention_days": 7,
+    "providers": [
+      {
+        "name": "internal",
+        "type": "internal",
+        "config": {},
+        "enabled": true
+      }
+    ]
+  },
+  "health_checks": {
+    "enabled": true,
+    "interval": 60,
+    "timeout": 15,
+    "checks": [
+      {
+        "name": "database",
+        "type": "database",
+        "config": {
+          "connection_string": "sqlite:///dev_alerts.db"
+        }
+      },
+      {
+        "name": "api",
+        "type": "http",
+        "config": {
+          "url": "http://localhost:8000/health",
+          "method": "GET",
+          "expected_status": 200,
+          "timeout": 10
+        }
+      }
+    ]
+  },
+  "storage": {
+    "database": {
+      "type": "sqlite",
+      "config": {
+        "path": "dev_alerts.db"
+      }
+    },
+    "retention": {
+      "alert_history_days": 7,
+      "metrics_days": 7,
+      "events_days": 7
+    }
+  },
+  "security": {
+    "api_key_required": false,
+    "allowed_ips": [],
+    "rate_limiting": {
+      "enabled": false
+    }
+  },
+  "logging": {
+    "level": "DEBUG",
+    "format": "text",
+    "file": "dev_alerts.log",
+    "max_size_mb": 50,
+    "backup_count": 3,
+    "console_output": true
+  },
+  "performance": {
+    "max_concurrent_evaluations": 10,
+    "evaluation_timeout": 60,
+    "batch_size": 10,
+    "cache_ttl": 60
+  }
+}

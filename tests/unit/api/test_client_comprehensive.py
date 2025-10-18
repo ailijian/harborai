@@ -1444,21 +1444,28 @@ class TestParameterValidation:
             assert call_args['fallback'] == ["claude-3"]
     
     def test_fallback_参数处理_默认空列表(self):
-        """测试fallback参数处理 - 默认为空列表。"""
+        """测试fallback参数处理 - 当settings中禁用fallback时默认为空列表。"""
         messages = [{"role": "user", "content": "Hello"}]
         
-        with patch.object(self.chat_completions.client_manager, 'chat_completion_sync_with_fallback') as mock_create:
-            mock_response = Mock(spec=ChatCompletion)
-            mock_create.return_value = mock_response
+        # Mock settings to disable fallback
+        with patch('harborai.config.settings.get_settings') as mock_get_settings:
+            mock_settings = Mock()
+            mock_settings.enable_fallback = False
+            mock_settings.fallback_models = []
+            mock_get_settings.return_value = mock_settings
             
-            result = self.chat_completions._create_core(
-                messages=messages,
-                model="gpt-3.5-turbo"
-            )
-            
-            # 验证调用参数中fallback为空列表
-            call_args = mock_create.call_args[1]
-            assert call_args['fallback'] == []
+            with patch.object(self.chat_completions.client_manager, 'chat_completion_sync_with_fallback') as mock_create:
+                mock_response = Mock(spec=ChatCompletion)
+                mock_create.return_value = mock_response
+                
+                result = self.chat_completions._create_core(
+                    messages=messages,
+                    model="gpt-3.5-turbo"
+                )
+                
+                # 验证调用参数中fallback为空列表
+                call_args = mock_create.call_args[1]
+                assert call_args['fallback'] == []
 
 
 class TestAsyncParameterValidation:
@@ -1547,7 +1554,8 @@ class TestFastStructuredOutputErrorHandling:
         
         with patch.object(self.chat_completions, '_get_fast_processor') as mock_get_processor:
             mock_processor = Mock()
-            mock_processor.aprocess_structured_output = AsyncMock(side_effect=Exception("异步处理器错误"))
+            # 注意：异步版本调用的是同步方法 process_structured_output，不是 aprocess_structured_output
+            mock_processor.process_structured_output = Mock(side_effect=Exception("处理器错误"))
             mock_get_processor.return_value = mock_processor
             
             with patch.object(self.chat_completions, '_acreate_core') as mock_acreate_core:

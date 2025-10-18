@@ -1,0 +1,524 @@
+{
+  "alert_rules": [
+    {
+      "id": "database_connection_failure",
+      "name": "数据库连接失败",
+      "description": "数据库连接失败或超时",
+      "severity": "critical",
+      "condition": "threshold",
+      "metric": "database.connection.failures",
+      "threshold": 1,
+      "duration": 30,
+      "labels": {
+        "component": "database",
+        "type": "connection",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境数据库连接失败",
+        "description": "生产环境数据库连接失败，立即影响服务可用性",
+        "runbook_url": "https://docs.harborai.com/runbooks/database-connection",
+        "priority": "P0"
+      }
+    },
+    {
+      "id": "high_api_response_time",
+      "name": "API响应时间过高",
+      "description": "API平均响应时间超过阈值",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "api.response_time.avg",
+      "threshold": 1500,
+      "duration": 180,
+      "labels": {
+        "component": "api",
+        "type": "performance",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境API响应时间过高",
+        "description": "API平均响应时间超过1.5秒，严重影响用户体验",
+        "runbook_url": "https://docs.harborai.com/runbooks/api-performance",
+        "priority": "P1"
+      }
+    },
+    {
+      "id": "high_error_rate",
+      "name": "错误率过高",
+      "description": "API错误率超过阈值",
+      "severity": "critical",
+      "condition": "threshold",
+      "metric": "api.error_rate",
+      "threshold": 0.03,
+      "duration": 120,
+      "labels": {
+        "component": "api",
+        "type": "error",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境API错误率过高",
+        "description": "API错误率超过3%，需要立即处理",
+        "runbook_url": "https://docs.harborai.com/runbooks/error-rate",
+        "priority": "P0"
+      }
+    },
+    {
+      "id": "high_memory_usage",
+      "name": "内存使用率过高",
+      "description": "系统内存使用率超过阈值",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "system.memory.usage_percent",
+      "threshold": 80,
+      "duration": 300,
+      "labels": {
+        "component": "system",
+        "type": "resource",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境内存使用率过高",
+        "description": "系统内存使用率超过80%，可能导致性能下降",
+        "runbook_url": "https://docs.harborai.com/runbooks/memory-usage",
+        "priority": "P1"
+      }
+    },
+    {
+      "id": "low_disk_space",
+      "name": "磁盘空间不足",
+      "description": "磁盘可用空间低于阈值",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "system.disk.free_percent",
+      "threshold": 20,
+      "duration": 180,
+      "labels": {
+        "component": "system",
+        "type": "resource",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境磁盘空间不足",
+        "description": "磁盘可用空间低于20%，需要立即清理或扩容",
+        "runbook_url": "https://docs.harborai.com/runbooks/disk-space",
+        "priority": "P1"
+      }
+    },
+    {
+      "id": "token_usage_anomaly",
+      "name": "Token使用异常",
+      "description": "Token使用量出现异常波动",
+      "severity": "medium",
+      "condition": "anomaly",
+      "metric": "tokens.usage.total",
+      "threshold": 2.5,
+      "duration": 600,
+      "labels": {
+        "component": "tokens",
+        "type": "usage",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境Token使用异常",
+        "description": "Token使用量出现异常波动，可能存在异常调用或攻击",
+        "runbook_url": "https://docs.harborai.com/runbooks/token-anomaly",
+        "priority": "P2"
+      }
+    },
+    {
+      "id": "cost_spike",
+      "name": "成本激增",
+      "description": "成本增长超过预期",
+      "severity": "critical",
+      "condition": "threshold",
+      "metric": "cost.hourly_rate",
+      "threshold": 50,
+      "duration": 180,
+      "labels": {
+        "component": "cost",
+        "type": "budget",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境成本激增",
+        "description": "小时成本超过50美元，需要立即检查和控制",
+        "runbook_url": "https://docs.harborai.com/runbooks/cost-spike",
+        "priority": "P0"
+      }
+    },
+    {
+      "id": "data_consistency_error",
+      "name": "数据一致性错误",
+      "description": "数据一致性检查失败",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "data.consistency.errors",
+      "threshold": 1,
+      "duration": 60,
+      "labels": {
+        "component": "data",
+        "type": "consistency",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境数据一致性错误",
+        "description": "数据一致性检查失败，可能影响数据准确性",
+        "runbook_url": "https://docs.harborai.com/runbooks/data-consistency",
+        "priority": "P1"
+      }
+    },
+    {
+      "id": "service_degradation",
+      "name": "服务降级",
+      "description": "服务性能显著下降",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "service.degradation.score",
+      "threshold": 0.7,
+      "duration": 300,
+      "labels": {
+        "component": "service",
+        "type": "performance",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境服务降级",
+        "description": "服务性能显著下降，可能需要启动降级策略",
+        "runbook_url": "https://docs.harborai.com/runbooks/service-degradation",
+        "priority": "P1"
+      }
+    },
+    {
+      "id": "health_check_failure",
+      "name": "健康检查失败",
+      "description": "系统健康检查失败",
+      "severity": "critical",
+      "condition": "threshold",
+      "metric": "health.check.failures",
+      "threshold": 3,
+      "duration": 120,
+      "labels": {
+        "component": "health",
+        "type": "check",
+        "environment": "production"
+      },
+      "annotations": {
+        "summary": "生产环境健康检查失败",
+        "description": "系统健康检查连续失败，服务可能不可用",
+        "runbook_url": "https://docs.harborai.com/runbooks/health-check",
+        "priority": "P0"
+      }
+    }
+  ],
+  "notification": {
+    "channels": [
+      {
+        "id": "console",
+        "name": "控制台输出",
+        "type": "console",
+        "config": {
+          "format": "json"
+        },
+        "enabled": true
+      },
+      {
+        "id": "email_oncall",
+        "name": "值班邮箱",
+        "type": "email",
+        "config": {
+          "smtp_server": "smtp.company.com",
+          "smtp_port": 587,
+          "username": "alerts@company.com",
+          "password": "${EMAIL_PASSWORD}",
+          "from_email": "alerts@company.com",
+          "to_emails": ["oncall@company.com", "ops@company.com"]
+        },
+        "enabled": true
+      },
+      {
+        "id": "dingtalk_critical",
+        "name": "钉钉紧急群",
+        "type": "dingtalk",
+        "config": {
+          "webhook_url": "${DINGTALK_WEBHOOK_URL}",
+          "secret": "${DINGTALK_SECRET}"
+        },
+        "enabled": true
+      },
+      {
+        "id": "sms_oncall",
+        "name": "值班短信",
+        "type": "sms",
+        "config": {
+          "provider": "aliyun",
+          "access_key": "${SMS_ACCESS_KEY}",
+          "secret_key": "${SMS_SECRET_KEY}",
+          "sign_name": "HarborAI",
+          "template_code": "SMS_123456789",
+          "phone_numbers": ["+86138****8888"]
+        },
+        "enabled": true
+      }
+    ],
+    "routing": [
+      {
+        "match": {
+          "severity": ["critical"],
+          "priority": ["P0"]
+        },
+        "channels": ["console", "email_oncall", "dingtalk_critical", "sms_oncall"]
+      },
+      {
+        "match": {
+          "severity": ["critical", "high"],
+          "priority": ["P1"]
+        },
+        "channels": ["console", "email_oncall", "dingtalk_critical"]
+      },
+      {
+        "match": {
+          "severity": ["high", "medium"],
+          "priority": ["P2"]
+        },
+        "channels": ["console", "dingtalk_critical"]
+      },
+      {
+        "match": {
+          "severity": ["medium", "low"]
+        },
+        "channels": ["console"]
+      }
+    ],
+    "rate_limits": {
+      "global": {
+        "max_notifications": 200,
+        "window_seconds": 3600
+      },
+      "per_channel": {
+        "max_notifications": 100,
+        "window_seconds": 3600
+      },
+      "per_rule": {
+        "max_notifications": 20,
+        "window_seconds": 3600
+      }
+    }
+  },
+  "suppression_rules": [
+    {
+      "id": "planned_maintenance",
+      "name": "计划维护窗口",
+      "type": "time_based",
+      "target_labels": {},
+      "start_time": "2024-01-01T02:00:00",
+      "end_time": "2024-01-01T04:00:00",
+      "reason": "计划维护",
+      "enabled": false
+    },
+    {
+      "id": "dependency_suppression",
+      "name": "依赖关系抑制",
+      "type": "dependency",
+      "target_labels": {
+        "component": "api"
+      },
+      "config": {
+        "depends_on": [
+          {
+            "component": "database",
+            "alert_id": "database_connection_failure"
+          }
+        ]
+      },
+      "reason": "数据库故障时抑制API告警",
+      "enabled": true
+    },
+    {
+      "id": "rate_limit_production",
+      "name": "生产环境频率限制",
+      "type": "rate_limit",
+      "target_labels": {
+        "environment": "production"
+      },
+      "config": {
+        "max_alerts": 10,
+        "window_seconds": 300
+      },
+      "reason": "防止生产环境告警风暴",
+      "enabled": true
+    }
+  ],
+  "escalation": {
+    "policies": [
+      {
+        "id": "p0_escalation",
+        "name": "P0级别升级策略",
+        "match": {
+          "severity": ["critical"],
+          "priority": ["P0"]
+        },
+        "steps": [
+          {
+            "delay_seconds": 0,
+            "channels": ["console", "dingtalk_critical"]
+          },
+          {
+            "delay_seconds": 180,
+            "channels": ["email_oncall", "sms_oncall"]
+          },
+          {
+            "delay_seconds": 600,
+            "channels": ["sms_oncall"]
+          }
+        ]
+      },
+      {
+        "id": "p1_escalation",
+        "name": "P1级别升级策略",
+        "match": {
+          "severity": ["critical", "high"],
+          "priority": ["P1"]
+        },
+        "steps": [
+          {
+            "delay_seconds": 0,
+            "channels": ["console", "dingtalk_critical"]
+          },
+          {
+            "delay_seconds": 300,
+            "channels": ["email_oncall"]
+          },
+          {
+            "delay_seconds": 900,
+            "channels": ["sms_oncall"]
+          }
+        ]
+      }
+    ]
+  },
+  "aggregation": {
+    "rules": [
+      {
+        "id": "group_by_component_severity",
+        "name": "按组件和严重程度分组",
+        "group_by": ["component", "severity"],
+        "group_wait": 15,
+        "group_interval": 180,
+        "repeat_interval": 1800
+      },
+      {
+        "id": "group_critical_alerts",
+        "name": "聚合严重告警",
+        "match": {
+          "severity": ["critical"]
+        },
+        "group_by": ["environment"],
+        "group_wait": 10,
+        "group_interval": 120,
+        "repeat_interval": 600
+      }
+    ]
+  },
+  "metrics": {
+    "collection_interval": 30,
+    "retention_days": 90,
+    "providers": [
+      {
+        "name": "prometheus",
+        "type": "prometheus",
+        "config": {
+          "url": "http://prometheus:9090",
+          "timeout": 10,
+          "basic_auth": {
+            "username": "${PROMETHEUS_USER}",
+            "password": "${PROMETHEUS_PASSWORD}"
+          }
+        },
+        "enabled": true
+      },
+      {
+        "name": "internal",
+        "type": "internal",
+        "config": {},
+        "enabled": true
+      }
+    ]
+  },
+  "health_checks": {
+    "enabled": true,
+    "interval": 15,
+    "timeout": 5,
+    "checks": [
+      {
+        "name": "database",
+        "type": "database",
+        "config": {
+          "connection_string": "${DATABASE_URL}"
+        }
+      },
+      {
+        "name": "api",
+        "type": "http",
+        "config": {
+          "url": "http://localhost:8000/health",
+          "method": "GET",
+          "expected_status": 200,
+          "timeout": 3
+        }
+      },
+      {
+        "name": "redis",
+        "type": "redis",
+        "config": {
+          "host": "${REDIS_HOST}",
+          "port": 6379,
+          "password": "${REDIS_PASSWORD}"
+        }
+      }
+    ]
+  },
+  "storage": {
+    "database": {
+      "type": "postgresql",
+      "config": {
+        "connection_string": "${DATABASE_URL}",
+        "pool_size": 20,
+        "max_overflow": 30
+      }
+    },
+    "retention": {
+      "alert_history_days": 365,
+      "metrics_days": 90,
+      "events_days": 90
+    }
+  },
+  "security": {
+    "api_key_required": true,
+    "api_keys": ["${ALERT_API_KEY}"],
+    "allowed_ips": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 1000
+    },
+    "encryption": {
+      "enabled": true,
+      "key": "${ENCRYPTION_KEY}"
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "json",
+    "file": "/var/log/harborai/alerts.log",
+    "max_size_mb": 500,
+    "backup_count": 10,
+    "structured_logging": true,
+    "correlation_id": true
+  },
+  "performance": {
+    "max_concurrent_evaluations": 100,
+    "evaluation_timeout": 30,
+    "batch_size": 50,
+    "cache_ttl": 300
+  }
+}

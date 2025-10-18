@@ -395,18 +395,18 @@ class TestClientManagerModelRouting:
         with patch('harborai.core.client_manager.get_settings', return_value=mock_settings), \
              patch('harborai.core.client_manager.LazyPluginManager') as mock_lazy_manager_class:
             
-            mock_lazy_manager = MockLazyManager()
-            mock_models = [
-                Mock(id="model1"),
-                Mock(id="model2")
-            ]
-            mock_lazy_manager.get_available_models = Mock(return_value=mock_models)
+            mock_lazy_manager = Mock()
+            # 模拟get_supported_models返回模型名称列表
+            mock_lazy_manager.get_supported_models.return_value = ["model1", "model2"]
             mock_lazy_manager_class.return_value = mock_lazy_manager
             
             manager = ClientManager(lazy_loading=True)
             models = manager.get_available_models()
             
-            assert models == mock_models
+            # 验证返回的是ModelInfo对象列表
+            assert len(models) == 2
+            assert models[0].id == "model1"
+            assert models[1].id == "model2"
     
     def test_get_plugin_info_traditional_mode(self, mock_settings):
         """测试传统模式获取插件信息"""

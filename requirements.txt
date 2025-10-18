@@ -39,16 +39,27 @@ psutil>=5.9.0
 # 统计API
 flask>=3.0.0
 
-# 分布式追踪
-opentelemetry-api>=1.21.0
-opentelemetry-sdk>=1.21.0
-opentelemetry-instrumentation-fastapi>=0.42b0
-opentelemetry-instrumentation-httpx>=0.42b0
-opentelemetry-instrumentation-redis>=0.42b0
-opentelemetry-instrumentation-sqlalchemy>=0.42b0
-opentelemetry-exporter-prometheus>=1.12.0rc1
-opentelemetry-exporter-otlp-proto-grpc>=1.37.0
-opentelemetry-exporter-jaeger-proto-grpc>=1.21.0
+# 分布式追踪 - 稳定版本配置（已验证兼容性）
+# 核心OpenTelemetry包 - 锁定稳定版本
+opentelemetry-api==1.37.0
+opentelemetry-sdk==1.37.0
+
+# 自动化仪表 - 使用兼容版本
+opentelemetry-instrumentation-fastapi==0.58b0
+opentelemetry-instrumentation-httpx==0.58b0
+opentelemetry-instrumentation-redis==0.58b0
+opentelemetry-instrumentation-sqlalchemy==0.58b0
+
+# 导出器 - 明确版本约束
+opentelemetry-exporter-prometheus==1.12.0rc1
+opentelemetry-exporter-otlp-proto-grpc==1.37.0
+opentelemetry-exporter-jaeger-proto-grpc==1.21.0
+
+# 关键依赖 - 兼容性优化配置
+# 注意：protobuf 4.x 与当前OpenTelemetry版本兼容，需要PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+protobuf>=4.21.0,<5.0.0
+grpcio>=1.60.0,<2.0.0
+googleapis-common-protos>=1.52.0,<1.60.0
 
 # 重试和容错
 tenacity>=8.2.0

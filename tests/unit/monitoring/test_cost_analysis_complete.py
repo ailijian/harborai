@@ -13,7 +13,7 @@ from harborai.monitoring.cost_analysis import (
     CostAnalyzer, get_cost_analyzer, generate_daily_report, 
     generate_weekly_report, generate_monthly_report
 )
-from harborai.monitoring.token_statistics import TokenUsageRecord, ModelStatistics, TimeWindowStats
+from harborai.monitoring.token_statistics import TokenUsageRecord, ModelStatistics, TimeWindowStatistics
 
 
 class TestCostTrend:
@@ -180,13 +180,13 @@ class TestCostAnalyzer:
         end_time = datetime.now()
         
         mock_window_stats = [
-            TimeWindowStats(
+            TimeWindowStatistics(
                 window_start=start_time,
                 window_end=end_time,
                 total_requests=5,
                 total_tokens=1000,
                 total_cost=10.0,
-                models_used={"gpt-4": 3, "gpt-3.5": 2}
+                unique_models=2
             )
         ]
         

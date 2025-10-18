@@ -72,25 +72,56 @@ class BackgroundTaskProcessor:
             
         logger.info(f"后台任务处理器已启动，工作线程数: {self.max_workers}")
         
-    async def stop(self) -> None:
-        """停止后台任务处理器"""
+    async def stop(self, timeout: float = 5.0) -> None:
+        """停止后台任务处理器
+        
+        Args:
+            timeout: 等待任务完成的超时时间（秒）
+        """
         if not self._running:
             return
             
         self._running = False
+        logger.info("正在停止后台任务处理器...")
         
-        # 等待所有任务完成
-        await self._task_queue.join()
+        # 第一步：尝试优雅停止 - 等待当前任务完成
+        try:
+            await asyncio.wait_for(self._task_queue.join(), timeout=timeout)
+            logger.info("所有任务已完成")
+        except asyncio.TimeoutError:
+            logger.warning(f"等待任务完成超时（{timeout}秒），开始强制停止")
         
-        # 取消所有工作协程
+        # 第二步：强制停止 - 取消所有工作协程
         for worker in self._workers:
-            worker.cancel()
-            
-        # 等待工作协程结束
-        await asyncio.gather(*self._workers, return_exceptions=True)
+            if not worker.cancelled():
+                worker.cancel()
         
-        # 关闭线程池
-        self._executor.shutdown(wait=True)
+        # 第三步：等待工作协程结束
+        if self._workers:
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._workers, return_exceptions=True),
+                    timeout=2.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("等待工作协程结束超时，强制清理")
+        
+        # 第四步：清空队列并平衡计数器
+        cleared_count = 0
+        while not self._task_queue.empty():
+            try:
+                self._task_queue.get_nowait()
+                self._task_queue.task_done()
+                cleared_count += 1
+            except asyncio.QueueEmpty:
+                break
+        
+        if cleared_count > 0:
+            logger.info(f"清理了 {cleared_count} 个未完成的任务")
+        
+        # 第五步：清理资源
+        self._workers.clear()
+        self._executor.shutdown(wait=False)
         
         logger.info("后台任务处理器已停止")
         
@@ -134,7 +165,8 @@ class BackgroundTaskProcessor:
         
         try:
             # 使用负优先级，因为PriorityQueue是最小堆
-            await self._task_queue.put((-priority, task))
+            # 使用 put_nowait 来立即检查队列是否满
+            self._task_queue.put_nowait((-priority, task))
             self._stats['total_tasks'] += 1
             return True
         except asyncio.QueueFull:
@@ -152,13 +184,18 @@ class BackgroundTaskProcessor:
                     priority, task = await asyncio.wait_for(
                         self._task_queue.get(), timeout=1.0
                     )
+                    logger.debug(f"[{worker_name}] 获取到任务: {task.task_id}, 重试次数: {task.retry_count}")
                 except asyncio.TimeoutError:
                     continue
                     
-                # 执行任务
-                await self._execute_task(task, worker_name)
+                # 执行任务并处理重试逻辑
+                try:
+                    await self._execute_task_with_retry(task, worker_name)
+                except Exception as e:
+                    logger.error(f"[{worker_name}] 执行任务 {task.task_id} 时发生未处理异常: {e}")
+                    self._stats['failed_tasks'] += 1
                 
-                # 标记任务完成
+                # 总是调用task_done()，因为我们从队列中取出了一个任务
                 self._task_queue.task_done()
                 
             except asyncio.CancelledError:
@@ -169,47 +206,52 @@ class BackgroundTaskProcessor:
                 
         logger.debug(f"后台任务工作协程 {worker_name} 已停止")
         
-    async def _execute_task(self, task: BackgroundTask, worker_name: str) -> None:
-        """执行单个任务"""
-        start_time = time.time()
+    async def _execute_task_with_retry(self, task: BackgroundTask, worker_name: str) -> None:
+        """执行任务并处理重试逻辑"""
+        max_attempts = task.max_retries + 1  # 原始执行 + 重试次数
         
-        try:
-            logger.debug(f"[{worker_name}] 开始执行任务: {task.task_id}")
+        for attempt in range(max_attempts):
+            start_time = time.time()
             
-            # 判断是否为异步函数
-            if asyncio.iscoroutinefunction(task.func):
-                result = await task.func(*task.args, **task.kwargs)
-            else:
-                # 在线程池中执行同步函数
-                loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    self._executor,
-                    lambda: task.func(*task.args, **task.kwargs)
-                )
+            try:
+                logger.debug(f"[{worker_name}] 开始执行任务: {task.task_id} (第{attempt + 1}次尝试)")
                 
-            duration = time.time() - start_time
-            logger.debug(f"[{worker_name}] 任务 {task.task_id} 执行成功，耗时: {duration:.3f}s")
-            self._stats['completed_tasks'] += 1
-            
-        except Exception as e:
-            duration = time.time() - start_time
-            logger.error(f"[{worker_name}] 任务 {task.task_id} 执行失败: {e}，耗时: {duration:.3f}s")
-            
-            # 检查是否需要重试
-            if task.retry_count < task.max_retries:
-                task.retry_count += 1
-                logger.info(f"[{worker_name}] 重试任务 {task.task_id}，第 {task.retry_count} 次重试")
+                # 判断是否为异步函数
+                if asyncio.iscoroutinefunction(task.func):
+                    result = await task.func(*task.args, **task.kwargs)
+                else:
+                    # 在线程池中执行同步函数
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(
+                        self._executor,
+                        lambda: task.func(*task.args, **task.kwargs)
+                    )
+                    
+                duration = time.time() - start_time
+                logger.debug(f"[{worker_name}] 任务 {task.task_id} 执行成功，耗时: {duration:.3f}s")
+                self._stats['completed_tasks'] += 1
                 
-                # 重新提交任务
-                try:
-                    await self._task_queue.put((-task.priority, task))
-                    self._stats['retried_tasks'] += 1
-                except asyncio.QueueFull:
-                    logger.warning(f"重试任务 {task.task_id} 时队列已满")
+                # 如果有重试，记录重试统计
+                if attempt > 0:
+                    self._stats['retried_tasks'] += attempt
+                    
+                return  # 任务成功完成
+                
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(f"[{worker_name}] 任务 {task.task_id} 执行失败: {e}，耗时: {duration:.3f}s")
+                
+                # 如果还有重试机会，继续下一次尝试
+                if attempt < max_attempts - 1:
+                    logger.info(f"[{worker_name}] 重试任务 {task.task_id}，第 {attempt + 1} 次重试")
+                    # 短暂延迟后重试
+                    await asyncio.sleep(0.1 * (attempt + 1))  # 递增延迟
+                else:
+                    # 重试次数用尽，任务最终失败
+                    logger.error(f"任务 {task.task_id} 重试次数已达上限，放弃执行")
                     self._stats['failed_tasks'] += 1
-            else:
-                logger.error(f"任务 {task.task_id} 重试次数已达上限，放弃执行")
-                self._stats['failed_tasks'] += 1
+                    if attempt > 0:
+                        self._stats['retried_tasks'] += attempt
                 
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
@@ -220,19 +262,30 @@ class BackgroundTaskProcessor:
             'workers': len(self._workers)
         }
         
-    async def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
+    async def wait_for_completion(self, timeout: float = 30.0) -> bool:
         """等待所有任务完成
         
         Args:
-            timeout: 超时时间（秒），None表示无限等待
+            timeout: 超时时间（秒）
             
         Returns:
             bool: 是否在超时前完成所有任务
         """
+        if not self._running:
+            logger.debug("处理器未运行，直接返回完成状态")
+            return True
+        
+        # 如果队列为空，直接返回
+        if self._task_queue.empty():
+            logger.debug("任务队列为空，直接返回完成状态")
+            return True
+            
         try:
             await asyncio.wait_for(self._task_queue.join(), timeout=timeout)
+            logger.debug("所有任务已完成")
             return True
         except asyncio.TimeoutError:
+            logger.warning(f"等待任务完成超时（{timeout}秒），当前队列大小: {self._task_queue.qsize()}")
             return False
 
 

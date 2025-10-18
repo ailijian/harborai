@@ -174,6 +174,97 @@ def migrate_sqlite(backup: bool, dry_run: bool):
         raise click.ClickException(str(e))
 
 
+@cli.command()
+@click.option(
+    "--check",
+    is_flag=True,
+    help="检查迁移状态，不执行迁移"
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="试运行模式，显示将要执行的迁移"
+)
+@click.option(
+    "--target-version",
+    help="迁移到指定版本"
+)
+def migrate_db(check: bool, dry_run: bool, target_version: Optional[str]):
+    """执行数据库迁移（SQL脚本）"""
+    console.print("[bold blue]数据库迁移工具[/bold blue]")
+    
+    try:
+        from ..database.migration_tool import create_migrator, MigrationError
+        
+        migrator = create_migrator()
+        
+        if check:
+            console.print("[cyan]检查迁移状态...[/cyan]")
+            status = migrator.check_migrations()
+            
+            console.print(f"[green]✓[/green] 总迁移数: {status['total_migrations']}")
+            console.print(f"[green]✓[/green] 已应用: {status['applied_count']}")
+            console.print(f"[yellow]⚠[/yellow] 待执行: {status['pending_count']}")
+            
+            if status['applied_migrations']:
+                console.print("\n[bold]已应用的迁移:[/bold]")
+                for migration in status['applied_migrations']:
+                    checksum_status = "✓" if migration['checksum_match'] else "✗"
+                    console.print(f"  {checksum_status} {migration['version']}: {migration['filename']}")
+                    console.print(f"    应用时间: {migration['applied_at']}")
+                    console.print(f"    执行时间: {migration['execution_time_ms']}ms")
+            
+            if status['pending_migrations']:
+                console.print("\n[bold]待执行的迁移:[/bold]")
+                for migration in status['pending_migrations']:
+                    console.print(f"  • {migration['version']}: {migration['filename']}")
+            
+            return
+        
+        # 执行迁移
+        console.print("[cyan]🚀 开始数据库迁移...[/cyan]")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("执行迁移...", total=None)
+            
+            result = migrator.migrate(target_version=target_version, dry_run=dry_run)
+            
+            progress.update(task, description="迁移完成")
+        
+        if result['status'] == 'success':
+            console.print(f"[bold green]✓ {result['message']}[/bold green]")
+            if result['executed_migrations']:
+                console.print("\n[bold]执行的迁移:[/bold]")
+                for migration in result['executed_migrations']:
+                    console.print(f"  ✓ {migration['version']}: {migration['filename']} ({migration['execution_time_ms']}ms)")
+                console.print(f"\n[cyan]总执行时间: {result.get('total_execution_time_ms', 0)}ms[/cyan]")
+        elif result['status'] == 'dry_run':
+            console.print(f"[bold yellow]🔍 {result['message']}[/bold yellow]")
+            if result.get('migrations_to_execute'):
+                console.print("\n[bold]将要执行的迁移:[/bold]")
+                for migration in result['migrations_to_execute']:
+                    console.print(f"  • {migration['version']}: {migration['filename']}")
+                console.print("\n[yellow]💡 使用 --dry-run=false 执行实际迁移[/yellow]")
+        else:
+            console.print(f"[bold red]✗ {result['message']}[/bold red]")
+            if result.get('executed_migrations'):
+                console.print("\n[bold]已执行的迁移:[/bold]")
+                for migration in result['executed_migrations']:
+                    console.print(f"  ✓ {migration['version']}: {migration['filename']}")
+            raise click.ClickException("迁移失败")
+        
+    except MigrationError as e:
+        console.print(f"[bold red]✗ 迁移错误: {e}[/bold red]")
+        raise click.ClickException(str(e))
+    except Exception as e:
+        console.print(f"[bold red]✗ 迁移失败: {e}[/bold red]")
+        raise click.ClickException(str(e))
+
+
 @cli.command("list-plugins")
 def list_plugins():
     """列出所有可用插件"""

@@ -1058,7 +1058,7 @@ class RealModelDemo:
             start_time = time.time()
             
             # 调用模型
-            response = await self.harborai.achat(
+            response = await self.harborai.chat.completions.acreate(
                 model=model_name,
                 messages=[{"role": "user", "content": message}],
                 max_tokens=100  # 限制token数以节省成本
@@ -1067,24 +1067,29 @@ class RealModelDemo:
             duration = time.time() - start_time
             
             # 检查响应
-            if response and hasattr(response, 'content'):
+            if response and response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content
+                usage = response.usage
+                
                 # 记录成功日志
                 self.logger.info(
                     f"模型调用成功: {model_name}",
                     request_id=request_id,
                     model_name=model_name,
                     response_time=duration,
-                    token_count=len(response.content) if response.content else 0,
+                    token_count=usage.total_tokens if usage else 0,
                     metadata={
                         "vendor": vendor,
-                        "response_length": len(response.content) if response.content else 0,
+                        "response_length": len(content),
+                        "input_tokens": usage.prompt_tokens if usage else 0,
+                        "output_tokens": usage.completion_tokens if usage else 0,
                         "success": True
                     }
                 )
                 
                 # 记录性能指标
-                self.monitor.record_metric("api_response_time", duration, {"model": model_name, "vendor": vendor})
-                self.monitor.record_metric("api_success_count", 1, {"model": model_name, "vendor": vendor})
+                self.monitor.metrics.record_timer("api_response_time", duration, tags={"model": model_name, "vendor": vendor})
+                self.monitor.metrics.increment_counter("api_success_count", value=1, tags={"model": model_name, "vendor": vendor})
                 
                 print(f"✅ {model_name}: 响应成功 ({duration:.2f}s)")
                 return {
@@ -1092,7 +1097,7 @@ class RealModelDemo:
                     'vendor': vendor,
                     'success': True,
                     'duration': duration,
-                    'response_length': len(response.content) if response.content else 0,
+                    'response_length': len(content),
                     'error': None
                 }
             else:
@@ -1106,7 +1111,7 @@ class RealModelDemo:
                 )
                 
                 # 记录错误指标
-                self.monitor.record_metric("api_error_count", 1, {"model": model_name, "vendor": vendor, "error_type": "empty_response"})
+                self.monitor.metrics.increment_counter("api_error_count", value=1, tags={"model": model_name, "vendor": vendor, "error_type": "empty_response"})
                 
                 print(f"⚠️  {model_name}: 响应为空")
                 return {
@@ -1133,7 +1138,7 @@ class RealModelDemo:
             )
             
             # 记录错误指标
-            self.monitor.record_metric("api_error_count", 1, {"model": model_name, "vendor": vendor, "error_type": "exception"})
+            self.monitor.metrics.increment_counter("api_error_count", value=1, tags={"model": model_name, "vendor": vendor, "error_type": "exception"})
             
             print(f"❌ {model_name}: {str(e)}")
             return {

@@ -1,0 +1,365 @@
+{
+  "alert_rules": [
+    {
+      "id": "database_connection_failure",
+      "name": "数据库连接失败",
+      "description": "数据库连接失败或超时",
+      "severity": "critical",
+      "condition": "threshold",
+      "metric": "database.connection.failures",
+      "threshold": 1,
+      "duration": 60,
+      "labels": {
+        "component": "database",
+        "type": "connection"
+      },
+      "annotations": {
+        "summary": "数据库连接失败",
+        "description": "数据库连接失败，可能影响系统正常运行",
+        "runbook_url": "https://docs.harborai.com/runbooks/database-connection"
+      }
+    },
+    {
+      "id": "high_api_response_time",
+      "name": "API响应时间过高",
+      "description": "API平均响应时间超过阈值",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "api.response_time.avg",
+      "threshold": 2000,
+      "duration": 300,
+      "labels": {
+        "component": "api",
+        "type": "performance"
+      },
+      "annotations": {
+        "summary": "API响应时间过高",
+        "description": "API平均响应时间超过2秒，可能影响用户体验",
+        "runbook_url": "https://docs.harborai.com/runbooks/api-performance"
+      }
+    },
+    {
+      "id": "high_error_rate",
+      "name": "错误率过高",
+      "description": "API错误率超过阈值",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "api.error_rate",
+      "threshold": 0.05,
+      "duration": 300,
+      "labels": {
+        "component": "api",
+        "type": "error"
+      },
+      "annotations": {
+        "summary": "API错误率过高",
+        "description": "API错误率超过5%，需要立即检查",
+        "runbook_url": "https://docs.harborai.com/runbooks/error-rate"
+      }
+    },
+    {
+      "id": "high_memory_usage",
+      "name": "内存使用率过高",
+      "description": "系统内存使用率超过阈值",
+      "severity": "medium",
+      "condition": "threshold",
+      "metric": "system.memory.usage_percent",
+      "threshold": 85,
+      "duration": 600,
+      "labels": {
+        "component": "system",
+        "type": "resource"
+      },
+      "annotations": {
+        "summary": "内存使用率过高",
+        "description": "系统内存使用率超过85%，可能需要扩容",
+        "runbook_url": "https://docs.harborai.com/runbooks/memory-usage"
+      }
+    },
+    {
+      "id": "low_disk_space",
+      "name": "磁盘空间不足",
+      "description": "磁盘可用空间低于阈值",
+      "severity": "medium",
+      "condition": "threshold",
+      "metric": "system.disk.free_percent",
+      "threshold": 15,
+      "duration": 300,
+      "labels": {
+        "component": "system",
+        "type": "resource"
+      },
+      "annotations": {
+        "summary": "磁盘空间不足",
+        "description": "磁盘可用空间低于15%，需要清理或扩容",
+        "runbook_url": "https://docs.harborai.com/runbooks/disk-space"
+      }
+    },
+    {
+      "id": "token_usage_anomaly",
+      "name": "Token使用异常",
+      "description": "Token使用量出现异常波动",
+      "severity": "medium",
+      "condition": "anomaly",
+      "metric": "tokens.usage.total",
+      "threshold": 3.0,
+      "duration": 900,
+      "labels": {
+        "component": "tokens",
+        "type": "usage"
+      },
+      "annotations": {
+        "summary": "Token使用异常",
+        "description": "Token使用量出现异常波动，可能存在异常调用",
+        "runbook_url": "https://docs.harborai.com/runbooks/token-anomaly"
+      }
+    },
+    {
+      "id": "cost_spike",
+      "name": "成本激增",
+      "description": "成本增长超过预期",
+      "severity": "high",
+      "condition": "threshold",
+      "metric": "cost.hourly_rate",
+      "threshold": 100,
+      "duration": 300,
+      "labels": {
+        "component": "cost",
+        "type": "budget"
+      },
+      "annotations": {
+        "summary": "成本激增",
+        "description": "小时成本超过100美元，需要立即检查",
+        "runbook_url": "https://docs.harborai.com/runbooks/cost-spike"
+      }
+    }
+  ],
+  "notification": {
+    "channels": [
+      {
+        "id": "console",
+        "name": "控制台输出",
+        "type": "console",
+        "config": {
+          "format": "text"
+        },
+        "enabled": true
+      },
+      {
+        "id": "email_ops",
+        "name": "运维邮箱",
+        "type": "email",
+        "config": {
+          "smtp_server": "smtp.example.com",
+          "smtp_port": 587,
+          "username": "alerts@example.com",
+          "password": "your_password",
+          "from_email": "alerts@example.com",
+          "to_emails": ["ops@example.com"]
+        },
+        "enabled": false
+      },
+      {
+        "id": "webhook_slack",
+        "name": "Slack Webhook",
+        "type": "webhook",
+        "config": {
+          "url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "timeout": 10
+        },
+        "enabled": false
+      },
+      {
+        "id": "dingtalk_ops",
+        "name": "钉钉运维群",
+        "type": "dingtalk",
+        "config": {
+          "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN",
+          "secret": "YOUR_SECRET"
+        },
+        "enabled": false
+      }
+    ],
+    "routing": [
+      {
+        "match": {
+          "severity": ["critical", "high"]
+        },
+        "channels": ["console", "email_ops", "dingtalk_ops"]
+      },
+      {
+        "match": {
+          "severity": ["medium"]
+        },
+        "channels": ["console", "dingtalk_ops"]
+      },
+      {
+        "match": {
+          "severity": ["low"]
+        },
+        "channels": ["console"]
+      }
+    ],
+    "rate_limits": {
+      "global": {
+        "max_notifications": 100,
+        "window_seconds": 3600
+      },
+      "per_channel": {
+        "max_notifications": 50,
+        "window_seconds": 3600
+      },
+      "per_rule": {
+        "max_notifications": 10,
+        "window_seconds": 3600
+      }
+    }
+  },
+  "suppression_rules": [
+    {
+      "id": "maintenance_window",
+      "name": "维护窗口",
+      "type": "time_based",
+      "target_labels": {},
+      "start_time": "2024-01-01T02:00:00",
+      "end_time": "2024-01-01T04:00:00",
+      "reason": "系统维护",
+      "enabled": false
+    },
+    {
+      "id": "suppress_test_alerts",
+      "name": "抑制测试告警",
+      "type": "label_based",
+      "target_labels": {
+        "environment": "test"
+      },
+      "reason": "测试环境告警抑制",
+      "enabled": true
+    },
+    {
+      "id": "rate_limit_suppression",
+      "name": "频率限制抑制",
+      "type": "rate_limit",
+      "target_labels": {},
+      "config": {
+        "max_alerts": 5,
+        "window_seconds": 300
+      },
+      "reason": "防止告警风暴",
+      "enabled": true
+    }
+  ],
+  "escalation": {
+    "policies": [
+      {
+        "id": "critical_escalation",
+        "name": "严重告警升级",
+        "match": {
+          "severity": ["critical"]
+        },
+        "steps": [
+          {
+            "delay_seconds": 0,
+            "channels": ["console", "dingtalk_ops"]
+          },
+          {
+            "delay_seconds": 300,
+            "channels": ["email_ops"]
+          },
+          {
+            "delay_seconds": 900,
+            "channels": ["webhook_slack"]
+          }
+        ]
+      }
+    ]
+  },
+  "aggregation": {
+    "rules": [
+      {
+        "id": "group_by_component",
+        "name": "按组件分组",
+        "group_by": ["component"],
+        "group_wait": 30,
+        "group_interval": 300,
+        "repeat_interval": 3600
+      }
+    ]
+  },
+  "metrics": {
+    "collection_interval": 60,
+    "retention_days": 30,
+    "providers": [
+      {
+        "name": "prometheus",
+        "type": "prometheus",
+        "config": {
+          "url": "http://localhost:9090",
+          "timeout": 10
+        },
+        "enabled": false
+      },
+      {
+        "name": "internal",
+        "type": "internal",
+        "config": {},
+        "enabled": true
+      }
+    ]
+  },
+  "health_checks": {
+    "enabled": true,
+    "interval": 30,
+    "timeout": 10,
+    "checks": [
+      {
+        "name": "database",
+        "type": "database",
+        "config": {
+          "connection_string": "sqlite:///alerts.db"
+        }
+      },
+      {
+        "name": "api",
+        "type": "http",
+        "config": {
+          "url": "http://localhost:8000/health",
+          "method": "GET",
+          "expected_status": 200
+        }
+      }
+    ]
+  },
+  "storage": {
+    "database": {
+      "type": "sqlite",
+      "config": {
+        "path": "alerts.db"
+      }
+    },
+    "retention": {
+      "alert_history_days": 90,
+      "metrics_days": 30,
+      "events_days": 30
+    }
+  },
+  "security": {
+    "api_key_required": false,
+    "allowed_ips": [],
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 100
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "json",
+    "file": "alerts.log",
+    "max_size_mb": 100,
+    "backup_count": 5
+  }
+}

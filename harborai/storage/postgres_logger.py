@@ -72,6 +72,10 @@ class PostgreSQLLogger:
         logger.info("Stopping PostgreSQL logger...")
         self._running = False
         
+        # 等待工作线程结束
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=10)
+        
         # 关闭数据库连接
         if self._connection:
             try:
@@ -327,19 +331,9 @@ class PostgreSQLLogger:
                             }
                         )
         
-        # 等待工作线程结束
-        if self._worker_thread:
-            self._worker_thread.join(timeout=10)
-        
-        # 关闭数据库连接
-        if self._connection:
-            try:
-                self._connection.close()
-            except Exception:
-                pass
-            self._connection = None
-        
-        logger.info("PostgreSQL logger stopped")
+        # 在循环结束时刷新剩余的批次
+        if batch:
+            self._flush_batch(batch)
     
     def _flush_batch(self, batch: List[Dict[str, Any]]):
         """批量写入日志到数据库。"""

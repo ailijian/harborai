@@ -166,3 +166,27 @@ class StorageError(HarborAIError):
         result = super().to_dict()
         result["storage_type"] = self.storage_type
         return result
+
+
+class TracingError(HarborAIError):
+    """追踪异常"""
+    
+    def __init__(self, message: str, trace_id: Optional[str] = None, **kwargs):
+        super().__init__(message, error_code="TRACING_ERROR", trace_id=trace_id, **kwargs)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        result = super().to_dict()
+        return result
+
+
+class DatabaseError(HarborAIError):
+    """数据库异常"""
+    
+    def __init__(self, message: str, operation: Optional[str] = None, **kwargs):
+        super().__init__(message, error_code="DATABASE_ERROR", **kwargs)
+        self.operation = operation
+    
+    def to_dict(self) -> Dict[str, Any]:
+        result = super().to_dict()
+        result["operation"] = self.operation
+        return result

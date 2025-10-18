@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from harborai.core.client_manager import ClientManager
-from harborai.core.exceptions import PluginError, ModelNotFoundError
+from harborai.utils.exceptions import PluginError, ModelNotFoundError
 from harborai.config.settings import Settings
 
 class TestClientManagerAdditionalCoverage:

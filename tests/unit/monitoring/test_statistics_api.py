@@ -16,7 +16,7 @@ from harborai.monitoring.statistics_api import (
 from harborai.monitoring.token_statistics import (
     TokenUsageRecord, 
     ModelStatistics, 
-    TimeWindowStats
+    TimeWindowStatistics
 )
 
 
@@ -205,13 +205,13 @@ class TestTokenStatisticsAPI:
     
     def test_get_time_window_stats_success(self):
         """测试获取时间窗口统计 - 成功"""
-        mock_stats = TimeWindowStats(
+        mock_stats = TimeWindowStatistics(
             window_start=datetime(2024, 1, 1, 10, 0, 0),
             window_end=datetime(2024, 1, 1, 11, 0, 0),
             total_requests=10,
             total_tokens=1000,
             total_cost=5.0,
-            models_used={"gpt-4": 6, "gpt-3.5": 4}
+            unique_models=2
         )
         
         self.mock_collector.get_time_window_stats.return_value = [mock_stats]
@@ -282,15 +282,16 @@ class TestTokenStatisticsAPI:
         """测试获取最近记录 - 成功"""
         mock_record = TokenUsageRecord(
             timestamp=datetime(2024, 1, 1, 12, 0, 0),
-            trace_id="trace_001",
-            model="gpt-4",
+            model_name="gpt-4",
+            provider="openai",
+            request_id="trace_001",
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
             cost=0.75,
-            duration=2.5,
+            latency_ms=2500.0,
             success=True,
-            error=None
+            error_message=None
         )
         
         self.mock_collector.get_recent_records.return_value = [mock_record]
@@ -309,15 +310,16 @@ class TestTokenStatisticsAPI:
         """测试获取最近记录 - cost为None"""
         mock_record = TokenUsageRecord(
             timestamp=datetime(2024, 1, 1, 12, 0, 0),
-            trace_id="trace_002",
-            model="gpt-3.5",
+            model_name="gpt-3.5",
+            provider="openai",
+            request_id="trace_002",
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            cost=None,
-            duration=1.5,
+            cost=0.0,
+            latency_ms=1500.0,
             success=False,
-            error="API错误"
+            error_message="API错误"
         )
         
         self.mock_collector.get_recent_records.return_value = [mock_record]
@@ -583,15 +585,16 @@ class TestEdgeCases:
         """测试Unicode字符处理"""
         mock_record = TokenUsageRecord(
             timestamp=datetime(2024, 1, 1, 12, 0, 0),
-            trace_id="trace_测试",
-            model="gpt-4",
+            model_name="gpt-4",
+            provider="openai",
+            request_id="trace_测试",
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
             cost=0.75,
-            duration=2.5,
+            latency_ms=2500.0,
             success=False,
-            error="错误：API调用失败"
+            error_message="错误：API调用失败"
         )
         
         self.mock_collector.get_recent_records.return_value = [mock_record]
