@@ -138,7 +138,7 @@ class TestAlertConfigScenarios:
                         "type": "slack",
                         "enabled": True,
                         "config": {
-                            "webhook_url": "https://hooks.slack.com/services/TXXXXXXXX/BXXXXXXXX/XXXXXXXXXXXXXXXXXXXXXXXX",
+                            "webhook_url": "https://example.com/webhook/slack",
                             "channel": "#alerts",
                             "username": "AlertBot"
                         }
