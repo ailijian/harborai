@@ -28,7 +28,11 @@ def get_postgres_url() -> Optional[str]:
     settings = get_settings()
     
     if settings.postgres_url:
-        return settings.postgres_url
+        # 将 asyncpg 格式转换为 psycopg2 格式
+        url = settings.postgres_url
+        if url.startswith("postgresql+asyncpg://"):
+            url = url.replace("postgresql+asyncpg://", "postgresql://")
+        return url
     
     # 从环境变量构建连接字符串
     host = os.getenv("POSTGRES_HOST", "localhost")

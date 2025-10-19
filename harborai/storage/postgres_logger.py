@@ -125,7 +125,19 @@ class PostgreSQLLogger:
             "reasoning_content_present": any(
                 msg.get("reasoning_content") for msg in messages
             ),
-            "structured_provider": kwargs.get("provider", "unknown")
+            "provider": kwargs.get("provider", "unknown"),  # 使用新的 provider 字段
+            "structured_provider": kwargs.get("structured_provider"),  # 结构化输出选择
+            "tokens": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0
+            },  # 请求阶段的默认token信息
+            "cost": {
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0,
+                "currency": "USD"
+            }  # 请求阶段的默认成本信息
         }
         
         self._log_queue.put(log_entry)
@@ -135,7 +147,9 @@ class PostgreSQLLogger:
                     response: Any,
                     latency: float,
                     success: bool = True,
-                    error: Optional[str] = None):
+                    error: Optional[str] = None,
+                    model: Optional[str] = None,
+                    provider: Optional[str] = None):
         """记录响应日志。
         
         Args:
@@ -144,6 +158,8 @@ class PostgreSQLLogger:
             latency: 延迟时间
             success: 是否成功
             error: 错误信息
+            model: 模型名称（可选，如果不提供则从请求记录中获取）
+            provider: 提供商名称（可选，如果不提供则从请求记录中获取）
         """
         if not self._running:
             return
@@ -153,21 +169,49 @@ class PostgreSQLLogger:
         
         # 提取token信息
         tokens = {}
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        
         if hasattr(response, 'usage'):
             usage = response.usage
+            prompt_tokens = getattr(usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(usage, 'completion_tokens', 0)
+            total_tokens = getattr(usage, 'total_tokens', 0)
             tokens = {
-                "prompt_tokens": getattr(usage, 'prompt_tokens', 0),
-                "completion_tokens": getattr(usage, 'completion_tokens', 0),
-                "total_tokens": getattr(usage, 'total_tokens', 0)
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens
             }
         
         # 估算成本（这里可以根据模型和token数量计算）
-        cost = self._estimate_cost(tokens)
+        cost_info = self._estimate_cost_detailed(tokens)
+        cost = {
+            "input_cost": cost_info.get("input_cost", 0.0),
+            "output_cost": cost_info.get("output_cost", 0.0),
+            "total_cost": cost_info.get("total_cost", 0.0),
+            "currency": "USD"
+        }
+        
+        # 优先使用传入的参数，如果没有则从对应的请求记录中获取 model 和 provider 信息
+        if model is None or provider is None:
+            model_info = self._get_request_info_by_trace_id(trace_id)
+            final_model = model or model_info.get("model")
+            final_provider = provider or model_info.get("provider")  # 使用新的 provider 字段
+        else:
+            final_model = model
+            final_provider = provider
         
         log_entry = {
             "trace_id": trace_id,
             "timestamp": get_unified_timestamp(),
             "type": "response",
+            "model": final_model,  # 优先使用传入参数，否则从请求记录中获取
+            "messages": None,  # 响应日志没有消息
+            "parameters": None,  # 响应日志没有参数
+            "reasoning_content_present": False,
+            "provider": final_provider,  # 使用新的 provider 字段
+            "structured_provider": None,  # 响应日志中暂不设置结构化输出信息
             "success": success,
             "latency": latency,
             "tokens": tokens,
@@ -186,6 +230,63 @@ class PostgreSQLLogger:
             return 0.0
         total_tokens = tokens.get("total_tokens", 0)
         return total_tokens * 0.0001  # 假设每1000个token成本0.1元
+    
+    def _estimate_cost_detailed(self, tokens: Optional[Dict[str, int]]) -> Dict[str, float]:
+        """估算详细的API调用成本。"""
+        if tokens is None:
+            return {"input_cost": 0.0, "output_cost": 0.0, "total_cost": 0.0}
+        
+        prompt_tokens = tokens.get("prompt_tokens", 0)
+        completion_tokens = tokens.get("completion_tokens", 0)
+        
+        # 简单的定价模型（实际应根据具体模型定价）
+        input_rate = 0.00005  # 每token输入成本
+        output_rate = 0.00015  # 每token输出成本
+        
+        input_cost = prompt_tokens * input_rate
+        output_cost = completion_tokens * output_rate
+        total_cost = input_cost + output_cost
+        
+        return {
+            "input_cost": input_cost,
+            "output_cost": output_cost,
+            "total_cost": total_cost
+        }
+    
+    def _get_request_info_by_trace_id(self, trace_id: str) -> Dict[str, Any]:
+        """根据 trace_id 获取对应请求记录的 model 和 provider 信息。
+        
+        Args:
+            trace_id: 追踪ID
+            
+        Returns:
+            包含 model 和 structured_provider 信息的字典
+        """
+        try:
+            self._ensure_connection()
+            
+            with self._connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT model, provider 
+                    FROM harborai_logs 
+                    WHERE trace_id = %s AND type = 'request'
+                    ORDER BY timestamp DESC 
+                    LIMIT 1
+                """, (trace_id,))
+                
+                result = cursor.fetchone()
+                if result:
+                    return {
+                        "model": result[0],
+                        "provider": result[1]
+                    }
+                else:
+                    logger.warning(f"未找到 trace_id {trace_id} 对应的请求记录")
+                    return {}
+                    
+        except Exception as e:
+            logger.error(f"查询请求信息时出错: {e}")
+            return {}
     
     def _sanitize_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """脱敏处理消息内容。"""
@@ -344,40 +445,38 @@ class PostgreSQLLogger:
             self._ensure_connection()
             self._ensure_table_exists()
             
-            # 构建插入SQL
-            placeholders = ", ".join(["%s"] * len(batch))
+            # 构建插入SQL - 为每个字段创建占位符
+            field_placeholders = "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
             sql = f"""
                 INSERT INTO {self.table_name} 
                 (trace_id, timestamp, type, model, messages, parameters, 
-                 reasoning_content_present, structured_provider, success, 
+                 reasoning_content_present, provider, structured_provider, success, 
                  latency, tokens, cost, error, response_summary, raw_data)
-                VALUES {placeholders}
+                VALUES {field_placeholders}
             """
             
-            # 准备数据
-            values = []
-            for entry in batch:
-                values.append((
-                    entry.get("trace_id"),
-                    entry.get("timestamp"),
-                    entry.get("type"),
-                    entry.get("model"),
-                    json.dumps(entry.get("messages"), cls=DateTimeEncoder),
-                    json.dumps(entry.get("parameters"), cls=DateTimeEncoder),
-                    entry.get("reasoning_content_present"),
-                    entry.get("structured_provider"),
-                    entry.get("success"),
-                    entry.get("latency"),
-                    json.dumps(entry.get("tokens"), cls=DateTimeEncoder),
-                    entry.get("cost"),
-                    entry.get("error"),
-                    json.dumps(entry.get("response_summary"), cls=DateTimeEncoder),
-                    json.dumps(entry, cls=DateTimeEncoder)
-                ))
-            
-            # 执行插入
+            # 准备数据并逐条插入
             with self._connection.cursor() as cursor:
-                cursor.executemany(sql, values)
+                for entry in batch:
+                    values = (
+                        entry.get("trace_id"),
+                        entry.get("timestamp"),
+                        entry.get("type"),
+                        entry.get("model"),
+                        json.dumps(entry.get("messages"), cls=DateTimeEncoder),
+                        json.dumps(entry.get("parameters"), cls=DateTimeEncoder),
+                        entry.get("reasoning_content_present"),
+                        entry.get("provider"),
+                        entry.get("structured_provider"),
+                        entry.get("success"),
+                        entry.get("latency"),
+                        json.dumps(entry.get("tokens"), cls=DateTimeEncoder),
+                        json.dumps(entry.get("cost"), cls=DateTimeEncoder),
+                        entry.get("error"),
+                        json.dumps(entry.get("response_summary"), cls=DateTimeEncoder),
+                        json.dumps(entry, cls=DateTimeEncoder)
+                    )
+                    cursor.execute(sql, values)
                 self._connection.commit()
             
             logger.debug(f"Flushed {len(batch)} log entries to PostgreSQL")
@@ -417,11 +516,12 @@ class PostgreSQLLogger:
                 messages TEXT,
                 parameters TEXT,
                 reasoning_content_present BOOLEAN,
+                provider VARCHAR(50),
                 structured_provider VARCHAR(50),
                 success BOOLEAN,
                 latency FLOAT,
-                tokens TEXT,
-                cost FLOAT,
+                tokens JSONB DEFAULT '{{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}}',
+                cost JSONB DEFAULT '{{"input_cost": 0.0, "output_cost": 0.0, "total_cost": 0.0, "currency": "USD"}}',
                 error TEXT,
                 response_summary TEXT,
                 raw_data TEXT,
@@ -432,6 +532,10 @@ class PostgreSQLLogger:
             CREATE INDEX IF NOT EXISTS idx_timestamp ON {self.table_name} (timestamp);
             CREATE INDEX IF NOT EXISTS idx_model ON {self.table_name} (model);
             CREATE INDEX IF NOT EXISTS idx_success ON {self.table_name} (success);
+            CREATE INDEX IF NOT EXISTS idx_provider ON {self.table_name} (provider);
+            CREATE INDEX IF NOT EXISTS idx_structured_provider ON {self.table_name} (structured_provider);
+            CREATE INDEX IF NOT EXISTS idx_tokens_total ON {self.table_name} USING GIN ((tokens -> 'total_tokens'));
+            CREATE INDEX IF NOT EXISTS idx_cost_total ON {self.table_name} USING GIN ((cost -> 'total_cost'));
         """
         
         try:

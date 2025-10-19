@@ -9,7 +9,7 @@
 
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 from threading import Lock
 
 from .logger import get_logger
@@ -25,6 +25,13 @@ _timestamp_lock = Lock()
 # 上一次生成的时间戳，用于确保时间戳的单调递增
 _last_timestamp: Optional[float] = None
 
+# 性能测试模式标志，用于减少日志噪音
+_performance_mode: bool = False
+
+# 回退计数器，用于控制警告频率
+_backtrack_count: int = 0
+_last_warning_time: Optional[float] = None
+
 
 def get_unified_timestamp() -> datetime:
     """
@@ -35,7 +42,7 @@ def get_unified_timestamp() -> datetime:
     Returns:
         datetime: 北京时间戳对象
     """
-    global _last_timestamp
+    global _last_timestamp, _backtrack_count, _last_warning_time
     
     with _timestamp_lock:
         current_time = datetime.now(BEIJING_TIMEZONE)
@@ -47,9 +54,31 @@ def get_unified_timestamp() -> datetime:
             current_timestamp = _last_timestamp + 0.000001
             current_time = datetime.fromtimestamp(current_timestamp, BEIJING_TIMEZONE)
             
-            logger.warning(
-                f"检测到时间戳回退，已调整为单调递增: {current_time.isoformat()}"
-            )
+            _backtrack_count += 1
+            
+            # 智能警告策略：减少日志噪音
+            should_warn = False
+            current_warn_time = time.time()
+            
+            if not _performance_mode:
+                # 正常模式：每次都警告
+                should_warn = True
+            else:
+                # 性能测试模式：限制警告频率
+                if _last_warning_time is None or (current_warn_time - _last_warning_time) > 5.0:
+                    # 每5秒最多警告一次
+                    should_warn = True
+                    _last_warning_time = current_warn_time
+            
+            if should_warn:
+                if _performance_mode:
+                    logger.info(
+                        f"性能测试模式：时间戳回退调整 (累计{_backtrack_count}次)"
+                    )
+                else:
+                    logger.warning(
+                        f"检测到时间戳回退，已调整为单调递增: {current_time.isoformat()}"
+                    )
         
         _last_timestamp = current_timestamp
         return current_time
@@ -172,15 +201,60 @@ def _normalize_timestamp(timestamp: Union[str, datetime, float]) -> Optional[dat
 
 def create_timestamp_context(trace_id: str) -> 'TimestampContext':
     """
-    创建时间戳上下文管理器，用于跟踪单个请求的时间戳
+    创建时间戳上下文管理器
     
     Args:
         trace_id: 追踪ID
-    
+        
     Returns:
-        TimestampContext: 时间戳上下文管理器
+        TimestampContext: 时间戳上下文管理器实例
     """
     return TimestampContext(trace_id)
+
+
+def set_performance_mode(enabled: bool = True) -> None:
+    """
+    设置性能测试模式
+    
+    在性能测试模式下，时间戳回退警告将被限制频率，减少日志噪音
+    
+    Args:
+        enabled: 是否启用性能测试模式
+    """
+    global _performance_mode, _backtrack_count, _last_warning_time
+    
+    _performance_mode = enabled
+    if enabled:
+        # 重置计数器
+        _backtrack_count = 0
+        _last_warning_time = None
+        logger.info("已启用时间戳性能测试模式，将限制回退警告频率")
+    else:
+        logger.info(f"已禁用时间戳性能测试模式，累计处理了{_backtrack_count}次回退")
+
+
+def get_performance_mode() -> bool:
+    """
+    获取当前性能测试模式状态
+    
+    Returns:
+        bool: 是否处于性能测试模式
+    """
+    return _performance_mode
+
+
+def get_backtrack_stats() -> Dict[str, Any]:
+    """
+    获取时间戳回退统计信息
+    
+    Returns:
+        Dict[str, Any]: 包含回退次数和模式状态的统计信息
+    """
+    return {
+        "performance_mode": _performance_mode,
+        "backtrack_count": _backtrack_count,
+        "last_warning_time": _last_warning_time
+    }
 
 
 class TimestampContext:

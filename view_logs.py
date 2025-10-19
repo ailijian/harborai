@@ -345,6 +345,197 @@ def infer_log_type(log: Dict[str, Any]) -> str:
     return 'unknown'
 
 
+
+def standardize_log_data(log_data: Dict[str, Any], source: str = "unknown") -> Dict[str, Any]:
+    """标准化日志数据格式，确保 PostgreSQL 和文件日志格式一致
+    
+    Args:
+        log_data: 原始日志数据
+        source: 数据源 ("postgres", "file", "unknown")
+        
+    Returns:
+        Dict[str, Any]: 标准化后的日志数据
+    """
+    standardized = log_data.copy()
+    
+    # 1. 统一模型字段处理
+    model = standardized.get('model')
+    if not model or model in ['', 'N/A', None, 'None']:
+        # 尝试从 response_summary 中提取模型信息
+        response_summary = standardized.get('response_summary') or standardized.get('response_data')
+        if isinstance(response_summary, dict):
+            model = response_summary.get('model')
+        elif isinstance(response_summary, str):
+            try:
+                response_dict = json.loads(response_summary)
+                model = response_dict.get('model')
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # 如果仍然没有模型信息，设置为 "unknown"
+        if not model or model in ['', 'N/A', None, 'None']:
+            model = "unknown"
+    
+    standardized['model'] = model
+    
+    # 2. 统一提供商字段处理
+    provider = standardized.get('provider')
+    if not provider or provider in ['', 'N/A', None, 'None', 'agently']:
+        # 尝试从 structured_provider 字段获取（向后兼容）
+        provider = standardized.get('structured_provider')
+        
+        # 如果仍然没有，根据模型名称推断
+        if (not provider or provider in ['', 'N/A', None, 'None']) and model and model != "unknown":
+            provider = infer_provider_from_model(model)
+        
+        # 最后设置默认值
+        if not provider or provider in ['', 'N/A', None, 'None']:
+            provider = "unknown"
+    
+    standardized['provider'] = provider
+    # 保持向后兼容性
+    standardized['structured_provider'] = provider
+    
+    # 3. 统一时间戳格式
+    timestamp = standardized.get('timestamp')
+    if timestamp:
+        if isinstance(timestamp, str):
+            try:
+                # 确保时间戳格式一致
+                from datetime import datetime
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                standardized['timestamp'] = dt.isoformat()
+            except (ValueError, TypeError):
+                pass
+    
+    # 4. 统一成功状态字段
+    success = standardized.get('success')
+    if success is None:
+        # 根据状态码推断成功状态
+        status_code = standardized.get('status_code')
+        if status_code:
+            success = 200 <= status_code < 300
+        else:
+            # 根据错误信息推断
+            error = standardized.get('error_message') or standardized.get('error')
+            success = not bool(error)
+        
+        standardized['success'] = success
+    
+    # 5. 统一 token 信息格式
+    tokens = standardized.get('tokens')
+    
+    # 首先尝试从 tokens 字段提取信息（可能是 JSON 字符串或字典）
+    total_tokens = None
+    if tokens:
+        if isinstance(tokens, dict):
+            # 如果 tokens 是字典，直接提取
+            total_tokens = tokens.get('total_tokens') or tokens.get('total')
+        elif isinstance(tokens, str):
+            # 如果 tokens 是 JSON 字符串，尝试解析
+            try:
+                tokens_dict = json.loads(tokens)
+                total_tokens = tokens_dict.get('total_tokens') or tokens_dict.get('total')
+                standardized['tokens'] = tokens_dict  # 更新为解析后的字典
+            except (json.JSONDecodeError, TypeError):
+                pass
+    
+    # 如果从 tokens 字段没有获取到信息，尝试详细字段
+    if not total_tokens and source == "postgres":
+        prompt_tokens = standardized.get('prompt_tokens', 0)
+        completion_tokens = standardized.get('completion_tokens', 0)
+        total_tokens_detailed = standardized.get('total_tokens_detailed', 0)
+        
+        # 优先使用详细字段，如果没有则尝试旧字段
+        if total_tokens_detailed > 0 or prompt_tokens > 0 or completion_tokens > 0:
+            standardized['tokens'] = {
+                'input': prompt_tokens,
+                'output': completion_tokens,
+                'total': total_tokens_detailed or (prompt_tokens + completion_tokens)
+            }
+            total_tokens = total_tokens_detailed or (prompt_tokens + completion_tokens)
+    
+    # 设置 total_tokens 字段以便显示
+    standardized['total_tokens'] = total_tokens
+    
+    # 6. 统一成本信息格式
+    cost = standardized.get('cost')
+    if not cost or cost == 0:
+        if source == "postgres":
+            # PostgreSQL 可能将成本信息存储在详细字段中
+            total_cost_detailed = standardized.get('total_cost_detailed', 0.0)
+            if total_cost_detailed > 0:
+                standardized['cost'] = total_cost_detailed
+                standardized['total_cost'] = total_cost_detailed
+            else:
+                # 尝试旧字段
+                total_cost = standardized.get('total_cost')
+                if total_cost:
+                    standardized['cost'] = total_cost
+                else:
+                    standardized['cost'] = None
+                    standardized['total_cost'] = None
+        else:
+            # 对于文件日志，尝试其他字段
+            total_cost = standardized.get('total_cost')
+            if total_cost:
+                standardized['cost'] = total_cost
+            else:
+                standardized['cost'] = None
+                standardized['total_cost'] = None
+    
+    # 7. 确保必要字段存在
+    required_fields = {
+        'trace_id': standardized.get('trace_id', 'unknown'),
+        'type': standardized.get('type', 'unknown'),
+        'source': source,
+        'duration_ms': standardized.get('duration_ms') or standardized.get('latency', 0)
+    }
+    
+    for field, default_value in required_fields.items():
+        if field not in standardized or standardized[field] is None:
+            standardized[field] = default_value
+    
+    return standardized
+
+
+def infer_provider_from_model(model: str) -> str:
+    """根据模型名称推断提供商
+    
+    Args:
+        model: 模型名称
+        
+    Returns:
+        str: 推断的提供商名称
+    """
+    if not model or model == "unknown":
+        return "unknown"
+    
+    model_lower = model.lower()
+    
+    # 提供商映射规则
+    provider_patterns = {
+        'openai': ['gpt', 'openai', 'text-davinci', 'text-curie', 'text-babbage', 'text-ada'],
+        'anthropic': ['claude'],
+        'google': ['gemini', 'palm', 'bard'],
+        'baidu': ['ernie', 'wenxin'],
+        'bytedance': ['doubao'],
+        'deepseek': ['deepseek'],
+        'alibaba': ['qwen', 'tongyi'],
+        'zhipu': ['glm', 'chatglm'],
+        'moonshot': ['moonshot'],
+        'minimax': ['abab'],
+        'sensetime': ['nova'],
+        'iflytek': ['spark']
+    }
+    
+    for provider, patterns in provider_patterns.items():
+        if any(pattern in model_lower for pattern in patterns):
+            return provider
+    
+    return "unknown"
+
+
 class LogViewer:
     """日志查看器类 - 增强版"""
     
@@ -693,17 +884,29 @@ class LogViewer:
                 where_conditions.append("provider = %s")
                 params.append(provider)
             
+            # 根据 log_type 添加类型过滤
+            if log_type == "request":
+                where_conditions.append("type = %s")
+                params.append("request")
+            elif log_type == "response":
+                where_conditions.append("type = %s")
+                params.append("response")
+            # log_type == "all" 时不添加类型过滤
+            
             where_clause = ""
             if where_conditions:
                 where_clause = "WHERE " + " AND ".join(where_conditions)
             
-            # 构建查询语句
+            # 构建查询语句 - 使用 harborai_logs 表和新字段结构
             query = f"""
                 SELECT 
-                    id, timestamp, provider, model, 
-                    request_data, response_data, status_code,
-                    error_message, duration_ms, created_at, updated_at
-                FROM api_logs 
+                    id, trace_id, timestamp, provider, model, 
+                    type, success, latency as duration_ms, tokens, cost,
+                    error as error_message, response_summary as response_data,
+                    raw_data as request_data, created_at,
+                    prompt_tokens, completion_tokens, total_tokens_detailed,
+                    input_cost, output_cost, total_cost_detailed
+                FROM harborai_logs 
                 {where_clause}
                 ORDER BY timestamp DESC
                 LIMIT %s
@@ -718,20 +921,41 @@ class LogViewer:
                 for row in rows:
                     log_entry = {
                         "id": row["id"],
+                        "trace_id": row["trace_id"],
                         "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
                         "provider": row["provider"],
+                        "structured_provider": row["provider"],  # 兼容性字段
                         "model": row["model"],
-                        "request_data": row["request_data"],
-                        "response_data": row["response_data"],
-                        "status_code": row["status_code"],
-                        "error_message": row["error_message"],
+                        "type": row["type"],
+                        "success": row["success"],
                         "duration_ms": row["duration_ms"],
+                        "tokens": row["tokens"],
+                        "cost": row["cost"],
+                        "error_message": row["error_message"],
+                        "response_data": row["response_data"],
+                        "request_data": row["request_data"],
                         "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                        "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
-                        "type": log_type,
-                        "source": "postgresql"
+                        "source": "postgresql",
+                        # 新增详细字段
+                        "prompt_tokens": row.get("prompt_tokens", 0),
+                        "completion_tokens": row.get("completion_tokens", 0),
+                        "total_tokens_detailed": row.get("total_tokens_detailed", 0),
+                        "input_cost": row.get("input_cost", 0.0),
+                        "output_cost": row.get("output_cost", 0.0),
+                        "total_cost_detailed": row.get("total_cost_detailed", 0.0)
                     }
-                    logs.append(log_entry)
+                    
+                    # 解析 JSON 字段
+                    for json_field in ['response_data', 'request_data', 'tokens']:
+                        if log_entry.get(json_field):
+                            try:
+                                log_entry[json_field] = json.loads(log_entry[json_field])
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                    
+                    # 应用标准化处理
+                    standardized_log = standardize_log_data(log_entry, "postgres")
+                    logs.append(standardized_log)
                 
                 return {
                     "error": None,
@@ -867,7 +1091,7 @@ class LogViewer:
                 
                 return {
                     "error": None,
-                    "data": filtered_logs,
+                    "data": [standardize_log_data(log, "file") for log in filtered_logs],
                     "source": result.source,
                     "total_count": len(filtered_logs)
                 }
@@ -1471,9 +1695,16 @@ class LogViewer:
                     
                     # 如果还是没有，尝试其他可能的字段名称
                     if not tokens:
-                        tokens = response_log.get('tokens')
-                        if isinstance(tokens, dict):
-                            tokens = tokens.get('total_tokens')
+                        tokens_raw = response_log.get('tokens')
+                        if isinstance(tokens_raw, dict):
+                            tokens = tokens_raw.get('total_tokens')
+                        elif isinstance(tokens_raw, str):
+                            # 如果是JSON字符串，尝试解析
+                            try:
+                                tokens_parsed = json.loads(tokens_raw)
+                                tokens = tokens_parsed.get('total_tokens')
+                            except (json.JSONDecodeError, AttributeError):
+                                tokens = None
                 
                 # 提取成本信息 - 按设计文档中的TracingRecord字段名称
                 cost = response_log.get('total_cost')
@@ -1673,9 +1904,16 @@ class LogViewer:
                     tokens = log.get('total_tokens')
                     if not tokens:
                         # 尝试其他可能的字段名称以保持向后兼容性
-                        tokens = log.get('tokens')
-                        if isinstance(tokens, dict):
-                            tokens = tokens.get('total_tokens')
+                        tokens_raw = log.get('tokens')
+                        if isinstance(tokens_raw, dict):
+                            tokens = tokens_raw.get('total_tokens')
+                        elif isinstance(tokens_raw, str):
+                            # 如果是JSON字符串，尝试解析
+                            try:
+                                tokens_parsed = json.loads(tokens_raw)
+                                tokens = tokens_parsed.get('total_tokens')
+                            except (json.JSONDecodeError, AttributeError):
+                                tokens = None
                     tokens_display = f"{tokens:,}" if tokens and isinstance(tokens, (int, float)) else "N/A"
                     
                     # 处理耗时

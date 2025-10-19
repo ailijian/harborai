@@ -212,34 +212,50 @@ class FileLogParser:
         elif success is False:
             status_code = 500
         
-        # 提取 token 信息
-        tokens = log_data.get('tokens', {})
+        # 提取 token 信息 - 统一为对象结构
+        tokens_data = log_data.get('tokens', {})
         prompt_tokens = 0
         completion_tokens = 0
         total_tokens = 0
         
-        if isinstance(tokens, dict):
+        if isinstance(tokens_data, dict) and tokens_data:
             # 支持多种Token字段格式
             # 优先使用原始字段名，然后尝试标准字段名
-            prompt_tokens = (tokens.get('input', 0) or 
-                           tokens.get('prompt_tokens', 0) or 0)
-            completion_tokens = (tokens.get('output', 0) or 
-                               tokens.get('completion_tokens', 0) or 0)
-            total_tokens = (tokens.get('total', 0) or 
-                          tokens.get('total_tokens', 0) or 0)
+            prompt_tokens = (tokens_data.get('input', 0) or 
+                           tokens_data.get('prompt_tokens', 0) or 0)
+            completion_tokens = (tokens_data.get('output', 0) or 
+                               tokens_data.get('completion_tokens', 0) or 0)
+            total_tokens = (tokens_data.get('total', 0) or 
+                          tokens_data.get('total_tokens', 0) or 0)
+        else:
+            # 处理旧格式或空tokens字段：直接从顶级字段提取token信息
+            prompt_tokens = log_data.get('prompt_tokens', 0) or 0
+            completion_tokens = log_data.get('completion_tokens', 0) or 0
+            total_tokens = log_data.get('total_tokens', 0) or 0
         
-        # 提取成本信息
+        # 统一tokens字段为对象结构
+        tokens_obj = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens
+        }
+        
+        # 提取成本信息 - 统一为对象结构
         cost_data = log_data.get('cost', 0.0)
-        cost = 0.0
+        input_cost = 0.0
+        output_cost = 0.0
+        total_cost = 0.0
         
         if isinstance(cost_data, dict):
-            # 如果cost是对象，提取total_cost
-            cost = cost_data.get('total_cost', 0.0) or 0.0
+            # 如果cost是对象，提取各项成本
+            input_cost = cost_data.get('input_cost', 0.0) or 0.0
+            output_cost = cost_data.get('output_cost', 0.0) or 0.0
+            total_cost = cost_data.get('total_cost', 0.0) or 0.0
         elif isinstance(cost_data, (int, float)):
-            # 如果cost是数字，直接使用
-            cost = float(cost_data) if cost_data else 0.0
+            # 如果cost是数字，作为总成本
+            total_cost = float(cost_data) if cost_data else 0.0
         
-        if cost == 0.0:
+        if total_cost == 0.0:
             # 如果日志中没有成本信息或成本为0，使用PricingCalculator计算
             if prompt_tokens > 0 and completion_tokens > 0 and model != 'unknown':
                 calculated_cost = PricingCalculator.calculate_cost(
@@ -248,7 +264,20 @@ class FileLogParser:
                     model_name=model
                 )
                 if calculated_cost is not None:
-                    cost = calculated_cost
+                    total_cost = calculated_cost
+                    # 估算输入和输出成本（基于token比例）
+                    if prompt_tokens > 0 and completion_tokens > 0:
+                        total_tokens_calc = prompt_tokens + completion_tokens
+                        input_cost = total_cost * (prompt_tokens / total_tokens_calc)
+                        output_cost = total_cost * (completion_tokens / total_tokens_calc)
+        
+        # 统一cost字段为对象结构
+        cost_obj = {
+            "input_cost": input_cost,
+            "output_cost": output_cost,
+            "total_cost": total_cost,
+            "currency": "USD"
+        }
         
         # 提取延迟信息
         duration_ms = log_data.get('latency', 0.0)
@@ -263,7 +292,7 @@ class FileLogParser:
         if error_message and isinstance(error_message, dict):
             error_message = str(error_message)
         
-        # 更新标准化字段
+        # 更新标准化字段 - 使用统一的对象结构
         log_data.update({
             'provider': provider,
             'model': model,
@@ -271,11 +300,13 @@ class FileLogParser:
             'duration_ms': duration_ms,
             'error_message': error_message,
             'success': success,
+            'tokens': tokens_obj,  # 统一的tokens对象
+            'cost': cost_obj,      # 统一的cost对象
+            'type': log_type,
+            # 保留向后兼容的字段
             'prompt_tokens': prompt_tokens,
             'completion_tokens': completion_tokens,
-            'total_tokens': total_tokens,
-            'cost': cost,
-            'type': log_type
+            'total_tokens': total_tokens
         })
         
         return log_data

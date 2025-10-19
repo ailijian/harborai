@@ -159,13 +159,20 @@ class FallbackLogger:
         timestamp_context.mark_request()
         
         try:
+            # 调试信息
+            logger.info(f"log_request: state={self._state.value}, postgres_logger_exists={self._postgres_logger is not None}, file_logger_exists={self._file_logger is not None}")
+            
             if self._state == LoggerState.POSTGRES_ACTIVE and self._postgres_logger:
+                logger.info(f"Routing to PostgreSQL for trace_id: {trace_id}")
                 self._postgres_logger.log_request(trace_id, model, messages, **kwargs)
                 self._stats["postgres_logs"] += 1
             else:
                 if self._file_logger:
+                    logger.info(f"Routing to file logger for trace_id: {trace_id}")
                     self._file_logger.log_request(trace_id, model, messages, **kwargs)
                     self._stats["file_logs"] += 1
+                else:
+                    logger.error(f"No available logger for trace_id: {trace_id}")
         except Exception as e:
             # 详细的错误处理和分类
             error_context = {
@@ -229,13 +236,20 @@ class FallbackLogger:
             logger.warning(f"未找到 trace_id {trace_id} 的请求时间戳上下文")
         
         try:
+            # 调试信息
+            logger.info(f"log_response: state={self._state.value}, postgres_logger_exists={self._postgres_logger is not None}, file_logger_exists={self._file_logger is not None}")
+            
             if self._state == LoggerState.POSTGRES_ACTIVE and self._postgres_logger:
+                logger.info(f"Routing response to PostgreSQL for trace_id: {trace_id}")
                 self._postgres_logger.log_response(trace_id, response, latency, success, error)
                 self._stats["postgres_logs"] += 1
             else:
                 if self._file_logger:
+                    logger.info(f"Routing response to file logger for trace_id: {trace_id}")
                     self._file_logger.log_response(trace_id, response, latency, success, error)
                     self._stats["file_logs"] += 1
+                else:
+                    logger.error(f"No available logger for response trace_id: {trace_id}")
         except Exception as e:
             # 详细的错误处理
             error_context = {
@@ -393,10 +407,13 @@ class FallbackLogger:
             return False
         
         try:
-            # 这里可以添加一个简单的连接测试
-            # 例如执行一个简单的查询
+            # 实际测试PostgreSQL连接
+            import psycopg2
+            test_conn = psycopg2.connect(self.postgres_connection_string)
+            test_conn.close()
             return True
-        except Exception:
+        except Exception as e:
+            logger.debug(f"PostgreSQL connection test failed: {e}")
             return False
     
     def get_state(self) -> LoggerState:

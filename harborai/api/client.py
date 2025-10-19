@@ -379,6 +379,12 @@ class ChatCompletions:
             else:
                 fallback = []
         
+        # 处理structured_provider默认值：如果用户未指定，使用配置中的默认值
+        if structured_provider is None:
+            from ..config.settings import get_settings
+            settings = get_settings()
+            structured_provider = settings.default_structured_provider
+        
         trace_id = get_or_create_trace_id()
         
         with TraceContext(trace_id):
@@ -406,7 +412,7 @@ class ChatCompletions:
                 "seed": seed,
                 "stop": stop,
                 "stream": stream,
-                "structured_provider": structured_provider or "agently",
+                "structured_provider": structured_provider,
                 "temperature": temperature,
                 "tool_choice": tool_choice,
                 "tools": tools,

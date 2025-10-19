@@ -59,7 +59,11 @@ class PostgreSQLClient:
     def _build_connection_string(self) -> str:
         """构建 PostgreSQL 连接字符串"""
         if self.settings.postgres_url:
-            return self.settings.postgres_url
+            # 将 asyncpg 格式转换为 psycopg2 格式
+            url = self.settings.postgres_url
+            if url.startswith("postgresql+asyncpg://"):
+                url = url.replace("postgresql+asyncpg://", "postgresql://")
+            return url
         
         return (
             f"postgresql://{self.settings.postgres_user}:{self.settings.postgres_password}"
@@ -146,7 +150,7 @@ class PostgreSQLClient:
         if not conn:
             raise Exception("无法获取 PostgreSQL 连接")
         
-        # 构建查询条件
+        # 构建查询条件 - 匹配harborai_logs表结构
         where_conditions = ["timestamp >= %s"]
         params = [datetime.utcnow() - timedelta(days=days)]
         
@@ -155,33 +159,48 @@ class PostgreSQLClient:
             params.append(model)
         
         if provider:
-            where_conditions.append("provider = %s")
+            where_conditions.append("structured_provider = %s")
             params.append(provider)
+        
+        # 根据 log_type 添加类型过滤
+        if log_type == "request":
+            where_conditions.append("type = %s")
+            params.append("request")
+        elif log_type == "response":
+            where_conditions.append("type = %s")
+            params.append("response")
+        # log_type == "all" 或 "paired" 时不添加类型过滤
         
         where_clause = " AND ".join(where_conditions)
         
-        # 根据 log_type 调整查询字段
+        # 根据 log_type 调整查询字段 - 匹配harborai_logs表结构
         if log_type == "request":
             # 只查询请求相关字段
             select_fields = """
+                trace_id,
                 timestamp,
-                provider,
+                structured_provider as provider,
                 model,
-                request_data,
+                messages as request_data,
+                parameters,
                 'request' as type
             """
         else:
             # 查询所有字段（response, all, paired）
             select_fields = """
+                trace_id,
                 timestamp,
-                provider,
+                structured_provider as provider,
                 model,
-                request_data,
-                response_data,
-                status_code,
-                error_message,
-                duration_ms,
-                'response' as type
+                messages as request_data,
+                response_summary as response_data,
+                CASE WHEN success THEN 200 ELSE 500 END as status_code,
+                error as error_message,
+                latency as duration_ms,
+                success,
+                type,
+                tokens,
+                cost
             """
         
         # 执行查询
@@ -202,17 +221,23 @@ class PostgreSQLClient:
             data = []
             for row in rows:
                 log_data = dict(row)
-                # 解析 JSON 字段
+                # 解析 JSON 字段 - 适配harborai_logs表结构
                 if log_data.get('request_data'):
                     try:
                         log_data['request_data'] = json.loads(log_data['request_data'])
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 
                 if log_data.get('response_data'):
                     try:
                         log_data['response_data'] = json.loads(log_data['response_data'])
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                
+                if log_data.get('parameters'):
+                    try:
+                        log_data['parameters'] = json.loads(log_data['parameters'])
+                    except (json.JSONDecodeError, TypeError):
                         pass
                 
                 # 处理 paired 类型：为每个记录创建 request 和 response 两条记录
@@ -299,7 +324,7 @@ class PostgreSQLClient:
         params = [datetime.utcnow() - timedelta(days=days)]
         
         if provider:
-            where_conditions.append("provider = %s")
+            where_conditions.append("structured_provider = %s")
             params.append(provider)
         
         if model:
@@ -311,15 +336,15 @@ class PostgreSQLClient:
         # 聚合查询
         query = f"""
             SELECT 
-                provider,
+                structured_provider as provider,
                 model,
                 COUNT(*) as request_count,
-                AVG(duration_ms) as avg_duration,
-                SUM(CASE WHEN status_code = 200 THEN 1 ELSE 0 END) as success_count,
-                SUM(CASE WHEN status_code != 200 THEN 1 ELSE 0 END) as error_count
+                AVG(latency) as avg_duration,
+                SUM(CASE WHEN success = true THEN 1 ELSE 0 END) as success_count,
+                SUM(CASE WHEN success = false THEN 1 ELSE 0 END) as error_count
             FROM harborai_logs 
             WHERE {where_clause}
-            GROUP BY provider, model
+            GROUP BY structured_provider, model
             ORDER BY request_count DESC
         """
         

@@ -105,7 +105,7 @@ class UnifiedDecorator:
                 if connection_string:
                     self._postgres_logger = PostgresLogger(connection_string)
                 else:
-                    logger.warning("PostgreSQL logging enabled but no connection string provided")
+                    logger.debug("PostgreSQL logging enabled but no connection string provided")
             except Exception as e:
                 logger.warning(f"Failed to initialize PostgreSQL logger: {e}")
         self._enable_tracing = self.config.enable_tracing
