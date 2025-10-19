@@ -390,7 +390,7 @@ class EnhancedErrorHandler:
             'output_cost': 0.0,
             'total_cost': 0.0,
             'currency': 'CNY',
-            'pricing_source': 'default'
+            'pricing_source': 'builtin'
         }
 
     def _skip_cost_calculation(self, error: Exception, context: ErrorContext) -> Optional[Dict[str, Any]]:

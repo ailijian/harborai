@@ -21,11 +21,17 @@ class EnhancedModelPricing:
     """增强的模型价格配置
     
     扩展原有ModelPricing，添加货币、来源等信息
+    
+    价格来源类型说明：
+    - builtin: 使用系统内置的模型价格配置
+    - environment_variable: 从环境变量中加载的价格配置
+    - dynamic: 动态设置的价格配置
+    - unknown: 未知来源或无法确定价格配置
     """
     input_price_per_1k: float  # 每1K输入tokens的价格
     output_price_per_1k: float  # 每1K输出tokens的价格
     currency: str = "CNY"  # 货币单位
-    source: str = "builtin"  # 价格来源：builtin, environment_variable, dynamic
+    source: str = "builtin"  # 价格来源：builtin, environment_variable, dynamic, unknown
     last_updated: Optional[datetime] = None
     
     def __post_init__(self):
@@ -49,9 +55,9 @@ class CostBreakdown:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
         return {
-            "input_cost": round(self.input_cost, 6),
-            "output_cost": round(self.output_cost, 6),
-            "total_cost": round(self.total_cost, 6),
+            "input_cost": float(f"{self.input_cost:.6f}"),  # 保留6位小数，避免科学计数法
+            "output_cost": float(f"{self.output_cost:.6f}"),  # 保留6位小数，避免科学计数法
+            "total_cost": float(f"{self.total_cost:.6f}"),  # 保留6位小数，避免科学计数法
             "currency": self.currency,
             "pricing_source": self.pricing_source,
             "pricing_timestamp": self.pricing_timestamp,
@@ -199,7 +205,7 @@ class EnhancedPricingCalculator(PricingCalculator):
                     output_cost=0.0,
                     total_cost=0.0,
                     currency=self.cost_config["currency"],
-                    pricing_source="not_found",
+                    pricing_source="unknown",
                     pricing_timestamp=datetime.now(timezone.utc).isoformat(),
                     pricing_details={"error": "模型价格配置未找到"}
                 )
@@ -243,7 +249,7 @@ class EnhancedPricingCalculator(PricingCalculator):
                 output_cost=0.0,
                 total_cost=0.0,
                 currency=self.cost_config["currency"],
-                pricing_source="error",
+                pricing_source="unknown",
                 pricing_timestamp=datetime.now(timezone.utc).isoformat(),
                 pricing_details={"error": str(e)}
             )

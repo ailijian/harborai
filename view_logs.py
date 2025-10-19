@@ -238,9 +238,13 @@ class DemoDataGenerator:
             
             # 计算成本
             cost = 0.0
+            input_cost = 0.0
+            output_cost = 0.0
             if success and model in model_pricing:
                 pricing = model_pricing[model]
-                cost = (prompt_tokens / 1000 * pricing['input']) + (completion_tokens / 1000 * pricing['output'])
+                input_cost = prompt_tokens / 1000 * pricing['input']
+                output_cost = completion_tokens / 1000 * pricing['output']
+                cost = input_cost + output_cost
             
             response_log = {
                 'id': str(uuid.uuid4()),
@@ -263,7 +267,9 @@ class DemoDataGenerator:
                 'success': success,  # 明确设置成功状态
                 'total_tokens': total_tokens if success else 0,  # 按设计文档添加顶级字段
                 'total_cost': cost if success else 0.0,  # 按设计文档添加顶级字段
-                'pricing_source': 'estimated' if success else 'unknown',  # 价格来源
+                'input_cost': input_cost if success else 0.0,  # 输入成本
+                'output_cost': output_cost if success else 0.0,  # 输出成本
+                'pricing_source': random.choice(['builtin', 'environment_variable', 'dynamic', 'unknown']) if success else 'unknown',  # 价格来源
                 'created_at': (base_time - timedelta(minutes=random.randint(0, 10080))).isoformat(),
                 'source': 'demo'
             }
@@ -271,6 +277,23 @@ class DemoDataGenerator:
         
         return sorted(logs, key=lambda x: x['timestamp'], reverse=True)
 
+
+def normalize_pricing_source(pricing_source: str) -> str:
+    """
+    标准化价格源，提供向后兼容性
+    
+    将旧的价格源映射到新的标准价格源：
+    - not_found -> unknown
+    - error -> unknown  
+    - default -> builtin
+    - 其他保持不变
+    """
+    pricing_source_mapping = {
+        'not_found': 'unknown',
+        'error': 'unknown',
+        'default': 'builtin'
+    }
+    return pricing_source_mapping.get(pricing_source, pricing_source)
 
 def infer_provider_from_model(model: str) -> str:
     """从模型名称推断提供商
@@ -1577,7 +1600,8 @@ class LogViewer:
                     'request_count': 0,
                     'success_count': 0,
                     'total_tokens': 0,
-                    'total_cost': 0.0
+                    'total_cost': 0.0,
+                    'pricing_source': 'unknown'  # 默认值
                 }
             
             stats[key]['request_count'] += 1
@@ -1589,9 +1613,18 @@ class LogViewer:
             if tokens:
                 stats[key]['total_tokens'] += tokens
             
-            cost = log.get('cost') or log.get('estimated_cost', 0.0)
+            cost = log.get('total_cost') or log.get('cost') or log.get('estimated_cost', 0.0)
             if cost:
                 stats[key]['total_cost'] += cost
+            
+            # 处理pricing_source字段，优先使用非unknown的值
+            pricing_source = normalize_pricing_source(log.get('pricing_source', 'unknown'))
+            if pricing_source != 'unknown' or stats[key]['pricing_source'] == 'unknown':
+                stats[key]['pricing_source'] = pricing_source
+        
+        # 格式化成本精确度
+        for stat in stats.values():
+            stat['total_cost'] = float(f"{stat['total_cost']:.6f}")  # 保留6位小数，避免科学计数法
         
         return list(stats.values())
     
@@ -2253,7 +2286,7 @@ class LogViewer:
             if 'pricing_source' in first_log:
                 output.append("\n" + "-" * 40)
                 output.append("[DEBUG] 成本计算调试信息:")
-                pricing_source = first_log.get('pricing_source', 'N/A')
+                pricing_source = normalize_pricing_source(first_log.get('pricing_source', 'N/A'))
                 output.append(f"  价格数据源: {pricing_source}")
                 input_cost = first_log.get('input_cost')
                 output_cost = first_log.get('output_cost')
@@ -2340,8 +2373,8 @@ class LogViewer:
         # 统计价格数据源分布
         pricing_sources = {}
         for stat in stats:
-            pricing_source = stat.get('pricing_source', 'unknown')
-            pricing_sources[pricing_source] = pricing_sources.get(pricing_source, 0) + stat.get('request_count', 0)
+            pricing_source = normalize_pricing_source(stat.get('pricing_source', 'unknown'))
+        pricing_sources[pricing_source] = pricing_sources.get(pricing_source, 0) + stat.get('request_count', 0)
         
         # 显示总计
         if HAS_RICH and console:
@@ -2383,7 +2416,7 @@ class LogViewer:
                 request_count = stat.get('request_count', 0)
                 success_count = stat.get('success_count', 0)
                 success_rate = (success_count / request_count * 100) if request_count > 0 else 0
-                pricing_source = stat.get('pricing_source', 'N/A')
+                pricing_source = normalize_pricing_source(stat.get('pricing_source', 'N/A'))
                 
                 table.add_row(
                     stat.get('model', 'N/A'),
@@ -2462,7 +2495,7 @@ class LogViewer:
                 request_count = stat.get('request_count', 0)
                 success_count = stat.get('success_count', 0)
                 success_rate = (success_count / request_count * 100) if request_count > 0 else 0
-                pricing_source = stat.get('pricing_source', 'N/A')
+                pricing_source = normalize_pricing_source(stat.get('pricing_source', 'N/A'))
                 
                 print(f"{stat.get('model', 'N/A'):<20} "
                       f"{stat.get('provider', 'N/A'):<10} "
@@ -2771,8 +2804,8 @@ class LogViewer:
         for log in logs:
             processed_log = {}
             
-            # 基础字段
-            processed_log['trace_id'] = log.get('trace_id', '')
+            # 基础字段 - 优先使用hb_trace_id，保持向后兼容
+            processed_log['trace_id'] = log.get('hb_trace_id') or log.get('trace_id', '')
             processed_log['timestamp'] = self._format_timestamp_for_export(log.get('timestamp'))
             processed_log['log_type'] = log.get('log_type', '')
             processed_log['model'] = log.get('model', '')
@@ -2790,12 +2823,12 @@ class LogViewer:
                 processed_log['completion_tokens'] = 0
                 processed_log['total_tokens'] = 0
             
-            # 成本信息
+            # 成本信息 - 格式化精确度
             cost = log.get('cost', {})
             if isinstance(cost, dict):
-                processed_log['prompt_cost'] = cost.get('prompt_cost', 0.0)
-                processed_log['completion_cost'] = cost.get('completion_cost', 0.0)
-                processed_log['total_cost'] = cost.get('total_cost', 0.0)
+                processed_log['prompt_cost'] = float(f"{cost.get('prompt_cost', 0.0):.6f}")  # 保留6位小数，避免科学计数法
+                processed_log['completion_cost'] = float(f"{cost.get('completion_cost', 0.0):.6f}")  # 保留6位小数，避免科学计数法
+                processed_log['total_cost'] = float(f"{cost.get('total_cost', 0.0):.6f}")  # 保留6位小数，避免科学计数法
             else:
                 processed_log['prompt_cost'] = 0.0
                 processed_log['completion_cost'] = 0.0
@@ -3063,18 +3096,26 @@ class LogViewer:
             if total_cost == 0.0 and (input_cost > 0 or output_cost > 0):
                 total_cost = input_cost + output_cost
             
-            # 4. 将所有Token和成本信息统一到usage对象中
+            # 4. 将所有Token和成本信息统一到usage对象中，格式化成本精确度
             usage.update({
                 'prompt_tokens': prompt_tokens,
                 'completion_tokens': completion_tokens,
                 'total_tokens': total_tokens,
-                'input_cost': input_cost,
-                'output_cost': output_cost,
-                'total_cost': total_cost,
+                'input_cost': float(f"{input_cost:.6f}"),  # 保留6位小数，避免科学计数法
+                'output_cost': float(f"{output_cost:.6f}"),  # 保留6位小数，避免科学计数法
+                'total_cost': float(f"{total_cost:.6f}"),  # 保留6位小数，避免科学计数法
                 'currency': currency
             })
             
-            # 5. 删除根级别的重复字段
+            # 5. 统一trace_id字段，避免重复
+            # 优先使用hb_trace_id的值，但字段名统一为trace_id
+            if 'hb_trace_id' in cleaned_log:
+                # 将hb_trace_id重命名为trace_id
+                cleaned_log['trace_id'] = cleaned_log['hb_trace_id']
+                del cleaned_log['hb_trace_id']
+            # 如果只有trace_id，保持不变
+            
+            # 6. 删除根级别的重复字段
             fields_to_remove = [
                 'prompt_tokens', 'completion_tokens', 'total_tokens', 'tokens',
                 'input_cost', 'output_cost', 'total_cost', 'cost', 'currency'
@@ -3084,7 +3125,7 @@ class LogViewer:
                 if field in cleaned_log:
                     del cleaned_log[field]
             
-            # 6. 清理空值和None值（但保留usage对象）
+            # 7. 清理空值和None值（但保留usage对象）
             cleaned_log = {k: v for k, v in cleaned_log.items() if v is not None}
             
             cleaned_logs.append(cleaned_log)

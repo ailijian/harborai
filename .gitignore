@@ -236,9 +236,16 @@ sandbox/
 # API keys and secrets (additional safety)
 *api_key*
 *secret*
-*token*
+*_token
+*_token.*
+*.token
+token.txt
+token.json
 *credential*
 config/secrets/
+
+# Allow core token processing files
+!harborai/core/token_*.py
 
 # Cache directories
 .cache/
