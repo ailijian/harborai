@@ -323,57 +323,151 @@ HARBORAI_PLUGIN_CACHE_SIZE=100
 
 ## 💾 企业级数据持久化
 
-HarborAI 采用简化的双层数据持久化架构，确保数据安全和系统可靠性：
+HarborAI 采用 **PostgreSQL 主存储 + 文件日志备份** 的双存储架构，确保数据安全和系统高可用性：
 
-### 数据库架构
+### 🏗️ 双存储架构设计
 
 ```mermaid
 graph TD
-    A[应用层] --> B[FallbackLogger]
-    B --> C{PostgreSQL 可用?}
-    C -->|是| D[PostgreSQL 存储]
-    C -->|否| E[文件日志存储]
-    D --> F[定期健康检查]
-    F --> G{连接恢复?}
-    G -->|是| D
-    G -->|否| E
-    E --> H[自动重试连接]
-    H --> C
+    A[HarborAI 客户端] --> B[observability 模块]
+    B --> C[FallbackLogger 降级管理器]
+    C --> D{PostgreSQL 健康检查}
+    D -->|✅ 健康| E[PostgreSQL 主存储]
+    D -->|❌ 故障| F[文件系统备份存储]
+    E --> G[结构化日志表]
+    E --> H[成本统计表]
+    E --> I[追踪记录表]
+    F --> J[JSON 格式日志文件]
+    F --> K[按日期分割存储]
+    
+    %% 自动恢复机制
+    L[健康检查定时器] --> D
+    F --> M[自动重连机制]
+    M --> D
+    
+    %% 数据查询层
+    N[LogViewer 查询接口] --> O{数据源选择}
+    O -->|优先| E
+    O -->|降级| F
 ```
 
-### 主要存储：PostgreSQL
+### 🎯 核心特性
+
+- **智能降级**: PostgreSQL 不可用时自动切换到文件日志，无数据丢失
+- **自动恢复**: 定期检查 PostgreSQL 健康状态，自动恢复主存储
+- **统一查询**: 通过 `view_logs.py` 工具统一查询两种存储的数据
+- **数据一致性**: 两种存储格式保持一致，便于数据迁移和分析
+- **性能优化**: PostgreSQL 批量写入，文件日志异步刷新
+
+### 🗄️ PostgreSQL 主存储配置
 
 ```python
-# PostgreSQL 配置
 from harborai.storage import initialize_postgres_logger
+from harborai.storage.enhanced_postgres_logger import EnhancedPostgreSQLLogger
 
-# 自动初始化 PostgreSQL 日志记录器
+# 方式1: 使用全局初始化函数
 postgres_logger = initialize_postgres_logger(
-    connection_string="postgresql://user:pass@localhost:5432/harborai"
+    connection_string="postgresql://user:pass@localhost:5432/harborai",
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    batch_size=100,
+    flush_interval=5.0
+)
+
+# 方式2: 直接创建增强版 PostgreSQL 日志记录器
+enhanced_logger = EnhancedPostgreSQLLogger(
+    connection_string="postgresql://user:pass@localhost:5432/harborai",
+    table_name="harborai_logs",
+    batch_size=100,
+    flush_interval=5.0,
+    enable_health_check=True,
+    health_check_interval=30.0
+)
+
+# 启动日志记录器
+await enhanced_logger.start()
+
+# 记录日志
+await enhanced_logger.log_request(
+    provider="openai",
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello"}],
+    trace_id="hb_1234567890_abcd1234"
 )
 ```
 
-### 自动降级机制
+### 🔄 智能降级机制
 
 ```python
 from harborai.storage import FallbackLogger, LoggerState
+from harborai.storage.enhanced_fallback_logger import EnhancedFallbackLogger
 
-# 创建降级日志记录器
-fallback_logger = FallbackLogger(
+# 创建增强版降级日志记录器
+fallback_logger = EnhancedFallbackLogger(
     postgres_connection_string="postgresql://user:pass@localhost:5432/harborai",
     log_directory="./logs",
     max_postgres_failures=3,  # 失败3次后降级
-    health_check_interval=60.0  # 每60秒检查一次健康状态
+    health_check_interval=60.0,  # 每60秒检查一次健康状态
+    postgres_batch_size=100,
+    postgres_flush_interval=5.0,
+    file_rotation_size="100MB",
+    file_retention_days=30
 )
 
 # 查看当前状态
 current_state = fallback_logger.get_state()
 print(f"当前状态: {current_state}")  # POSTGRES_ACTIVE 或 FILE_FALLBACK
 
-# 获取统计信息
+# 获取详细统计信息
 stats = fallback_logger.get_stats()
 print(f"PostgreSQL 日志: {stats['postgres_logs']}")
 print(f"文件日志: {stats['file_logs']}")
+print(f"PostgreSQL 失败次数: {stats['postgres_failures']}")
+print(f"自动恢复次数: {stats['recovery_attempts']}")
+print(f"当前健康状态: {stats['postgres_healthy']}")
+
+# 手动触发健康检查
+health_status = await fallback_logger.check_postgres_health()
+print(f"PostgreSQL 健康状态: {health_status}")
+
+# 强制恢复到 PostgreSQL（如果可用）
+if await fallback_logger.force_postgres_recovery():
+    print("成功恢复到 PostgreSQL 主存储")
+else:
+    print("PostgreSQL 仍不可用，继续使用文件存储")
+```
+
+### 📁 文件系统备份存储
+
+```python
+from harborai.storage.filesystem_logger import FileSystemLogger
+
+# 创建文件系统日志记录器
+file_logger = FileSystemLogger(
+    log_directory="./logs",
+    rotation_size="100MB",
+    retention_days=30,
+    compression=True,
+    async_write=True,
+    buffer_size=1000
+)
+
+# 文件组织结构
+# logs/
+# ├── 2024-01-15/
+# │   ├── harborai_requests_2024-01-15_001.jsonl.gz
+# │   ├── harborai_responses_2024-01-15_001.jsonl.gz
+# │   └── harborai_errors_2024-01-15_001.jsonl.gz
+# ├── 2024-01-16/
+# └── ...
+
+# 查询文件日志
+logs = await file_logger.query_logs(
+    start_date="2024-01-15",
+    end_date="2024-01-16",
+    filters={"provider": "openai", "status": "success"}
+)
 ```
 
 ### 数据库配置
@@ -621,8 +715,32 @@ asyncio.run(async_chat())
 
 ### 3. 日志查询和统计
 
+HarborAI 提供了灵活的日志查询方式，开发者可以根据需要选择最适合的方法：
+
+#### 🛠️ 方式一：使用 view_logs.py 工具（推荐）
+
+专门的日志查看工具，支持丰富的过滤和格式化选项：
+
+```bash
+# 查看最近的API调用日志
+python view_logs.py --days 7 --model deepseek-chat --limit 20
+
+# 根据trace_id查询详细日志
+python view_logs.py --trace-id hb_1703123456789_a1b2c3d4
+
+# 查看统计信息
+python view_logs.py --stats --days 30
+
+# 导出日志数据
+python view_logs.py --export --format json --output logs.json
+
+# 实时监控模式
+python view_logs.py --monitor
+```
+
+在Python代码中调用：
+
 ```python
-# 方式一：使用命令行工具查看日志（推荐）
 import subprocess
 
 # 查看最近的API调用日志
@@ -640,25 +758,35 @@ result = subprocess.run([
     "--trace-id", "hb_1703123456789_a1b2c3d4"
 ], capture_output=True, text=True)
 print(result.stdout)
+```
 
-# 方式二：直接使用LogViewer类（高级用法）
+#### 🔧 方式二：直接调用核心日志API（高级用法）
+
+适合需要深度集成的场景：
+
+```python
 from view_logs import LogViewer
+from harborai.storage import get_postgres_logger, get_file_logger
 
-# 创建日志查看器实例
+# 创建日志查看器实例（自动检测数据源）
 log_viewer = LogViewer()
 
 # 查询最近的日志
 logs_result = log_viewer.get_logs(
     days=7,
     model="deepseek-chat",
-    limit=20
+    limit=20,
+    provider="deepseek",
+    success=True  # 只查询成功的调用
 )
 
 if logs_result.get("data"):
     print(f"总计: {len(logs_result['data'])} 条日志")
     for log in logs_result["data"]:
-        print(f"Trace ID: {log.get('trace_id', 'N/A')}")
+        print(f"HB Trace ID: {log.get('hb_trace_id', 'N/A')}")
         print(f"模型: {log.get('provider', 'N/A')}/{log.get('model', 'N/A')}")
+        print(f"Token使用: {log.get('token_usage', {})}")
+        print(f"成本信息: {log.get('cost_info', {})}")
         print(f"时间: {log.get('timestamp', 'N/A')}")
 
 # 根据trace_id查询详细日志
@@ -673,13 +801,50 @@ if stats_result.get("data"):
     print(f"总调用次数: {stats.get('total', 0)}")
     print(f"请求数: {stats.get('request', 0)}")
     print(f"响应数: {stats.get('response', 0)}")
+    print(f"总成本: {stats.get('total_cost', 0)} CNY")
+```
+
+#### 🔍 方式三：直接使用存储层API（专业用法）
+
+适合需要自定义查询逻辑的场景：
+
+```python
+from harborai.storage.postgres_logger import PostgreSQLLogger
+from harborai.storage.file_logger import FileSystemLogger
+from datetime import datetime, timedelta
+
+# 直接使用PostgreSQL日志记录器
+postgres_logger = PostgreSQLLogger()
+
+# 自定义查询
+logs = await postgres_logger.query_logs(
+    start_time=datetime.now() - timedelta(days=7),
+    end_time=datetime.now(),
+    filters={
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "success": True
+    },
+    limit=50
+)
+
+# 获取成本统计
+cost_stats = await postgres_logger.get_cost_statistics(
+    start_time=datetime.now() - timedelta(days=30),
+    group_by=["provider", "model"]
+)
 ```
 
 ### 4. 分布式追踪使用
 
+HarborAI 集成了 OpenTelemetry 标准，提供完整的分布式追踪能力，支持双重追踪ID系统：
+
+#### 🔍 基础追踪配置
+
 ```python
 from harborai import HarborAI
 from harborai.utils.tracer import TraceContext
+from harborai.core.tracing.dual_trace_manager import DualTraceContext
 
 # 启用分布式追踪
 client = HarborAI(
@@ -688,12 +853,14 @@ client = HarborAI(
     tracing_config={
         "service_name": "my-ai-app",
         "jaeger_endpoint": "http://localhost:14268/api/traces",
-        "sampling_rate": 1.0
+        "sampling_rate": 1.0,
+        "enable_otel": True,  # 启用 OpenTelemetry
+        "enable_dual_trace": True  # 启用双重追踪ID
     }
 )
 
 # 创建追踪上下文
-with TraceContext() as trace_id:
+with TraceContext() as hb_trace_id:
     # AI调用会自动关联到当前追踪上下文
     response = client.chat.completions.create(
         model="deepseek-chat",
@@ -701,13 +868,142 @@ with TraceContext() as trace_id:
     )
     
     # 追踪信息会自动记录到日志中
-    print(f"Trace ID: {trace_id}")
+    print(f"HarborAI Trace ID: {hb_trace_id}")
     
     # 可以通过日志查看器查询相关日志
-    # python view_logs.py --trace-id {trace_id}
+    # python view_logs.py --trace-id {hb_trace_id}
+```
+
+#### 🔗 双重追踪ID系统
+
+```python
+# 使用双重追踪上下文（HarborAI + OpenTelemetry）
+with DualTraceContext() as (hb_trace_id, otel_trace_id):
+    # 执行AI调用
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": "分析这个问题"}]
+    )
+    
+    print(f"HarborAI Trace ID: {hb_trace_id}")
+    print(f"OpenTelemetry Trace ID: {otel_trace_id}")
+    
+    # 两个ID都会记录在日志中，便于跨系统追踪
+```
+
+#### 📊 追踪查询和分析
+
+```python
+# 通过 trace_id 查询完整调用链
+from harborai.monitoring.log_viewer import LogViewer
+
+viewer = LogViewer()
+
+# 查询特定 trace_id 的所有日志
+trace_logs = viewer.query_logs_by_trace_id("hb_1234567890_abcd1234")
+
+# 列出最近的 trace_id
+recent_traces = viewer.list_recent_trace_ids(days=7, limit=20)
+
+# 验证 trace_id 格式
+is_valid = viewer.validate_trace_id("hb_1234567890_abcd1234")
+```
+
+#### 🎯 高级追踪功能
+
+```python
+from harborai.core.tracing.tracing_data_collector import TracingDataCollector
+from harborai.core.tracing.tracing_record import TracingRecord
+
+# 创建追踪数据收集器
+collector = TracingDataCollector()
+
+# 手动创建追踪记录
+tracing_record = TracingRecord(
+    hb_trace_id="hb_custom_trace_123",
+    otel_trace_id="0123456789abcdef0123456789abcdef",
+    span_id="abcdef0123456789",
+    operation_name="custom_ai_operation",
+    service_name="my-service",
+    start_time=datetime.now(),
+    duration_ms=150.5,
+    status="success",
+    tags={"model": "gpt-4", "user_id": "user123"},
+    logs=[{"level": "info", "message": "操作完成"}]
+)
+
+# 收集追踪数据
+await collector.collect_tracing_data(tracing_record)
+
+# 批量收集
+tracing_records = [tracing_record1, tracing_record2, tracing_record3]
+await collector.batch_collect_tracing_data(tracing_records)
+```
+
+#### 🔧 OpenTelemetry 集成
+
+```python
+from opentelemetry import trace
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# 配置 OpenTelemetry
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
+
+jaeger_exporter = JaegerExporter(
+    agent_host_name="localhost",
+    agent_port=6831,
+)
+
+span_processor = BatchSpanProcessor(jaeger_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# 在 HarborAI 调用中使用 OpenTelemetry span
+with tracer.start_as_current_span("ai_chat_completion") as span:
+    span.set_attribute("model", "deepseek-chat")
+    span.set_attribute("provider", "deepseek")
+    
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[{"role": "user", "content": "Hello"}]
+    )
+    
+    span.set_attribute("response_tokens", response.usage.completion_tokens)
+    span.set_attribute("total_cost", response.cost_info.total_cost)
+```
+
+#### 📈 追踪监控和告警
+
+```python
+from harborai.monitoring.tracing_monitor import TracingMonitor
+
+monitor = TracingMonitor()
+
+# 监控追踪性能
+performance_metrics = monitor.get_tracing_performance_metrics(
+    start_time=datetime.now() - timedelta(hours=1),
+    end_time=datetime.now()
+)
+
+print(f"平均响应时间: {performance_metrics.avg_duration_ms:.2f}ms")
+print(f"成功率: {performance_metrics.success_rate:.2%}")
+print(f"错误率: {performance_metrics.error_rate:.2%}")
+
+# 设置追踪告警
+monitor.set_performance_alert(
+    max_duration_ms=5000,  # 最大响应时间
+    min_success_rate=0.95,  # 最小成功率
+    alert_callback=lambda alert: print(f"追踪告警: {alert}")
+)
 ```
 
 ### 5. 成本追踪和监控
+
+HarborAI 提供精确的成本追踪和监控功能，支持输入成本和输出成本的细分统计：
+
+#### 💰 基础成本追踪
 
 ```python
 from harborai.core.cost_tracking import CostTracker
@@ -728,20 +1024,68 @@ cost_analyzer = get_cost_analyzer()
 end_date = datetime.now()
 start_date = end_date - timedelta(days=30)
 
-# 获取成本趋势分析
+# 获取详细成本趋势分析（包含输入输出成本细分）
 cost_trends = cost_analyzer.analyze_cost_trends(
     start_date=start_date,
     end_date=end_date,
-    group_by="daily"
+    group_by="daily",
+    include_breakdown=True  # 包含成本细分
 )
 
 print("成本趋势分析:")
 for trend in cost_trends:
     print(f"日期: {trend.date}")
-    print(f"总成本: {trend.total_cost:.4f} CNY")
+    print(f"总成本: {trend.total_cost:.6f} CNY")
+    print(f"  输入成本: {trend.input_cost:.6f} CNY ({trend.input_cost_percentage:.1f}%)")
+    print(f"  输出成本: {trend.output_cost:.6f} CNY ({trend.output_cost_percentage:.1f}%)")
+    print(f"Token使用:")
+    print(f"  输入Token: {trend.prompt_tokens:,}")
+    print(f"  输出Token: {trend.completion_tokens:,}")
+    print(f"  总Token: {trend.total_tokens:,}")
     print(f"请求数: {trend.request_count}")
     print(f"平均成本/请求: {trend.avg_cost_per_request:.6f} CNY")
+    print("---")
+```
 
+#### 📊 成本细分分析
+
+```python
+# 按模型获取成本细分
+model_costs = cost_analyzer.get_model_cost_breakdown(
+    start_date=start_date,
+    end_date=end_date
+)
+
+print("模型成本细分:")
+for model_cost in model_costs:
+    print(f"模型: {model_cost.provider}/{model_cost.model}")
+    print(f"  总成本: {model_cost.total_cost:.6f} CNY")
+    print(f"  输入成本: {model_cost.input_cost:.6f} CNY")
+    print(f"  输出成本: {model_cost.output_cost:.6f} CNY")
+    print(f"  成本比例: 输入{model_cost.input_ratio:.1f}% / 输出{model_cost.output_ratio:.1f}%")
+    print(f"  Token效率: {model_cost.cost_per_1k_tokens:.6f} CNY/1K tokens")
+    print(f"  调用次数: {model_cost.request_count}")
+    print("---")
+
+# 按提供商获取成本统计
+provider_costs = cost_analyzer.get_provider_cost_summary(
+    start_date=start_date,
+    end_date=end_date
+)
+
+print("提供商成本汇总:")
+for provider_cost in provider_costs:
+    print(f"提供商: {provider_cost.provider}")
+    print(f"  总成本: {provider_cost.total_cost:.6f} CNY")
+    print(f"  输入成本: {provider_cost.input_cost:.6f} CNY")
+    print(f"  输出成本: {provider_cost.output_cost:.6f} CNY")
+    print(f"  市场份额: {provider_cost.cost_share:.1f}%")
+    print("---")
+```
+
+#### 🚨 预算告警和监控
+
+```python
 # 检查预算告警
 budget_alerts = cost_analyzer.check_budget_alerts(
     daily_budget=100.0,
@@ -752,21 +1096,47 @@ if budget_alerts:
     for alert in budget_alerts:
         print(f"预算告警: {alert.alert_type}")
         print(f"当前使用: {alert.current_usage:.2f} CNY")
+        print(f"  输入成本: {alert.input_cost:.2f} CNY")
+        print(f"  输出成本: {alert.output_cost:.2f} CNY")
         print(f"预算限额: {alert.budget_limit:.2f} CNY")
         print(f"使用率: {alert.usage_percentage:.1f}%")
 
 # 生成每日成本报告
 daily_report = cost_analyzer.generate_daily_report()
 print(f"\n今日成本报告:")
-print(f"总成本: {daily_report.total_cost:.4f} CNY")
+print(f"总成本: {daily_report.total_cost:.6f} CNY")
+print(f"  输入成本: {daily_report.input_cost:.6f} CNY")
+print(f"  输出成本: {daily_report.output_cost:.6f} CNY")
 print(f"总请求数: {daily_report.total_requests}")
 print(f"平均延迟: {daily_report.avg_latency_ms:.2f}ms")
+print(f"Token使用: {daily_report.total_tokens:,} (输入: {daily_report.prompt_tokens:,}, 输出: {daily_report.completion_tokens:,})")
 
 # 模型效率分析
+print("\n模型效率分析:")
 for efficiency in daily_report.model_efficiency:
     print(f"模型: {efficiency.provider}/{efficiency.model}")
-    print(f"  成本效率: {efficiency.cost_efficiency:.4f}")
+    print(f"  成本效率: {efficiency.cost_efficiency:.6f} CNY/token")
+    print(f"  输入效率: {efficiency.input_efficiency:.6f} CNY/token")
+    print(f"  输出效率: {efficiency.output_efficiency:.6f} CNY/token")
     print(f"  性能评分: {efficiency.performance_score:.2f}")
+    print(f"  推荐指数: {efficiency.recommendation_score:.2f}")
+```
+
+#### 💡 成本优化建议
+
+```python
+# 获取成本优化建议
+optimization_suggestions = cost_analyzer.get_optimization_suggestions(
+    analysis_period_days=30
+)
+
+print("成本优化建议:")
+for suggestion in optimization_suggestions:
+    print(f"建议类型: {suggestion.type}")
+    print(f"描述: {suggestion.description}")
+    print(f"预期节省: {suggestion.estimated_savings:.2f} CNY/月")
+    print(f"实施难度: {suggestion.implementation_difficulty}")
+    print("---")
 ```
 
 ### 6. 性能优化使用
@@ -1073,12 +1443,34 @@ JAEGER_UI_URL=http://localhost:16686
 ZIPKIN_ENDPOINT=http://localhost:9411/api/v2/spans
 
 # === 模型价格配置（支持环境变量动态配置）===
-DEEPSEEK_INPUT_PRICE=0.0014
-DEEPSEEK_OUTPUT_PRICE=0.0028
-OPENAI_GPT4_INPUT_PRICE=0.03
-OPENAI_GPT4_OUTPUT_PRICE=0.06
-WENXIN_INPUT_PRICE=0.008
-WENXIN_OUTPUT_PRICE=0.016
+# 价格单位：每1K tokens的价格（人民币）
+# 支持多种环境变量命名格式：
+# 1. 厂商级别配置：{PROVIDER}_INPUT_PRICE / {PROVIDER}_OUTPUT_PRICE
+# 2. 模型级别配置：{PROVIDER}_{MODEL}_INPUT_PRICE / {PROVIDER}_{MODEL}_OUTPUT_PRICE
+
+# DeepSeek 模型价格配置
+DEEPSEEK_INPUT_PRICE=0.002
+DEEPSEEK_OUTPUT_PRICE=0.003
+
+# OpenAI 模型价格配置（按汇率1美元=7.2人民币转换）
+OPENAI_GPT4_INPUT_PRICE=0.216
+OPENAI_GPT4_OUTPUT_PRICE=0.432
+OPENAI_GPT4O_INPUT_PRICE=0.036
+OPENAI_GPT4O_OUTPUT_PRICE=0.108
+OPENAI_GPT4O_MINI_INPUT_PRICE=0.00015
+OPENAI_GPT4O_MINI_OUTPUT_PRICE=0.0006
+
+# 百度文心模型价格配置
+WENXIN_INPUT_PRICE=0.0008
+WENXIN_OUTPUT_PRICE=0.0032
+
+# 字节跳动豆包模型价格配置
+DOUBAO_INPUT_PRICE=0.0008
+DOUBAO_OUTPUT_PRICE=0.002
+
+# 价格配置优先级：动态价格 > 环境变量 > 内置价格
+# 货币单位配置
+COST_CURRENCY=CNY  # 支持：CNY、USD、EUR、JPY、GBP
 
 # === 性能优化配置 ===
 HARBORAI_FAST_PATH=true
@@ -1132,6 +1524,92 @@ HARBORAI_COST_EXPORT_ENABLED=true  # 启用成本数据导出
 ```
 
 完整的配置选项请参考 [.env.example](.env.example) 文件。
+
+### 模型价格配置详解
+
+HarborAI 提供了**三层价格配置机制**，支持灵活的价格管理和动态调整：
+
+#### 🎯 价格配置优先级
+
+1. **动态价格**（最高优先级）- 运行时通过API动态设置的价格
+2. **环境变量价格** - 通过环境变量配置的价格
+3. **内置价格**（默认）- 系统预定义的价格配置
+
+#### 📋 支持的环境变量格式
+
+**厂商级别配置**（推荐）：
+```env
+# 适用于该厂商的所有模型
+DEEPSEEK_INPUT_PRICE=0.002
+DEEPSEEK_OUTPUT_PRICE=0.003
+OPENAI_INPUT_PRICE=0.036
+OPENAI_OUTPUT_PRICE=0.108
+```
+
+**模型级别配置**（精确控制）：
+```env
+# 针对特定模型的价格配置
+OPENAI_GPT_4_INPUT_PRICE=0.216
+OPENAI_GPT_4_OUTPUT_PRICE=0.432
+OPENAI_GPT_4O_MINI_INPUT_PRICE=0.00015
+OPENAI_GPT_4O_MINI_OUTPUT_PRICE=0.0006
+```
+
+#### 💰 内置价格配置
+
+系统预置了主流模型的价格配置（单位：人民币/1K tokens）：
+
+| 厂商 | 模型 | 输入价格 | 输出价格 |
+|------|------|----------|----------|
+| DeepSeek | deepseek-chat | 0.002 | 0.003 |
+| DeepSeek | deepseek-reasoner | 0.002 | 0.003 |
+| 百度文心 | ernie-3.5-8k | 0.0008 | 0.0032 |
+| 百度文心 | ernie-x1-turbo-32k | 0.0008 | 0.0032 |
+| 豆包 | doubao-1-5-pro-32k | 0.0008 | 0.002 |
+| OpenAI | gpt-4o | 0.036 | 0.108 |
+| OpenAI | gpt-4o-mini | 0.00015 | 0.0006 |
+
+#### 🔧 动态价格管理
+
+**代码示例**：
+```python
+from harborai.core.dynamic_pricing_manager import DynamicPricingManager
+
+# 创建价格管理器
+pricing_manager = DynamicPricingManager()
+
+# 动态更新模型价格
+await pricing_manager.update_pricing(
+    provider="openai",
+    model="gpt-4",
+    input_price_per_1k=0.20,
+    output_price_per_1k=0.40,
+    currency="CNY",
+    operator="admin",
+    reason="价格调整"
+)
+
+# 查看价格变更历史
+changes = await pricing_manager.get_pricing_history("openai", "gpt-4")
+```
+
+#### 💡 最佳实践
+
+1. **生产环境**：使用环境变量配置，便于部署时调整
+2. **开发测试**：使用内置价格，快速启动
+3. **特殊需求**：使用动态价格，支持实时调整
+4. **成本控制**：定期检查价格配置，确保成本计算准确
+
+#### 🔍 价格配置验证
+
+系统提供配置验证工具：
+```bash
+# 验证价格配置
+python -m harborai.tools.config_validator --check-pricing
+
+# 查看当前价格配置
+python -m harborai.tools.pricing_viewer --list-all
+```
 
 ### 成本追踪货币配置
 
@@ -1502,8 +1980,8 @@ ai_providers:
       "model": "deepseek-chat",
       "provider": "deepseek",
       "status": "success",
-      "input_tokens": 150,
-      "output_tokens": 300,
+      "prompt_tokens": 150,
+      "completion_tokens": 300,
       "total_tokens": 450,
       "cost": {
         "input_cost": 0.21,
@@ -1533,8 +2011,8 @@ ai_providers:
     "avg_response_time": 2.3,
     "success_rate": 99.2,
     "token_usage": {
-      "total_input_tokens": 125000,
-      "total_output_tokens": 187500,
+      "total_prompt_tokens": 125000,
+      "total_completion_tokens": 187500,
       "total_tokens": 312500
     },
     "model_distribution": {
@@ -1573,6 +2051,49 @@ ai_providers:
   "metrics": ["cost", "tokens", "response_time", "success_rate"]
 }
 ```
+
+#### Token字段说明
+
+HarborAI 采用**厂商原始字段名对齐**的设计原则，确保Token字段名称与各AI服务商的原始响应保持一致：
+
+**🎯 设计原则**
+- **保持原始性**：直接使用厂商API响应中的原始字段名，如 `prompt_tokens`、`completion_tokens`
+- **避免转换**：不进行字段名转换（如 input_tokens → prompt_tokens），减少数据处理环节
+- **提升准确性**：直接从厂商响应中提取Token数据，确保数据的准确性和一致性
+- **便于调试**：保持与厂商文档一致的字段名，便于问题排查和对比
+
+**📊 Token字段结构**
+
+```json
+{
+  "tokens": {
+    "prompt_tokens": 150,      // 输入Token数量（与OpenAI、DeepSeek等厂商字段名一致）
+    "completion_tokens": 300,  // 输出Token数量（与厂商原始字段名一致）
+    "total_tokens": 450        // 总Token数量
+  },
+  "cost": {
+    "input_cost": 0.21,       // 输入成本（基于prompt_tokens计算）
+    "output_cost": 0.84,      // 输出成本（基于completion_tokens计算）
+    "total_cost": 1.05        // 总成本
+  }
+}
+```
+
+**🔧 厂商字段映射**
+
+| 厂商 | 输入Token字段 | 输出Token字段 | 总Token字段 |
+|------|---------------|---------------|-------------|
+| OpenAI | `prompt_tokens` | `completion_tokens` | `total_tokens` |
+| DeepSeek | `prompt_tokens` | `completion_tokens` | `total_tokens` |
+| 百度千帆 | `prompt_tokens` | `completion_tokens` | `total_tokens` |
+| 豆包 | `prompt_tokens` | `completion_tokens` | `total_tokens` |
+| Claude | `input_tokens` | `output_tokens` | `total_tokens` |
+| Gemini | `prompt_token_count` | `candidates_token_count` | `total_token_count` |
+
+**💡 使用建议**
+- 在处理Token数据时，优先使用 `prompt_tokens` 和 `completion_tokens` 字段
+- 对于成本计算，使用对应的 `input_cost` 和 `output_cost` 字段
+- 系统会自动处理不同厂商的字段差异，统一输出为标准格式
 
 #### 分布式追踪集成
 
