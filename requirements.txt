@@ -41,7 +41,7 @@ flask>=3.0.0
 
 # 分布式追踪 - 稳定版本配置（已验证兼容性）
 # 核心OpenTelemetry包 - 锁定稳定版本
-opentelemetry-api==1.37.0
+opentelemetry-api==1.38.0
 opentelemetry-sdk==1.37.0
 
 # 自动化仪表 - 使用兼容版本
