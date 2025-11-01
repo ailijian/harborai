@@ -48,7 +48,7 @@ opentelemetry-sdk==1.37.0
 opentelemetry-instrumentation-fastapi==0.58b0
 opentelemetry-instrumentation-httpx==0.58b0
 opentelemetry-instrumentation-redis==0.58b0
-opentelemetry-instrumentation-sqlalchemy==0.58b0
+opentelemetry-instrumentation-sqlalchemy==0.59b0
 
 # 导出器 - 明确版本约束
 opentelemetry-exporter-prometheus==1.12.0rc1
