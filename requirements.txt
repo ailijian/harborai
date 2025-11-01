@@ -59,7 +59,7 @@ opentelemetry-exporter-jaeger-proto-grpc==1.21.0
 # 注意：protobuf 4.x 与当前OpenTelemetry版本兼容，需要PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 protobuf>=4.21.0,<5.0.0
 grpcio>=1.60.0,<2.0.0
-googleapis-common-protos>=1.52.0,<1.60.0
+googleapis-common-protos>=1.52.0,<1.72.0
 
 # 重试和容错
 tenacity>=8.2.0
