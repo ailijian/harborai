@@ -46,7 +46,7 @@ opentelemetry-sdk==1.37.0
 
 # 自动化仪表 - 使用兼容版本
 opentelemetry-instrumentation-fastapi==0.58b0
-opentelemetry-instrumentation-httpx==0.58b0
+opentelemetry-instrumentation-httpx==0.59b0
 opentelemetry-instrumentation-redis==0.58b0
 opentelemetry-instrumentation-sqlalchemy==0.58b0
 
